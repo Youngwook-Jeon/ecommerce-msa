@@ -1,0 +1,33 @@
+version: "3.8"
+services:
+  # Application services
+
+  # Backing services
+  eco-postgres:
+    image: "postgres:16.1"
+    container_name: "eco-postgres"
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - ./postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
+
+  eco-redis:
+    image: "redis:7.2"
+    container_name: "eco-redis"
+    ports:
+      - "6379:6379"
+
+  eco-keycloak:
+    image: quay.io/keycloak/keycloak:22.0.5
+    container_name: "eco-keycloak"
+    command: start-dev --import-realm
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=admin
+    ports:
+      - "8080:8080"

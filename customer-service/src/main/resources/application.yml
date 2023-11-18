@@ -1,0 +1,7 @@
+server:
+  port: 9001
+  shutdown: graceful
+
+spring:
+  application:
+    name: customer-service
