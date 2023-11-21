@@ -27,13 +27,13 @@
   "oauth2DevicePollingInterval" : 5,
   "enabled" : true,
   "sslRequired" : "external",
-  "registrationAllowed" : false,
+  "registrationAllowed" : true,
   "registrationEmailAsUsername" : false,
   "rememberMe" : false,
   "verifyEmail" : false,
   "loginWithEmailAllowed" : true,
   "duplicateEmailsAllowed" : false,
-  "resetPasswordAllowed" : false,
+  "resetPasswordAllowed" : true,
   "editUsernameAllowed" : false,
   "bruteForceProtected" : false,
   "permanentLockout" : false,
@@ -54,7 +54,7 @@
       "attributes" : { }
     }, {
       "id" : "ea0e2949-7e35-4c8b-9df4-63e157330f26",
-      "name" : "store_master",
+      "name" : "STORE_MASTER",
       "description" : "",
       "composite" : false,
       "clientRole" : false,
@@ -70,7 +70,7 @@
       "attributes" : { }
     }, {
       "id" : "68047e6d-8249-4219-92a7-ddcc054f6492",
-      "name" : "admin",
+      "name" : "ADMIN",
       "description" : "Admin role",
       "composite" : false,
       "clientRole" : false,
@@ -82,7 +82,7 @@
       "description" : "${role_default-roles}",
       "composite" : true,
       "composites" : {
-        "realm" : [ "offline_access", "uma_authorization" ],
+        "realm" : [ "offline_access", "uma_authorization", "CUSTOMER" ],
         "client" : {
           "account" : [ "view-profile", "manage-account" ]
         }
@@ -92,7 +92,7 @@
       "attributes" : { }
     }, {
       "id" : "7ddadae3-0fa2-404e-9d95-21b0d13169cf",
-      "name" : "customer",
+      "name" : "CUSTOMER",
       "description" : "",
       "composite" : false,
       "clientRole" : false,
@@ -416,7 +416,7 @@
     } ],
     "disableableCredentialTypes" : [ ],
     "requiredActions" : [ ],
-    "realmRoles" : [ "store_master", "admin", "default-roles-ecomart", "customer" ],
+    "realmRoles" : [ "STORE_MASTER", "ADMIN", "default-roles-ecomart" ],
     "notBefore" : 0,
     "groups" : [ ]
   } ],
@@ -564,15 +564,16 @@
     "alwaysDisplayInConsole" : false,
     "clientAuthenticatorType" : "client-secret",
     "secret" : "ecomart-keycloak-secret",
-    "redirectUris" : [ "*" ],
-    "webOrigins" : [ "*" ],
+    "redirectUris" : ["http://ecomart/*", "http://localhost:9000/*"],
+    "webOrigins" : [],
     "notBefore" : 0,
     "bearerOnly" : false,
     "consentRequired" : false,
     "standardFlowEnabled" : true,
     "implicitFlowEnabled" : false,
-    "directAccessGrantsEnabled" : false,
-    "serviceAccountsEnabled" : false,
+    "directAccessGrantsEnabled" : true,
+    "serviceAccountsEnabled" : true,
+    "authorizationServicesEnabled": true,
     "publicClient" : false,
     "frontchannelLogout" : true,
     "protocol" : "openid-connect",
@@ -866,7 +867,9 @@
       "config" : {
         "user.attribute" : "foo",
         "access.token.claim" : "true",
-        "claim.name" : "realm_access.roles",
+        "claim.name" : "roles",
+        "id.token.claim": "true",
+        "userinfo.token.claim": "true",
         "jsonType.label" : "String",
         "multivalued" : "true"
       }
