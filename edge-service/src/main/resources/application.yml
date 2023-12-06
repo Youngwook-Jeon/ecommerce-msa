@@ -18,19 +18,20 @@ spring:
           max-idle-time: 15s
           max-life-time: 60s
       routes:
-        - id: customer-route
-          uri: ${CUSTOMER_SERVICE_URL:http://localhost:9001}
-          predicates:
-            - Path=/api/customers/**
-          filters:
-            - RewritePath=/api/(?<segment>.*), /$\{segment}
-            - TokenRelay=
+#        - id: customer-route
+#          uri: ${CUSTOMER_SERVICE_URL:http://localhost:9001}
+#          predicates:
+#            - Path=/api/customers/**
+#          filters:
+#            - RewritePath=/api/(?<segment>.*), /$\{segment}
+#            - TokenRelay=
         - id: spa-route
           uri: ${SPA_URL:http://localhost:3000}
           predicates:
             - Path=/**
       default-filters:
         - SaveSession
+        - TokenRelay
   data:
     redis:
       connect-timeout: 2s

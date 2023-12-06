@@ -35,9 +35,7 @@ public class SecurityConfig {
                         .authenticationEntryPoint(new HttpStatusServerEntryPoint(HttpStatus.UNAUTHORIZED)))
                 .oauth2Login(Customizer.withDefaults())
                 .logout(logout -> logout.logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository)))
-//                .csrf(csrf -> csrf
-//                        .csrfTokenRepository(CookieServerCsrfTokenRepository.withHttpOnlyFalse())
-//                        .csrfTokenRequestHandler(new XorServerCsrfTokenRequestAttributeHandler()::handle))
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .build();
     }
 
