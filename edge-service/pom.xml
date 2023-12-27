@@ -12,10 +12,7 @@
     <artifactId>edge-service</artifactId>
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <testcontainers.version>1.19.2</testcontainers.version>
+        <testcontainers.version>1.19.3</testcontainers.version>
     </properties>
 
     <dependencies>
