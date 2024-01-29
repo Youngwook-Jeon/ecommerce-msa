@@ -10,20 +10,22 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class UserController {
 
-    @GetMapping("user")
-    public ResponseEntity<UserInfoVm> getUser(@AuthenticationPrincipal OidcUser oidcUser) {
+    @GetMapping("authenticate")
+    public ResponseEntity<UserInfoVm> getAuthUser(@AuthenticationPrincipal OidcUser oidcUser) {
         if (oidcUser == null) return ResponseEntity.ok(
-                new UserInfoVm(false, null, null, null, null)
+                UserInfoVm.builder()
+                        .isAuthenticated(false)
+                        .build()
         );
 
-        var user = new UserInfoVm(
-                true,
-                oidcUser.getPreferredUsername(),
-                oidcUser.getGivenName(),
-                oidcUser.getFamilyName(),
-                oidcUser.getClaimAsStringList(SecurityConstant.ROLES_CLAIM)
-        );
+        var userInfo = UserInfoVm.builder()
+                .isAuthenticated(true)
+                .username(oidcUser.getPreferredUsername())
+                .firstName(oidcUser.getGivenName())
+                .lastName(oidcUser.getFamilyName())
+                .roles(oidcUser.getClaimAsStringList(SecurityConstant.ROLES_CLAIM))
+                .build();
 
-        return ResponseEntity.ok(user);
+        return ResponseEntity.ok(userInfo);
     }
 }

@@ -20,6 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Import(SecurityConfig.class)
 public class UserControllerTests {
 
+    public static final String AUTH_ENDPOINT = "/authenticate";
+
     @Autowired
     WebTestClient webClient;
 
@@ -29,7 +31,7 @@ public class UserControllerTests {
     @Test
     void when_not_authenticated_then_return_unauthenticated_user() {
         webClient.get()
-                .uri("/user")
+                .uri(AUTH_ENDPOINT)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(UserInfoVm.class).value(user ->
@@ -42,7 +44,7 @@ public class UserControllerTests {
                 List.of("ADMIN", "CUSTOMER"));
         webClient.mutateWith(configureMockOidcLogin(expectedUser))
                 .get()
-                .uri("/user")
+                .uri(AUTH_ENDPOINT)
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(UserInfoVm.class)
