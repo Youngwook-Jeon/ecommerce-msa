@@ -1,95 +1,179 @@
 package com.project.young.edgeservice.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.config.Customizer;
+import org.springframework.http.server.reactive.ServerHttpResponse;
+import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.oauth2.client.oidc.web.server.logout.OidcClientInitiatedServerLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
-import org.springframework.security.oauth2.client.web.server.ServerOAuth2AuthorizedClientRepository;
-import org.springframework.security.oauth2.client.web.server.WebSessionServerOAuth2AuthorizedClientRepository;
 import org.springframework.security.web.server.SecurityWebFilterChain;
-import org.springframework.security.web.server.authentication.HttpStatusServerEntryPoint;
+import org.springframework.security.web.server.ServerRedirectStrategy;
+import org.springframework.security.web.server.WebFilterExchange;
+import org.springframework.security.web.server.authentication.ServerAuthenticationFailureHandler;
+import org.springframework.security.web.server.authentication.ServerAuthenticationSuccessHandler;
 import org.springframework.security.web.server.authentication.logout.ServerLogoutSuccessHandler;
+import org.springframework.security.web.server.csrf.CookieServerCsrfTokenRepository;
+import org.springframework.security.web.server.csrf.CsrfToken;
+import org.springframework.security.web.server.csrf.ServerCsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.server.csrf.XorServerCsrfTokenRequestAttributeHandler;
+import org.springframework.util.StringUtils;
+import org.springframework.web.server.ServerWebExchange;
+import org.springframework.web.server.WebFilter;
+import org.springframework.web.util.UriComponentsBuilder;
+import reactor.core.publisher.Mono;
+
+import java.net.URI;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 
 @Configuration
+@EnableWebFluxSecurity
 public class SecurityConfig {
 
     @Bean
-    ServerOAuth2AuthorizedClientRepository authorizedClientRepository() {
-        return new WebSessionServerOAuth2AuthorizedClientRepository();
+    @Order(Ordered.HIGHEST_PRECEDENCE)
+    SecurityWebFilterChain clientFilterChain(
+            ServerHttpSecurity http,
+            ReactiveClientRegistrationRepository clientRegistrationRepository,
+            @Value("${gateway-uri}") URI gatewayUri,
+            @Value("${pre-authorization-status:FOUND}") HttpStatus preAuthorizationStatus,
+            @Value("${post-authorization-status:FOUND}") HttpStatus postAuthorizationStatus,
+            @Value("${post-logout-redirect-uri}") String postLogoutRedirectUri
+    ) {
+        http.authorizeExchange(auth -> auth
+                .pathMatchers("/cart/**").authenticated()
+                .pathMatchers("/profile/**").authenticated()
+                .pathMatchers("/private/**").authenticated()
+                .anyExchange().permitAll()
+        );
+
+        http.oauth2Login(login -> {
+            login.authorizationRedirectStrategy(new OAuth2ServerRedirectStrategy(preAuthorizationStatus));
+
+            final URI ui = UriComponentsBuilder.fromUri(gatewayUri).build().toUri();
+            login.authenticationSuccessHandler(new OAuth2ServerAuthenticationSuccessHandler(postAuthorizationStatus, ui));
+            login.authenticationFailureHandler(new OAuth2ServerAuthenticationFailureHandler(postAuthorizationStatus, ui));
+        });
+
+        http.logout(logout -> logout.logoutSuccessHandler(
+                new SpaLogoutSuccessHandler(clientRegistrationRepository, postLogoutRedirectUri)));
+
+        http.csrf(csrf ->
+                csrf.csrfTokenRepository(CookieServerCsrfTokenRepository.withHttpOnlyFalse()).csrfTokenRequestHandler(new SpaCsrfTokenRequestHandler()));
+
+        return http.build();
     }
 
     @Bean
-    SecurityWebFilterChain securityFilterChain(
-            ServerHttpSecurity http,
-            ReactiveClientRegistrationRepository clientRegistrationRepository
-    ) {
-        return http
-                .authorizeExchange(exchange -> exchange
-                        .pathMatchers("/profile/**").authenticated()
-                        .anyExchange().permitAll()
-                )
-                .exceptionHandling(exceptionHandling -> exceptionHandling
-                        .authenticationEntryPoint(new HttpStatusServerEntryPoint(HttpStatus.UNAUTHORIZED)))
-                .oauth2Login(Customizer.withDefaults())
-                .logout(logout -> logout.logoutSuccessHandler(oidcLogoutSuccessHandler(clientRegistrationRepository)))
-                .csrf(ServerHttpSecurity.CsrfSpec::disable)
-                .build();
+    WebFilter csrfCookieWebFilter() {
+        return (exchange, chain) -> {
+            exchange.getAttributeOrDefault(CsrfToken.class.getName(), Mono.empty()).subscribe();
+            return chain.filter(exchange);
+        };
     }
 
-//    @Bean
-//    public GrantedAuthoritiesMapper authoritiesMapper() {
-//        return authorities -> {
-//            Set<GrantedAuthority> authoritiesSet = new HashSet<>();
-//
-//            if (!authorities.isEmpty()) {
-//                var authority = authorities.iterator().next();
-//
-//                if (authority instanceof OidcUserAuthority oidcUserAuthority) {
-//                    var userInfo = oidcUserAuthority.getUserInfo();
-//
-//                    if (userInfo.hasClaim(REALM_ACCESS_CLAIM)) {
-//                        var realmAccess = userInfo.getClaimAsMap(REALM_ACCESS_CLAIM);
-//                        var roles = (Collection<String>) realmAccess.get(ROLES_CLAIM);
-//                        authoritiesSet.addAll(mapToAuthority(roles));
-//                    }
-//                } else if (authority instanceof OAuth2UserAuthority oauth2UserAuthority) {
-//                    var userAttributes = oauth2UserAuthority.getAttributes();
-//
-//                    if (userAttributes.containsKey(REALM_ACCESS_CLAIM)) {
-//                        var realmAccess = (Map<String, Object>) userAttributes.get(REALM_ACCESS_CLAIM);
-//                        var roles = (Collection<String>) realmAccess.get(ROLES_CLAIM);
-//                        authoritiesSet.addAll(mapToAuthority(roles));
-//                    }
-//                }
-//            }
-//
-//            return authoritiesSet;
-//        };
-//    }
-//
-//    private Collection<GrantedAuthority> mapToAuthority(Collection<String> roles) {
-//        return roles.stream()
-//                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-//                .collect(Collectors.toList());
-//    }
+    static class SpaLogoutSuccessHandler implements ServerLogoutSuccessHandler {
+        private final OidcClientInitiatedServerLogoutSuccessHandler handler;
 
-    private ServerLogoutSuccessHandler oidcLogoutSuccessHandler(ReactiveClientRegistrationRepository clientRegistrationRepository) {
-        var oidcLogoutSuccessHandler = new OidcClientInitiatedServerLogoutSuccessHandler(clientRegistrationRepository);
-        oidcLogoutSuccessHandler.setPostLogoutRedirectUri("{baseUrl}");
-        return oidcLogoutSuccessHandler;
+        public SpaLogoutSuccessHandler(
+                ReactiveClientRegistrationRepository clientRegistrationRepository,
+                String postLogoutRedirectUri
+        ) {
+            this.handler = new OidcClientInitiatedServerLogoutSuccessHandler(clientRegistrationRepository);
+            this.handler.setPostLogoutRedirectUri(postLogoutRedirectUri);
+        }
+
+        @Override
+        public Mono<Void> onLogoutSuccess(WebFilterExchange exchange, Authentication authentication) {
+            return this.handler.onLogoutSuccess(exchange, authentication)
+                    .then(Mono.fromRunnable(() -> exchange.getExchange().getResponse().setStatusCode(HttpStatus.ACCEPTED)));
+        }
     }
 
-//    @Bean
-//    WebFilter csrfWebFilter() {
-//        return (exchange, chain) -> {
-//            exchange.getResponse().beforeCommit(() -> Mono.defer(() -> {
-//                Mono<CsrfToken> csrfToken = exchange.getAttribute(CsrfToken.class.getName());
-//                return csrfToken != null ? csrfToken.then() : Mono.empty();
-//            }));
-//            return chain.filter(exchange);
-//        };
-//    }
+    static class OAuth2ServerRedirectStrategy implements ServerRedirectStrategy {
+        private final HttpStatus defaultStatus;
+
+        public OAuth2ServerRedirectStrategy(HttpStatus httpStatus) {
+            this.defaultStatus = httpStatus;
+        }
+
+        @Override
+        public Mono<Void> sendRedirect(ServerWebExchange exchange, URI location) {
+            return Mono.fromRunnable(() -> {
+                ServerHttpResponse response = exchange.getResponse();
+                var status = Optional.ofNullable(exchange.getRequest().getHeaders().get("X-RESPONSE-STATUS")).stream()
+                        .flatMap(Collection::stream)
+                        .filter(StringUtils::hasLength)
+                        .findAny()
+                        .map(statusStr -> {
+                            try {
+                                final int statusCode = Integer.parseInt(statusStr);
+                                return HttpStatus.valueOf(statusCode);
+                            } catch (NumberFormatException e) {
+                                return HttpStatus.valueOf(statusStr.toUpperCase());
+                            }
+                        })
+                        .orElse(defaultStatus);
+                response.setStatusCode(status);
+                response.getHeaders().setLocation(location);
+            });
+        }
+    }
+
+    static class OAuth2ServerAuthenticationSuccessHandler implements ServerAuthenticationSuccessHandler {
+        private final OAuth2ServerRedirectStrategy redirectStrategy;
+        private final URI redirectUri;
+
+        public OAuth2ServerAuthenticationSuccessHandler(HttpStatus status, URI uri) {
+            this.redirectStrategy = new OAuth2ServerRedirectStrategy(status);
+            this.redirectUri = uri;
+        }
+
+        @Override
+        public Mono<Void> onAuthenticationSuccess(WebFilterExchange webFilterExchange, Authentication authentication) {
+            return redirectStrategy.sendRedirect(webFilterExchange.getExchange(), redirectUri);
+        }
+    }
+
+    static class OAuth2ServerAuthenticationFailureHandler implements ServerAuthenticationFailureHandler {
+        private final URI redirectUri;
+        private final OAuth2ServerRedirectStrategy redirectStrategy;
+
+        public OAuth2ServerAuthenticationFailureHandler(HttpStatus status, URI uri) {
+            this.redirectStrategy = new OAuth2ServerRedirectStrategy(status);
+            this.redirectUri = uri;
+        }
+
+        @Override
+        public Mono<Void> onAuthenticationFailure(WebFilterExchange webFilterExchange, AuthenticationException exception) {
+            return redirectStrategy.sendRedirect(webFilterExchange.getExchange(), redirectUri);
+        }
+    }
+
+    static class SpaCsrfTokenRequestHandler extends ServerCsrfTokenRequestAttributeHandler {
+        private final ServerCsrfTokenRequestAttributeHandler delegate = new XorServerCsrfTokenRequestAttributeHandler();
+
+        @Override
+        public void handle(ServerWebExchange exchange, Mono<CsrfToken> csrfToken) {
+            this.delegate.handle(exchange, csrfToken);
+        }
+
+        @Override
+        public Mono<String> resolveCsrfTokenValue(ServerWebExchange exchange, CsrfToken csrfToken) {
+            List<String> csrfHeader = exchange.getRequest().getHeaders().get(csrfToken.getHeaderName());
+            boolean hasHeader = csrfHeader != null && csrfHeader.stream().anyMatch(StringUtils::hasText);
+
+            return hasHeader ? super.resolveCsrfTokenValue(exchange, csrfToken) :
+                    this.delegate.resolveCsrfTokenValue(exchange, csrfToken);
+        }
+    }
+
 }

@@ -1,10 +1,9 @@
-version: "3.8"
 services:
   # Application services
 
   # Backing services
   eco-postgres:
-    image: "postgres:16.1"
+    image: "postgres:17.0"
     container_name: "eco-postgres"
     ports:
       - "5432:5432"
@@ -15,13 +14,13 @@ services:
       - ./postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
 
   eco-redis:
-    image: "redis:7.2"
+    image: "redis:7.4"
     container_name: "eco-redis"
     ports:
       - "6379:6379"
 
   eco-keycloak:
-    image: quay.io/keycloak/keycloak:22.0.5
+    image: quay.io/keycloak/keycloak:25.0.6
     container_name: "eco-keycloak"
     command: start-dev --import-realm
     volumes:

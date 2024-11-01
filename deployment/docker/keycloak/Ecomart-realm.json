@@ -458,8 +458,8 @@
     "authenticationFlowBindingOverrides" : { },
     "fullScopeAllowed" : false,
     "nodeReRegistrationTimeout" : 0,
-    "defaultClientScopes" : [ "web-origins", "acr", "roles", "profile", "email" ],
-    "optionalClientScopes" : [ "address", "phone", "offline_access", "microprofile-jwt" ]
+    "defaultClientScopes" : [ "web-origins", "acr", "roles", "profile", "email", "microprofile-jwt" ],
+    "optionalClientScopes" : [ "address", "phone", "offline_access" ]
   }, {
     "id" : "651abd44-cc55-4b9d-a0fe-67071a7af6d2",
     "clientId" : "account-console",
@@ -564,8 +564,13 @@
     "alwaysDisplayInConsole" : false,
     "clientAuthenticatorType" : "client-secret",
     "secret" : "ecomart-keycloak-secret",
-    "redirectUris" : ["*"],
-    "webOrigins" : ["*"],
+    "redirectUris" : [
+      "http://ecomart/*",
+      "http://localhost:9000/*"
+    ],
+    "webOrigins" : [
+      "+"
+    ],
     "notBefore" : 0,
     "bearerOnly" : false,
     "consentRequired" : false,

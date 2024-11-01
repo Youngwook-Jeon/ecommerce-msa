@@ -5,6 +5,14 @@ server:
     idle-timeout: 15s
   shutdown: graceful
 
+gateway-uri: http://localhost:${server.port}
+spa-uri: http://localhost:3000
+issuer-uri: http://localhost:8080
+post-logout-redirect-uri: ${gateway-uri}/
+
+#pre-authorization-status: NO_CONTENT
+#post-authorization-status: NO_CONTENT
+
 spring:
   application:
     name: edge-service
@@ -18,38 +26,47 @@ spring:
           max-idle-time: 15s
           max-life-time: 60s
       routes:
-#        - id: customer-route
-#          uri: ${CUSTOMER_SERVICE_URL:http://localhost:9001}
-#          predicates:
-#            - Path=/api/customers/**
-#          filters:
-#            - RewritePath=/api/(?<segment>.*), /$\{segment}
-#            - TokenRelay=
-        - id: spa-route
-          uri: ${SPA_URL:http://localhost:3000}
+        #        - id: customer-route
+        #          uri: ${CUSTOMER_SERVICE_URL:http://localhost:9001}
+        #          predicates:
+        #            - Path=/api/customers/**
+        #          filters:
+        #            - RewritePath=/api/(?<segment>.*), /$\{segment}
+        #            - TokenRelay=
+        - id: spa
+          uri: ${spa-uri}
           predicates:
             - Path=/**
       default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin Access-Control-Request-Headers
         - SaveSession
-        - TokenRelay
-  data:
-    redis:
-      connect-timeout: 2s
-      host: localhost
-      port: 6379
-      timeout: 1s
-  session:
-    timeout: 10m
-    redis:
-      namespace: ecomart:edge
+  #  data:
+  #    redis:
+  #      connect-timeout: 2s
+  #      host: localhost
+  #      port: 6379
+  #      timeout: 1s
+  #  session:
+  #    timeout: 10m
+  #    redis:
+  #      namespace: ecomart:edge
   security:
     oauth2:
       client:
         registration:
           keycloak:
+            provider: keycloak
             client-id: edge-service
             client-secret: ecomart-keycloak-secret
-            scope: openid,roles
+            authorization-grant-type: authorization_code
+            scope: openid,roles,profile,email,offline_access
         provider:
           keycloak:
-            issuer-uri: http://localhost:8080/realms/Ecomart
+            issuer-uri: ${issuer-uri}/realms/Ecomart
+
+logging:
+  level:
+    org:
+      springframework:
+        security: INFO
+        boot: INFO
