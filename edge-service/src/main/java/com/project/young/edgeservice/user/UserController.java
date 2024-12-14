@@ -1,6 +1,5 @@
 package com.project.young.edgeservice.user;
 
-import com.project.young.common.constant.SecurityConstant;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
@@ -10,6 +9,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class UserController {
+
+    public static final String ROLES_CLAIM = "roles";
 
     @GetMapping("authentication")
     public ResponseEntity<UserInfoVm> getAuthUser(@AuthenticationPrincipal OidcUser oidcUser) {
@@ -24,7 +25,7 @@ public class UserController {
                 .username(oidcUser.getPreferredUsername())
                 .firstName(oidcUser.getGivenName())
                 .lastName(oidcUser.getFamilyName())
-                .roles(oidcUser.getClaimAsStringList(SecurityConstant.ROLES_CLAIM))
+                .roles(oidcUser.getClaimAsStringList(ROLES_CLAIM))
                 .build();
 
         return ResponseEntity.ok(userInfo);

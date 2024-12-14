@@ -1,6 +1,5 @@
 package com.project.young.edgeservice.user;
 
-import com.project.young.common.constant.SecurityConstant;
 import com.project.young.edgeservice.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +13,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.util.List;
 
+import static com.project.young.edgeservice.user.UserController.ROLES_CLAIM;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @WebFluxTest(UserController.class)
@@ -56,7 +56,7 @@ public class UserControllerTests {
             builder.claim(StandardClaimNames.PREFERRED_USERNAME, expectedUser.username());
             builder.claim(StandardClaimNames.GIVEN_NAME, expectedUser.firstName());
             builder.claim(StandardClaimNames.FAMILY_NAME, expectedUser.lastName());
-            builder.claim(SecurityConstant.ROLES_CLAIM, expectedUser.roles());
+            builder.claim(ROLES_CLAIM, expectedUser.roles());
         });
     }
 }

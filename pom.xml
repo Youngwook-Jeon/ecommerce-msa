@@ -18,6 +18,7 @@
         <module>customer-service</module>
         <module>common-library</module>
         <module>edge-service</module>
+        <module>product-service</module>
     </modules>
     <properties>
         <java.version>21</java.version>
@@ -29,7 +30,11 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-logging</artifactId>
         </dependency>
     </dependencies>
 
@@ -37,7 +42,17 @@
         <dependencies>
             <dependency>
                 <groupId>com.project.young</groupId>
-                <artifactId>common-library</artifactId>
+                <artifactId>common-application</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.project.young</groupId>
+                <artifactId>common-domain</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.project.young</groupId>
+                <artifactId>product-service-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
