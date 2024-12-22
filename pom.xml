@@ -52,6 +52,16 @@
             </dependency>
             <dependency>
                 <groupId>com.project.young</groupId>
+                <artifactId>product-domain-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.project.young</groupId>
+                <artifactId>product-domain-application</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.project.young</groupId>
                 <artifactId>product-service-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
