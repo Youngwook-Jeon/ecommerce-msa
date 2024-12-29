@@ -1,0 +1,34 @@
+{
+    "namespace": "com.project.young.kafka.product.avro.model",
+    "type": "record",
+    "name": "ProductAvroModel",
+    "fields": [
+        {
+            "name": "productId",
+            "type": {
+                "type": "string"
+            }
+        },
+        {
+            "name": "productName",
+            "type": {
+                "type": "string"
+            }
+        },
+        {
+            "name": "description",
+            "type": {
+                "type": "string"
+            }
+        },
+        {
+            "name": "price",
+            "type": {
+                "type": "bytes",
+                "logicalType": "decimal",
+                "precision": 10,
+                "scale": 2
+            }
+        }
+    ]
+}
