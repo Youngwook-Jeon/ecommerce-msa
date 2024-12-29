@@ -15,6 +15,7 @@
         <module>product-service-main</module>
         <module>product-service-web</module>
         <module>product-domain</module>
+        <module>product-dataaccess</module>
     </modules>
 
     <properties>

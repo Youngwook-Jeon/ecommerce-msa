@@ -3,8 +3,7 @@ package com.project.young.productservice.domain;
 import com.project.young.productservice.domain.dto.CreateProductCommand;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.event.ProductCreatedEvent;
-import com.project.young.productservice.domain.exception.ProductDomainException;
-import com.project.young.productservice.domain.exception.ProductNotSavedException;
+import com.project.young.productservice.domain.exception.ProductAlreadyExistsException;
 import com.project.young.productservice.domain.mapper.ProductDataMapper;
 import com.project.young.productservice.domain.ports.output.repository.ProductRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -27,16 +26,19 @@ public class ProductCreateCommandHandler {
 
     @Transactional
     public ProductCreatedEvent createProduct(CreateProductCommand createProductCommand) {
+        checkProduct(createProductCommand.getProductName());
         Product product = productDataMapper.createProductCommandToProduct(createProductCommand);
         ProductCreatedEvent productCreatedEvent = productDomainService.initiateProduct(product);
-        try {
-            Product savedProduct = productRepository.createProduct(product);
-            log.info("Product saved successfully with id: {}", savedProduct.getId());
-        } catch (Exception e) {
-            log.error("Could not save product with name: {}", createProductCommand.getProductName(), e);
-            throw new ProductNotSavedException("Could not save product with name " +
-                    createProductCommand.getProductName() + " caused by " + e.getMessage());
-        }
+        Product savedProduct = productRepository.createProduct(product);
+        log.info("Product saved successfully with id: {}", savedProduct.getId());
+
         return productCreatedEvent;
+    }
+
+    private void checkProduct(String productName) {
+        productRepository.findByProductName(productName)
+                .ifPresent(product -> {
+                    throw new ProductAlreadyExistsException("Product with name " + productName + " already exists");
+                });
     }
 }
