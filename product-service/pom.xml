@@ -13,9 +13,10 @@
     <packaging>pom</packaging>
     <modules>
         <module>product-service-main</module>
-        <module>product-service-web</module>
+        <module>product-web</module>
         <module>product-domain</module>
         <module>product-dataaccess</module>
+        <module>product-messaging</module>
     </modules>
 
     <properties>
