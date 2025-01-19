@@ -1,0 +1,6 @@
+.DS_Store
+
+volumes/kafka/data/
+volumes/zookeeper/
+volumes/redis/data/
+volumes/postgresql/data/

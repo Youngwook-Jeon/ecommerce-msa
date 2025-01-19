@@ -24,7 +24,7 @@ sleep 5
 
 echo "Deleting Kafka and Zookeeper volumes"
 
-yes | rm -r ./volumes/kafka/*
+yes | rm -r ./volumes/kafka/data/*
 
 yes | rm -r ./volumes/zookeeper/*
 

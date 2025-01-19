@@ -9,6 +9,7 @@ gateway-uri: http://localhost:${server.port}
 spa-uri: http://localhost:3000
 issuer-uri: http://localhost:8080
 post-logout-redirect-uri: ${gateway-uri}/
+api-version: v1
 
 #pre-authorization-status: NO_CONTENT
 #post-authorization-status: NO_CONTENT
@@ -26,13 +27,20 @@ spring:
           max-idle-time: 15s
           max-life-time: 60s
       routes:
-        #        - id: customer-route
-        #          uri: ${CUSTOMER_SERVICE_URL:http://localhost:9001}
-        #          predicates:
-        #            - Path=/api/customers/**
-        #          filters:
-        #            - RewritePath=/api/(?<segment>.*), /$\{segment}
-        #            - TokenRelay=
+#                - id: customer-route
+#                  uri: ${CUSTOMER_SERVICE_URL:http://localhost:9001}
+#                  predicates:
+#                    - Path=/api/customers/**
+#                  filters:
+#                    - RewritePath=/api/(?<segment>.*), /$\{segment}
+#                    - TokenRelay=
+        - id: product-route
+          uri: ${PRODUCT_SERVICE_URL:http://localhost:9002}
+          predicates:
+            - Path=/api/${api-version}/products/**
+          filters:
+            - RewritePath=/api/${api-version}/(?<segment>.*), /$\{segment}
+            - TokenRelay=
         - id: spa
           uri: ${spa-uri}
           predicates:

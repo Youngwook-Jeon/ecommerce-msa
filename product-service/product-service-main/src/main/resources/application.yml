@@ -1,6 +1,8 @@
 server:
   port: 9002
 
+issuer-uri: http://localhost:8080
+
 product-service:
   product-topic-name: product
 
@@ -18,6 +20,12 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${issuer-uri}/realms/Ecomart
 
   sql:
     init:
@@ -41,3 +49,9 @@ kafka-producer-config:
   linger-ms: 5
   request-timeout-ms: 60000
   retry-count: 5
+
+logging:
+  level:
+    org:
+      springframework:
+        security: INFO
