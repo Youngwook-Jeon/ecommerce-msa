@@ -8,7 +8,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -26,6 +26,8 @@ import java.util.List;
 @EnableWebSecurity
 public class SecurityConfig {
 
+    public static final String ROLES_CLAIM = "roles";
+
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.oauth2ResourceServer(oauth2 ->
@@ -34,7 +36,7 @@ public class SecurityConfig {
         http.sessionManagement(sm ->
                 sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-        http.csrf(AbstractHttpConfigurer::disable);
+        http.csrf(CsrfConfigurer::disable);
 
         http.authorizeHttpRequests(requests -> requests
                 .requestMatchers(HttpMethod.GET, "/products/**").permitAll()
@@ -47,7 +49,7 @@ public class SecurityConfig {
     static class KeycloakRealmRolesGrantedAuthoritiesConverter implements Converter<Jwt, Collection<GrantedAuthority>> {
         @Override
         public List<GrantedAuthority> convert(Jwt jwt) {
-            return jwt.getClaimAsStringList("roles").stream()
+            return jwt.getClaimAsStringList(ROLES_CLAIM).stream()
                     .map(SimpleGrantedAuthority::new)
                     .map(GrantedAuthority.class::cast)
                     .toList();

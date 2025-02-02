@@ -1,0 +1,27 @@
+{
+  "realm" : "Ecomart",
+  "users" : [ {
+    "id" : "dfa2d16d-5eab-4630-8dc3-0bcfeba7f24a",
+    "username" : "lucas",
+    "firstName" : "Lucas",
+    "lastName" : "Jeon",
+    "email" : "lucas@lucas.com",
+    "emailVerified" : false,
+    "createdTimestamp" : 1700057829757,
+    "enabled" : true,
+    "totp" : false,
+    "credentials" : [ {
+      "id" : "ab75a3f2-298a-497c-adfe-f622ced411b2",
+      "type" : "password",
+      "userLabel" : "My password",
+      "createdDate" : 1700057910231,
+      "secretData" : "{\"value\":\"N82AjHKGOsTwEfImYMIkTnxx5dIBizQtn3cQ1jTplgY=\",\"salt\":\"FtZmLehY0sNqAwjCTwwqlg==\",\"additionalParameters\":{}}",
+      "credentialData" : "{\"hashIterations\":27500,\"algorithm\":\"pbkdf2-sha256\",\"additionalParameters\":{}}"
+    } ],
+    "disableableCredentialTypes" : [ ],
+    "requiredActions" : [ ],
+    "realmRoles" : [ "STORE_MASTER", "ADMIN", "default-roles-ecomart" ],
+    "notBefore" : 0,
+    "groups" : [ ]
+  } ]
+}

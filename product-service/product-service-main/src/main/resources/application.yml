@@ -1,7 +1,7 @@
 server:
   port: 9002
 
-issuer-uri: http://localhost:8080
+issuer-uri: http://localhost:8080/realms/Ecomart
 
 product-service:
   product-topic-name: product
@@ -25,7 +25,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${issuer-uri}/realms/Ecomart
+          issuer-uri: ${issuer-uri}
 
   sql:
     init:

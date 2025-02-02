@@ -1,5 +1,6 @@
 package com.project.young.edgeservice.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -11,6 +12,9 @@ import org.springframework.security.config.annotation.web.reactive.EnableWebFlux
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.client.endpoint.OAuth2RefreshTokenGrantRequest;
+import org.springframework.security.oauth2.client.endpoint.ReactiveOAuth2AccessTokenResponseClient;
+import org.springframework.security.oauth2.client.endpoint.WebClientReactiveRefreshTokenTokenResponseClient;
 import org.springframework.security.oauth2.client.oidc.web.server.logout.OidcClientInitiatedServerLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
 import org.springframework.security.web.server.SecurityWebFilterChain;
@@ -36,6 +40,7 @@ import java.util.Optional;
 
 @Configuration
 @EnableWebFluxSecurity
+@Slf4j
 public class SecurityConfig {
 
     @Bean
@@ -78,6 +83,11 @@ public class SecurityConfig {
             exchange.getAttributeOrDefault(CsrfToken.class.getName(), Mono.empty()).subscribe();
             return chain.filter(exchange);
         };
+    }
+
+    @Bean
+    public ReactiveOAuth2AccessTokenResponseClient<OAuth2RefreshTokenGrantRequest> accessTokenResponseClient() {
+        return new WebClientReactiveRefreshTokenTokenResponseClient();
     }
 
     static class SpaLogoutSuccessHandler implements ServerLogoutSuccessHandler {

@@ -7,7 +7,7 @@ server:
 
 gateway-uri: http://localhost:${server.port}
 spa-uri: http://localhost:3000
-issuer-uri: http://localhost:8080
+issuer-uri: http://localhost:8080/realms/Ecomart
 post-logout-redirect-uri: ${gateway-uri}/
 api-version: v1
 
@@ -40,7 +40,6 @@ spring:
             - Path=/api/${api-version}/products/**
           filters:
             - RewritePath=/api/${api-version}/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: spa
           uri: ${spa-uri}
           predicates:
@@ -48,16 +47,16 @@ spring:
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin Access-Control-Request-Headers
         - SaveSession
-  #  data:
-  #    redis:
-  #      connect-timeout: 2s
-  #      host: localhost
-  #      port: 6379
-  #      timeout: 1s
-  #  session:
-  #    timeout: 10m
-  #    redis:
-  #      namespace: ecomart:edge
+  data:
+    redis:
+      connect-timeout: 2s
+      host: localhost
+      port: 6379
+      timeout: 1s
+  session:
+    timeout: 14d
+    redis:
+      namespace: ecomart:edge
   security:
     oauth2:
       client:
@@ -70,7 +69,7 @@ spring:
             scope: openid,roles,profile,email,offline_access
         provider:
           keycloak:
-            issuer-uri: ${issuer-uri}/realms/Ecomart
+            issuer-uri: ${issuer-uri}
 
 logging:
   level:
