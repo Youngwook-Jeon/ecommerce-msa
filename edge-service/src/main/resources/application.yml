@@ -61,12 +61,18 @@ spring:
     oauth2:
       client:
         registration:
-          keycloak:
+          edge-service-keycloak:
             provider: keycloak
             client-id: edge-service
             client-secret: ecomart-keycloak-secret
             authorization-grant-type: authorization_code
             scope: openid,roles,profile,email,offline_access
+#          ecomart-mobile: # TODO: Add a mobile oauth2 client
+#            provider: keycloak
+#            client-id: ecomart-mobile
+#            client-secret: ""
+#            authorization-grant-type: authorization_code
+#            scope: openid,roles,profile,email,offline_access
         provider:
           keycloak:
             issuer-uri: ${issuer-uri}
@@ -77,3 +83,5 @@ logging:
       springframework:
         security: INFO
         boot: INFO
+#        web.server.session: DEBUG
+

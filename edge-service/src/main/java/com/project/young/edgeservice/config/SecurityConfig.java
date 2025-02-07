@@ -9,6 +9,7 @@ import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
+import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
@@ -67,6 +68,9 @@ public class SecurityConfig {
             login.authenticationSuccessHandler(new OAuth2ServerAuthenticationSuccessHandler(postAuthorizationStatus, ui));
             login.authenticationFailureHandler(new OAuth2ServerAuthenticationFailureHandler(postAuthorizationStatus, ui));
         });
+
+//        http.addFilterAt(new AnonymousSessionFilter(), SecurityWebFiltersOrder.ANONYMOUS_AUTHENTICATION);
+        http.addFilterAt(new InitSessionCreationFilter(), SecurityWebFiltersOrder.ANONYMOUS_AUTHENTICATION);
 
         http.logout(logout -> logout.logoutSuccessHandler(
                 new SpaLogoutSuccessHandler(clientRegistrationRepository, postLogoutRedirectUri)));
