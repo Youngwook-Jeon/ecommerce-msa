@@ -1,10 +1,12 @@
 package com.project.young.productservice.web.controller;
 
 import com.project.young.productservice.domain.dto.CreateProductCommand;
+import com.project.young.productservice.domain.dto.CreateProductResponse;
 import com.project.young.productservice.domain.ports.input.service.ProductApplicationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -52,8 +54,9 @@ public class ProductController {
 
     @PostMapping
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<String> create(@Valid @RequestBody CreateProductCommand createProductCommand) {
-        return ResponseEntity.ok("product created");
+    public ResponseEntity<CreateProductResponse> create(@Valid @RequestBody CreateProductCommand createProductCommand) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(productApplicationService.createProduct(createProductCommand));
     }
 
     static record UserDto(@NotNull String username, @NotNull List<String> roles, @NotNull Long exp) {
