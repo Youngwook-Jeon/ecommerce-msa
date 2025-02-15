@@ -8,7 +8,7 @@ import reactor.core.publisher.Mono;
 
 @Slf4j
 public class AnonymousSessionFilter implements WebFilter {
-    private static final String SESSION_KEY = "SESSION";
+    private static final String SESSION_KEY = "SESSION_edge-service";
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {

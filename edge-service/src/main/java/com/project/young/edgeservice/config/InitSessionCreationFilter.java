@@ -9,11 +9,16 @@ import reactor.core.publisher.Mono;
 @Slf4j
 public class InitSessionCreationFilter implements WebFilter {
     private static final String SESSION_INITIALIZED_FLAG = "sessionInitialized";
-    private static final String SESSION_KEY = "SESSION";
+//    private static final String SESSION_KEY = "SESSION";
+    private final String sessionKey;
+
+    public InitSessionCreationFilter(String sessionKey) {
+        this.sessionKey = sessionKey;
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
-        boolean hasSessionCookie = exchange.getRequest().getCookies().containsKey(SESSION_KEY);
+        boolean hasSessionCookie = exchange.getRequest().getCookies().containsKey(sessionKey);
 
         if (!hasSessionCookie) {
             return exchange.getSession()
@@ -23,7 +28,7 @@ public class InitSessionCreationFilter implements WebFilter {
                     .then(chain.filter(exchange));
         }
 
-        log.debug("session value: {}", exchange.getRequest().getCookies().get(SESSION_KEY));
+        log.debug("session value: {}", exchange.getRequest().getCookies().get(sessionKey));
 
         return chain.filter(exchange);
     }

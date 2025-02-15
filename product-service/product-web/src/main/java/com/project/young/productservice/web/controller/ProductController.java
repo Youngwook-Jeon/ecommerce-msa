@@ -55,6 +55,7 @@ public class ProductController {
     @PostMapping
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<CreateProductResponse> create(@Valid @RequestBody CreateProductCommand createProductCommand) {
+        log.info("create: {}", createProductCommand);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(productApplicationService.createProduct(createProductCommand));
     }

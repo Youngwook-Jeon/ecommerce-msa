@@ -15,6 +15,8 @@ while [[ ! $zookeeperCheckResult == "imok" ]]; do
 done
 echo "Zookeeper is running"
 
+sleep 5
+
 echo "Starting Kafka cluster"
 
 # start kafka

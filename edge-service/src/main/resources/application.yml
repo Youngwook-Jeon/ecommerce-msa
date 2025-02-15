@@ -3,6 +3,10 @@ server:
   netty:
     connection-timeout: 2s
     idle-timeout: 15s
+  reactive:
+    session:
+      cookie:
+        name: SESSION_${spring.application.name}
   shutdown: graceful
 
 gateway-uri: http://localhost:${server.port}
@@ -81,7 +85,8 @@ logging:
   level:
     org:
       springframework:
-        security: INFO
+        security: DEBUG
         boot: INFO
-#        web.server.session: DEBUG
+        session: DEBUG
+        web.server.session: DEBUG
 
