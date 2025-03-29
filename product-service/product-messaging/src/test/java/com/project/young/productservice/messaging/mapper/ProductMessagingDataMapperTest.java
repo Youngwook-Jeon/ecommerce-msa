@@ -1,7 +1,7 @@
 package com.project.young.productservice.messaging.mapper;
 
 import com.project.young.common.domain.valueobject.Money;
-import com.project.young.common.domain.valueobject.ProductID;
+import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.kafka.product.avro.model.ProductAvroModel;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.event.ProductCreatedEvent;
@@ -27,9 +27,9 @@ class ProductMessagingDataMapperTest {
     @Test
     void shouldMapProductCreatedEventToAvroModelCorrectly() {
         // given
-        ProductID productId = new ProductID(UUID.randomUUID());
+        ProductId productId = new ProductId(UUID.randomUUID());
         Product product = Product.builder()
-                .productID(productId)
+                .productId(productId)
                 .productName("Test Product")
                 .description("Test Description")
                 .price(new Money(BigDecimal.valueOf(100.0)))
@@ -65,9 +65,9 @@ class ProductMessagingDataMapperTest {
     @Test
     void shouldThrowException_WhenProductNameIsNull() {
         // given
-        ProductID productId = new ProductID(UUID.randomUUID());
+        ProductId productId = new ProductId(UUID.randomUUID());
         Product product = Product.builder()
-                .productID(productId)
+                .productId(productId)
                 .productName(null)
                 .description("Test Description")
                 .price(new Money(BigDecimal.valueOf(100.0)))

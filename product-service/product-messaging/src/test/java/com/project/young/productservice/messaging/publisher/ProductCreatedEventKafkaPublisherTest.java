@@ -1,7 +1,7 @@
 package com.project.young.productservice.messaging.publisher;
 
 import com.project.young.common.domain.valueobject.Money;
-import com.project.young.common.domain.valueobject.ProductID;
+import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.kafka.producer.service.KafkaProducer;
 import com.project.young.kafka.product.avro.model.ProductAvroModel;
 import com.project.young.productservice.domain.config.ProductServiceConfigData;
@@ -29,14 +29,14 @@ import static org.mockito.Mockito.when;
 class ProductCreatedEventKafkaPublisherTest {
     private final String topicName = "product-topic";
     private Product testProduct;
-    private static final ProductID productID = new ProductID(UUID.randomUUID());
+    private static final ProductId productID = new ProductId(UUID.randomUUID());
     private ProductCreatedEvent testEvent;
     private ProductAvroModel avroModel;
 
     @BeforeEach
     void setup() {
         testProduct = Product.builder()
-                .productID(productID)
+                .productId(productID)
                 .productName("test product")
                 .description("test description")
                 .price(new Money(BigDecimal.valueOf(100)))

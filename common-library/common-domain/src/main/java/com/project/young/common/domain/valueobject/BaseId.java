@@ -2,10 +2,10 @@ package com.project.young.common.domain.valueobject;
 
 import java.util.Objects;
 
-public abstract class BaseID<T> {
+public abstract class BaseId<T> {
     private final T value;
 
-    protected BaseID(T value) {
+    protected BaseId(T value) {
         this.value = value;
     }
 
@@ -15,7 +15,7 @@ public abstract class BaseID<T> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        BaseID<?> baseID = (BaseID<?>) o;
+        BaseId<?> baseID = (BaseId<?>) o;
         return value.equals(baseID.value);
     }
 

@@ -1,7 +1,7 @@
 package com.project.young.productservice.domain;
 
 import com.project.young.common.domain.util.IdentityGenerator;
-import com.project.young.common.domain.valueobject.ProductID;
+import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.domain.dto.CreateProductCommand;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.event.ProductCreatedEvent;
@@ -23,9 +23,9 @@ public class ProductCreateCommandHandler {
     private final ProductDataMapper productDataMapper;
     private final ProductRepository productRepository;
     private final ProductDomainService productDomainService;
-    private final IdentityGenerator<ProductID> identityGenerator;
+    private final IdentityGenerator<ProductId> identityGenerator;
 
-    public ProductCreateCommandHandler(ProductDataMapper productDataMapper, ProductRepository productRepository, ProductDomainService productDomainService, IdentityGenerator<ProductID> identityGenerator) {
+    public ProductCreateCommandHandler(ProductDataMapper productDataMapper, ProductRepository productRepository, ProductDomainService productDomainService, IdentityGenerator<ProductId> identityGenerator) {
         this.productDataMapper = productDataMapper;
         this.productRepository = productRepository;
         this.productDomainService = productDomainService;

@@ -2,9 +2,9 @@ package com.project.young.productservice.domain.entity;
 
 import com.project.young.common.domain.entity.AggregateRoot;
 import com.project.young.common.domain.valueobject.Money;
-import com.project.young.common.domain.valueobject.ProductID;
+import com.project.young.common.domain.valueobject.ProductId;
 
-public class Product extends AggregateRoot<ProductID> {
+public class Product extends AggregateRoot<ProductId> {
     private final String productName;
     private final String description;
     private final Money price;
@@ -26,22 +26,22 @@ public class Product extends AggregateRoot<ProductID> {
     }
 
     private Product(Builder builder) {
-        super.setId(builder.productID);
+        super.setId(builder.productId);
         this.productName = builder.productName;
         this.description = builder.description;
         this.price = builder.price;
     }
 
     public static final class Builder {
-        private ProductID productID;
+        private ProductId productId;
         private String productName;
         private String description;
         private Money price;
 
         private Builder() {}
 
-        public Builder productID(ProductID val) {
-            productID = val;
+        public Builder productId(ProductId val) {
+            productId = val;
             return this;
         }
 

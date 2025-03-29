@@ -1,7 +1,7 @@
 package com.project.young.productservice.domain;
 
 import com.project.young.common.domain.valueobject.Money;
-import com.project.young.common.domain.valueobject.ProductID;
+import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.domain.dto.CreateProductCommand;
 import com.project.young.productservice.domain.dto.CreateProductResponse;
 import com.project.young.productservice.domain.entity.Product;
@@ -48,7 +48,7 @@ class ProductApplicationServiceImplTest {
         createProductCommand = new CreateProductCommand("Sample Product", "Description", BigDecimal.valueOf(100.0));
 
         product = Product.builder()
-                .productID(new ProductID(UUID.randomUUID()))
+                .productId(new ProductId(UUID.randomUUID()))
                 .productName(createProductCommand.getProductName())
                 .description(createProductCommand.getDescription())
                 .price(new Money((createProductCommand.getPrice())))

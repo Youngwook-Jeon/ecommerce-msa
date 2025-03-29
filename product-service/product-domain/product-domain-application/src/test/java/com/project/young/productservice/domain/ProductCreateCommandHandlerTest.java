@@ -2,7 +2,7 @@ package com.project.young.productservice.domain;
 
 import com.project.young.common.domain.util.IdentityGenerator;
 import com.project.young.common.domain.valueobject.Money;
-import com.project.young.common.domain.valueobject.ProductID;
+import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.domain.dto.CreateProductCommand;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.event.ProductCreatedEvent;
@@ -36,22 +36,22 @@ class ProductCreateCommandHandlerTest {
     private ProductDomainService productDomainService;
 
     @Mock
-    private IdentityGenerator<ProductID> identityGenerator;
+    private IdentityGenerator<ProductId> identityGenerator;
 
     @InjectMocks
     private ProductCreateCommandHandler productCreateCommandHandler;
 
     private CreateProductCommand createProductCommand;
     private Product product;
-    private ProductID productId;
+    private ProductId productId;
 
     @BeforeEach
     void setUp() {
         createProductCommand = new CreateProductCommand("Sample Product", "Description", BigDecimal.valueOf(100.0));
-        productId = new ProductID(UUID.randomUUID());
+        productId = new ProductId(UUID.randomUUID());
 
         product = Product.builder()
-                .productID(productId)
+                .productId(productId)
                 .productName(createProductCommand.getProductName())
                 .description(createProductCommand.getDescription())
                 .price(new Money((createProductCommand.getPrice())))

@@ -64,7 +64,7 @@ public class SecurityConfig {
             @Value("${post-logout-redirect-uri}") String postLogoutRedirectUri) {
 
         http.authorizeExchange(auth -> auth
-                .pathMatchers("/admin/**").hasAuthority("ADMIN")
+                .pathMatchers("/dashboard/admin/**").hasAuthority("ADMIN")
 //                .pathMatchers("/profile/**").authenticated()
                 .anyExchange().permitAll()
         );
