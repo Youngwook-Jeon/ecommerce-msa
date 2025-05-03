@@ -30,6 +30,9 @@ public class Category extends AggregateRoot<CategoryId> {
     }
 
     public void assignId(Long val) {
+        if (val == null || val <= 0) {
+            throw new CategoryDomainException("Category ID value must be positive.");
+        }
         if (this.getId() != null) {
             throw new CategoryDomainException("This category id is already assigned.");
         }
@@ -57,7 +60,23 @@ public class Category extends AggregateRoot<CategoryId> {
         }
 
         public Category build() {
+            validate();
             return new Category(this);
+        }
+
+        private void validate() {
+            if (name == null || name.isBlank()) {
+                throw new CategoryDomainException("Category name cannot be blank.");
+            }
+
+            if (name.length() > 50) {
+                throw new CategoryDomainException("Category name cannot exceed 50 characters.");
+            }
+
+            if (parentId != null && parentId.equals(categoryId)) {
+                throw new CategoryDomainException("Category cannot be its own parent.");
+            }
+
         }
     }
 }

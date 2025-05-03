@@ -1,5 +1,6 @@
 package com.project.young.productservice.dataaccess.product.adapter;
 
+import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.productservice.dataaccess.product.entity.CategoryEntity;
 import com.project.young.productservice.dataaccess.product.mapper.CategoryDataAccessMapper;
 import com.project.young.productservice.dataaccess.product.repository.CategoryJpaRepository;
@@ -41,5 +42,13 @@ public class CategoryRepositoryImpl implements CategoryRepository {
     @Override
     public boolean existsByName(String name) {
         return categoryJpaRepository.existsByName(name);
+    }
+
+    @Override
+    public boolean existsById(CategoryId categoryId) {
+        if (categoryId == null) {
+            throw new IllegalArgumentException("CategoryId object can not be null.");
+        }
+        return categoryJpaRepository.existsById(categoryId.getValue());
     }
 }

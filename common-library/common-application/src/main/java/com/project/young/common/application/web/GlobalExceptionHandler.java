@@ -21,6 +21,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(value = {MethodArgumentNotValidException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorDTO handleException(MethodArgumentNotValidException exception) {
+        log.warn(exception.getMessage(), exception);
         String message = exception.getBindingResult().getAllErrors()
                 .stream()
                 .map(DefaultMessageSourceResolvable::getDefaultMessage)
@@ -35,6 +36,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(value = {ValidationException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorDTO handleException(ValidationException validationException) {
+        log.warn(validationException.getMessage(), validationException);
         ErrorDTO errorDTO;
         if (validationException instanceof ConstraintViolationException constraintViolationException) {
             String violationMessages = extractViolationMessages(constraintViolationException);

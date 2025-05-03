@@ -6,6 +6,9 @@ public abstract class BaseId<T> {
     private final T value;
 
     protected BaseId(T value) {
+        if (value == null) {
+            throw new IllegalArgumentException("ID value cannot be null.");
+        }
         this.value = value;
     }
 
