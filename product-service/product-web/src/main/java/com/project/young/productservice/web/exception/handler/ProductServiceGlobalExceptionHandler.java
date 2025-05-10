@@ -2,10 +2,7 @@ package com.project.young.productservice.web.exception.handler;
 
 import com.project.young.common.application.web.ErrorDTO;
 import com.project.young.common.application.web.GlobalExceptionHandler;
-import com.project.young.productservice.domain.exception.CategoryDomainException;
-import com.project.young.productservice.domain.exception.DuplicateCategoryNameException;
-import com.project.young.productservice.domain.exception.ProductAlreadyExistsException;
-import com.project.young.productservice.domain.exception.ProductDomainException;
+import com.project.young.productservice.domain.exception.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -60,6 +57,17 @@ public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler
         return ErrorDTO.builder()
                 .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
                 .message(categoryDomainException.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(value = {CategoryNotFoundException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorDTO handleException(CategoryNotFoundException categoryNotFoundException) {
+        log.warn(categoryNotFoundException.getMessage(), categoryNotFoundException);
+        return ErrorDTO.builder()
+                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(categoryNotFoundException.getMessage())
                 .build();
     }
 

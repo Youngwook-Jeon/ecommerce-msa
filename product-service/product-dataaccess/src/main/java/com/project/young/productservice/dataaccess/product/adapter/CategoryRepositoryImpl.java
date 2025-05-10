@@ -11,6 +11,8 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 @Repository
 public class CategoryRepositoryImpl implements CategoryRepository {
 
@@ -50,5 +52,22 @@ public class CategoryRepositoryImpl implements CategoryRepository {
             throw new IllegalArgumentException("CategoryId object can not be null.");
         }
         return categoryJpaRepository.existsById(categoryId.getValue());
+    }
+
+    @Override
+    public boolean existsByNameAndIdNot(String name, CategoryId categoryIdToExclude) {
+        if (name == null || categoryIdToExclude == null || categoryIdToExclude.getValue() == null) {
+            throw new IllegalArgumentException("Not valid category.");
+        }
+        return categoryJpaRepository.existsByNameAndIdNot(name, categoryIdToExclude.getValue());
+    }
+
+    @Override
+    public Optional<Category> findById(CategoryId categoryId) {
+        if (categoryId == null) {
+            throw new IllegalArgumentException("CategoryId object can not be null.");
+        }
+        return categoryJpaRepository.findById(categoryId.getValue())
+                .map(categoryDataAccessMapper::categoryEntityToCategory);
     }
 }

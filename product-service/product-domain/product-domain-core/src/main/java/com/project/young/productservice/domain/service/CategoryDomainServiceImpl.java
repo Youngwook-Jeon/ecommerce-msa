@@ -20,4 +20,9 @@ public class CategoryDomainServiceImpl implements CategoryDomainService {
     public boolean isParentDepthLessThanLimit(CategoryId parentId) {
         return true;
     }
+
+    @Override
+    public boolean isCategoryNameUniqueForUpdate(String name, CategoryId categoryIdToExclude) {
+        return !categoryRepository.existsByNameAndIdNot(name, categoryIdToExclude);
+    }
 }

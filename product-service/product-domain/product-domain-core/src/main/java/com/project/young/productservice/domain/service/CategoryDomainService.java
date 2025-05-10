@@ -7,4 +7,6 @@ public interface CategoryDomainService {
     boolean isCategoryNameUnique(String name);
 
     boolean isParentDepthLessThanLimit(CategoryId parentId);
+
+    boolean isCategoryNameUniqueForUpdate(String name, CategoryId categoryIdToExclude);
 }
