@@ -21,6 +21,8 @@ public class CategoryEntity {
 
     private String name;
 
+    private String status;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")
     private CategoryEntity parent;

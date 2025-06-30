@@ -14,6 +14,7 @@ public class CategoryDataAccessMapper {
         return Category.builder()
                 .categoryId(new CategoryId(categoryEntity.getId()))
                 .name(categoryEntity.getName())
+                .status(categoryEntity.getStatus())
                 .parentId(categoryEntity.getParent() != null ?
                         new CategoryId(categoryEntity.getParent().getId()) : null)
                 .build();
@@ -23,6 +24,7 @@ public class CategoryDataAccessMapper {
         return CategoryEntity.builder()
                 .id(category.getId() != null ? category.getId().getValue() : null)
                 .name(category.getName())
+                .status(category.getStatus())
                 .parent(parentEntity)
                 .children(new ArrayList<>())
                 .build();
