@@ -1,7 +1,7 @@
-package com.project.young.productservice.dataaccess.product.repository;
+package com.project.young.productservice.dataaccess.repository;
 
-import com.project.young.productservice.dataaccess.product.config.ProductDataAccessConfig;
-import com.project.young.productservice.dataaccess.product.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.config.ProductDataAccessConfig;
+import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;

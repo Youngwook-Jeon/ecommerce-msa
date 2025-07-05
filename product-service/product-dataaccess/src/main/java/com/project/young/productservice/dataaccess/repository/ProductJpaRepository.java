@@ -1,6 +1,6 @@
-package com.project.young.productservice.dataaccess.product.repository;
+package com.project.young.productservice.dataaccess.repository;
 
-import com.project.young.productservice.dataaccess.product.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

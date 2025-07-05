@@ -1,9 +1,9 @@
-package com.project.young.productservice.dataaccess.product.adapter;
+package com.project.young.productservice.dataaccess.adapter;
 
 import com.project.young.productservice.application.dto.CategoryDto;
 import com.project.young.productservice.application.port.output.CategoryReadRepository;
-import com.project.young.productservice.dataaccess.product.entity.CategoryEntity;
-import com.project.young.productservice.dataaccess.product.repository.CategoryJpaRepository;
+import com.project.young.productservice.dataaccess.entity.CategoryEntity;
+import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.domain.entity.Category;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;

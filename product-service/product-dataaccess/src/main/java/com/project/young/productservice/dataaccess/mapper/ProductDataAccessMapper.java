@@ -1,8 +1,8 @@
-package com.project.young.productservice.dataaccess.product.mapper;
+package com.project.young.productservice.dataaccess.mapper;
 
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
-import com.project.young.productservice.dataaccess.product.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.domain.entity.Product;
 import org.springframework.stereotype.Component;
 

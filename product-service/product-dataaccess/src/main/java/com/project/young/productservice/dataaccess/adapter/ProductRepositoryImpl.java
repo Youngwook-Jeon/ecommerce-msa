@@ -1,7 +1,7 @@
-package com.project.young.productservice.dataaccess.product.adapter;
+package com.project.young.productservice.dataaccess.adapter;
 
-import com.project.young.productservice.dataaccess.product.mapper.ProductDataAccessMapper;
-import com.project.young.productservice.dataaccess.product.repository.ProductJpaRepository;
+import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
+import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.ports.output.repository.ProductRepository;
 import org.springframework.stereotype.Component;

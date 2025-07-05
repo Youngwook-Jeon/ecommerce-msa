@@ -1,7 +1,7 @@
-package com.project.young.productservice.dataaccess.product.mapper;
+package com.project.young.productservice.dataaccess.mapper;
 
 import com.project.young.common.domain.valueobject.CategoryId;
-import com.project.young.productservice.dataaccess.product.entity.CategoryEntity;
+import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.domain.entity.Category;
 import org.springframework.stereotype.Component;
 

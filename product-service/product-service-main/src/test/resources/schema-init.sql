@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS product.product
     product_name VARCHAR(50) NOT NULL UNIQUE,
     description VARCHAR(200) NOT NULL,
     price NUMERIC(10, 2) NOT NULL
-);
+    );
 
 CREATE TABLE IF NOT EXISTS product.categories
 (
@@ -19,11 +19,11 @@ CREATE TABLE IF NOT EXISTS product.categories
     parent_id BIGINT NULL,
     status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
     CONSTRAINT fk_category_parent
-        FOREIGN KEY (parent_id)
-            REFERENCES product.categories(id)
-            ON DELETE SET NULL
-            ON UPDATE CASCADE
-);
+    FOREIGN KEY (parent_id)
+    REFERENCES product.categories(id)
+    ON DELETE SET NULL
+    ON UPDATE CASCADE
+    );
 
 CREATE INDEX IF NOT EXISTS idx_category_name ON product.categories (name);
 

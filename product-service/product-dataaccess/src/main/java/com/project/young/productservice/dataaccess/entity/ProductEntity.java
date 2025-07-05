@@ -1,4 +1,4 @@
-package com.project.young.productservice.dataaccess.product.entity;
+package com.project.young.productservice.dataaccess.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

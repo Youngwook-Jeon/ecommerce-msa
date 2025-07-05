@@ -44,8 +44,8 @@ class CategoryApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
-        parentCategoryId = new CategoryId(10L);
-        generatedCategoryId = new CategoryId(1L);
+        parentCategoryId = new CategoryId(1L);
+        generatedCategoryId = new CategoryId(10L);
 
         createCommandWithParent = CreateCategoryCommand.builder()
                 .name("New Category With Parent")

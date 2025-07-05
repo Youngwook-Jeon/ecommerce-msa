@@ -62,11 +62,11 @@ public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler
 
     @ResponseBody
     @ExceptionHandler(value = {CategoryNotFoundException.class})
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorDTO handleException(CategoryNotFoundException categoryNotFoundException) {
         log.warn(categoryNotFoundException.getMessage(), categoryNotFoundException);
         return ErrorDTO.builder()
-                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .code(HttpStatus.NOT_FOUND.getReasonPhrase())
                 .message(categoryNotFoundException.getMessage())
                 .build();
     }

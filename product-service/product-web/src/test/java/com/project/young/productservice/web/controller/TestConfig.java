@@ -2,6 +2,7 @@ package com.project.young.productservice.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.productservice.application.service.CategoryApplicationService;
+import com.project.young.productservice.application.service.CategoryQueryService;
 import com.project.young.productservice.domain.ports.input.service.ProductApplicationService;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -46,6 +47,11 @@ public class TestConfig {
     @Bean
     public CategoryApplicationService categoryApplicationService() {
         return mock(CategoryApplicationService.class);
+    }
+
+    @Bean
+    public CategoryQueryService categoryQueryService() {
+        return mock(CategoryQueryService.class);
     }
 
     @Bean

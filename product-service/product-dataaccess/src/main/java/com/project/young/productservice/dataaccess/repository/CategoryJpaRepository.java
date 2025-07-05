@@ -1,6 +1,6 @@
-package com.project.young.productservice.dataaccess.product.repository;
+package com.project.young.productservice.dataaccess.repository;
 
-import com.project.young.productservice.dataaccess.product.entity.CategoryEntity;
+import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
