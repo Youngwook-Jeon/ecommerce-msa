@@ -41,9 +41,10 @@ spring:
         - id: product-route
           uri: ${PRODUCT_SERVICE_URL:http://localhost:9002}
           predicates:
-            - Path=/api/${api-version}/products/**
+            - Path=/api/${api-version}/product_service/**
           filters:
-            - RewritePath=/api/${api-version}/(?<segment>.*), /$\{segment}
+            - RewritePath=/api/${api-version}/product_service/(?<segment>.*), /$\{segment}
+            - TokenRelay=
         - id: spa
           uri: ${spa-uri}
           predicates:
@@ -89,4 +90,3 @@ logging:
         boot: INFO
         session: DEBUG
         web.server.session: DEBUG
-

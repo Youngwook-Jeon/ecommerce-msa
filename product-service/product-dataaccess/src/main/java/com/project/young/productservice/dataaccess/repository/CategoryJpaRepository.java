@@ -15,4 +15,7 @@ public interface CategoryJpaRepository extends JpaRepository<CategoryEntity, Lon
 
     @Query("SELECT c FROM CategoryEntity c LEFT JOIN FETCH c.parent WHERE c.status = :status")
     List<CategoryEntity> findAllWithParentByStatus(@Param("status") String status);
+
+    @Query("SELECT c FROM CategoryEntity c LEFT JOIN FETCH c.parent")
+    List<CategoryEntity> findAllWithParent();
 }

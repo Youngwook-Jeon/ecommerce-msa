@@ -7,4 +7,6 @@ import java.util.List;
 public interface CategoryReadRepository {
 
     List<CategoryDto> findAllActiveCategoryHierarchy();
+
+    List<CategoryDto> findAllCategoryHierarchy();
 }

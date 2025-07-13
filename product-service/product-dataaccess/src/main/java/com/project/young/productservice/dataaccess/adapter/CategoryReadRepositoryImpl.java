@@ -27,12 +27,26 @@ public class CategoryReadRepositoryImpl implements CategoryReadRepository {
     public List<CategoryDto> findAllActiveCategoryHierarchy() {
         List<CategoryEntity> allActiveCategories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
         log.info("Found {} active categories from the database.", allActiveCategories.size());
+        return buildHierarchyFromEntities(allActiveCategories);
+    }
 
-        Map<Long, List<CategoryEntity>> childrenByParentIdMap = allActiveCategories.stream()
+    @Override
+    public List<CategoryDto> findAllCategoryHierarchy() {
+        List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
+        log.info("Found {} total categories from the database for admin.", allCategories.size());
+        return buildHierarchyFromEntities(allCategories);
+    }
+
+    private List<CategoryDto> buildHierarchyFromEntities(List<CategoryEntity> entities) {
+        if (entities.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Map<Long, List<CategoryEntity>> childrenByParentIdMap = entities.stream()
                 .filter(category -> category.getParent() != null)
                 .collect(Collectors.groupingBy(category -> category.getParent().getId()));
 
-        return allActiveCategories.stream()
+        return entities.stream()
                 .filter(category -> category.getParent() == null)
                 .map(rootEntity -> buildDtoTree(rootEntity, childrenByParentIdMap))
                 .collect(Collectors.toList());
@@ -52,6 +66,7 @@ public class CategoryReadRepositoryImpl implements CategoryReadRepository {
                 entity.getId(),
                 entity.getName(),
                 parentId,
+                entity.getStatus(),
                 childDtos
         );
     }

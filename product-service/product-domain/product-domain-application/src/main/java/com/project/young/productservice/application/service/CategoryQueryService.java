@@ -20,4 +20,8 @@ public class CategoryQueryService {
     public List<CategoryDto> getAllActiveCategoryHierarchy() {
         return categoryReadRepository.findAllActiveCategoryHierarchy();
     }
+
+    public List<CategoryDto> getAdminCategoryHierarchy() {
+        return categoryReadRepository.findAllCategoryHierarchy();
+    }
 }

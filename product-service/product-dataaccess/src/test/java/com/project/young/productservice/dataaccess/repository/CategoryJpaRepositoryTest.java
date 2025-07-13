@@ -1,3 +1,4 @@
+
 package com.project.young.productservice.dataaccess.repository;
 
 import com.project.young.productservice.dataaccess.config.ProductDataAccessConfig;
@@ -84,6 +85,40 @@ class CategoryJpaRepositoryTest {
     }
 
     @Test
+    @DisplayName("Should find all categories with their parent categories fetched")
+    void shouldFindAllCategories_WithParentCategories() {
+        // Given
+        CategoryEntity electronics = createCategory("Electronics", Category.STATUS_ACTIVE, null);
+        CategoryEntity books = createCategory("Books", Category.STATUS_ACTIVE, null);
+        CategoryEntity inactiveClothing = createCategory("Clothing", "INACTIVE", null);
+
+        categoryJpaRepository.saveAll(List.of(electronics, books, inactiveClothing));
+
+        CategoryEntity laptops = createCategory("Laptops", Category.STATUS_ACTIVE, electronics);
+        CategoryEntity fiction = createCategory("Fiction", "INACTIVE", books);
+        categoryJpaRepository.saveAll(List.of(laptops, fiction));
+        categoryJpaRepository.flush();
+
+        // When
+        List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
+
+        // Then
+        assertThat(allCategories).hasSize(5);
+        assertThat(allCategories)
+                .extracting(CategoryEntity::getName)
+                .containsExactlyInAnyOrder("Electronics", "Books", "Clothing", "Laptops", "Fiction");
+
+        // Verify N+1 problem prevention - parent should be fetched
+        CategoryEntity foundLaptops = findCategoryByName(allCategories, "Laptops");
+        assertThat(foundLaptops.getParent()).isNotNull();
+        assertThat(foundLaptops.getParent().getName()).isEqualTo("Electronics");
+
+        CategoryEntity foundFiction = findCategoryByName(allCategories, "Fiction");
+        assertThat(foundFiction.getParent()).isNotNull();
+        assertThat(foundFiction.getParent().getName()).isEqualTo("Books");
+    }
+
+    @Test
     @DisplayName("Should check if category name exists")
     void shouldCheckIfCategoryNameExists() {
         // Given
@@ -110,7 +145,7 @@ class CategoryJpaRepositoryTest {
     }
 
     @Test
-    @DisplayName("Should not find inactive categories")
+    @DisplayName("Should not find inactive categories when filtering by status")
     void shouldNotFindInactiveCategories() {
         // Given
         CategoryEntity activeCategory = createCategory("Active", Category.STATUS_ACTIVE, null);
@@ -139,6 +174,40 @@ class CategoryJpaRepositoryTest {
         assertThat(activeCategories).hasSize(1);
         assertThat(activeCategories.getFirst().getName()).isEqualTo("Root");
         assertThat(activeCategories.getFirst().getParent()).isNull();
+    }
+
+    @Test
+    @DisplayName("Should return empty list when no categories exist")
+    void shouldReturnEmptyList_WhenNoCategoriesExist() {
+        // When
+        List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
+        List<CategoryEntity> activeCategories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
+
+        // Then
+        assertThat(allCategories).isEmpty();
+        assertThat(activeCategories).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should handle mixed status categories in findAllWithParent")
+    void shouldHandleMixedStatusCategories_InFindAllWithParent() {
+        // Given
+        CategoryEntity activeParent = createCategory("Active Parent", Category.STATUS_ACTIVE, null);
+        CategoryEntity inactiveParent = createCategory("Inactive Parent", "INACTIVE", null);
+        categoryJpaRepository.saveAll(List.of(activeParent, inactiveParent));
+
+        CategoryEntity activeChild = createCategory("Active Child", Category.STATUS_ACTIVE, activeParent);
+        CategoryEntity inactiveChild = createCategory("Inactive Child", "INACTIVE", inactiveParent);
+        categoryJpaRepository.saveAll(List.of(activeChild, inactiveChild));
+
+        // When
+        List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
+
+        // Then
+        assertThat(allCategories).hasSize(4);
+        assertThat(allCategories)
+                .extracting(CategoryEntity::getName)
+                .containsExactlyInAnyOrder("Active Parent", "Inactive Parent", "Active Child", "Inactive Child");
     }
 
     private CategoryEntity createCategory(String name, String status, CategoryEntity parent) {

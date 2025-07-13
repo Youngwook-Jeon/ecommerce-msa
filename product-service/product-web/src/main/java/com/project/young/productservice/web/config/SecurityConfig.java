@@ -39,7 +39,8 @@ public class SecurityConfig {
         http.csrf(CsrfConfigurer::disable);
 
         http.authorizeHttpRequests(requests -> requests
-                .requestMatchers(HttpMethod.GET, "/products/**", "/categories/**", "/queries/categories/**").permitAll()
+                .requestMatchers(HttpMethod.GET,
+                        "/products/**", "/categories/**", "/queries/categories/hierarchy").permitAll()
                 .anyRequest().authenticated());
 
         return http.build();

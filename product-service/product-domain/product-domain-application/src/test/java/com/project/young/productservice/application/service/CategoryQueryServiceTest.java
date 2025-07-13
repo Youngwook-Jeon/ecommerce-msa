@@ -29,7 +29,7 @@ class CategoryQueryServiceTest {
     void testGetCategoryHierarchy() {
         // Arrange
         // Create a mock DTO list. The test doesn't care how this list is constructed.
-        List<CategoryDto> mockHierarchy = List.of(new CategoryDto(1L, "Test", null, List.of()));
+        List<CategoryDto> mockHierarchy = List.of(new CategoryDto(1L, "Test", null, "ACTIVE", List.of()));
 
         // Mock the repository port to return the predefined DTO list
         when(categoryReadRepository.findAllActiveCategoryHierarchy()).thenReturn(mockHierarchy);
