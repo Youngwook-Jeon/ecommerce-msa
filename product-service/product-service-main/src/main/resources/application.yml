@@ -6,12 +6,19 @@ issuer-uri: http://localhost:8080/realms/Ecomart
 product-service:
   product-topic-name: product
 
+schema:
+  name: product
+
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/ecodb_product?currentSchema=product&binaryTransfer=true&reWriteBatchedInserts=true
+    url: jdbc:postgresql://localhost:5432/ecodb_product?currentSchema=${schema.name}&binaryTransfer=true&reWriteBatchedInserts=true
     username: user
     password: password
     driver-class-name: org.postgresql.Driver
+
+  flyway:
+    enabled: true
+    schemas: ${schema.name}
 
   jpa:
     open-in-view: false
@@ -22,6 +29,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        default_schema: ${schema.name}
 
   security:
     oauth2:
@@ -32,7 +40,7 @@ spring:
   sql:
     init:
       platform: init
-      mode: always
+      mode: never
 
 kafka-config:
   bootstrap-servers: localhost:19092, localhost:29092, localhost:39092
