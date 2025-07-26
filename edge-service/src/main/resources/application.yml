@@ -44,7 +44,6 @@ spring:
             - Path=/api/${api-version}/product_service/**
           filters:
             - RewritePath=/api/${api-version}/product_service/(?<segment>.*), /$\{segment}
-            - TokenRelay=
         - id: spa
           uri: ${spa-uri}
           predicates:

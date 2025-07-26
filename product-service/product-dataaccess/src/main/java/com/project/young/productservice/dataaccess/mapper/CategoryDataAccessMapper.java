@@ -29,4 +29,23 @@ public class CategoryDataAccessMapper {
                 .children(new ArrayList<>())
                 .build();
     }
+
+    public CategoryEntity categoryToCategoryEntitySimple(Category category) {
+        CategoryEntity entity = new CategoryEntity();
+        if (category.getId() != null) {
+            entity.setId(category.getId().getValue());
+        }
+        entity.setName(category.getName());
+        entity.setStatus(category.getStatus());
+
+        if (category.getParentId().isPresent()) {
+            CategoryEntity parentProxy = new CategoryEntity();
+            parentProxy.setId(category.getParentId().get().getValue());
+            entity.setParent(parentProxy);
+        } else {
+            entity.setParent(null);
+        }
+
+        return entity;
+    }
 }

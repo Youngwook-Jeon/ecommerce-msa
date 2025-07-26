@@ -11,7 +11,10 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Repository
 public class CategoryRepositoryImpl implements CategoryRepository {
@@ -42,6 +45,24 @@ public class CategoryRepositoryImpl implements CategoryRepository {
     }
 
     @Override
+    @Transactional
+    public List<Category> saveAll(List<Category> categories) {
+        if (categories == null || categories.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<CategoryEntity> categoryEntitiesToSave = categories.stream()
+                .map(categoryDataAccessMapper::categoryToCategoryEntitySimple)
+                .collect(Collectors.toList());
+
+        List<CategoryEntity> savedEntities = categoryJpaRepository.saveAll(categoryEntitiesToSave);
+
+        return savedEntities.stream()
+                .map(categoryDataAccessMapper::categoryEntityToCategory)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public boolean existsByName(String name) {
         return categoryJpaRepository.existsByName(name);
     }
@@ -69,5 +90,18 @@ public class CategoryRepositoryImpl implements CategoryRepository {
         }
         return categoryJpaRepository.findById(categoryId.getValue())
                 .map(categoryDataAccessMapper::categoryEntityToCategory);
+    }
+
+    @Override
+    public List<Category> findAllSubTreeById(CategoryId categoryId) {
+        if (categoryId == null || categoryId.getValue() == null) {
+            return Collections.emptyList();
+        }
+
+        List<CategoryEntity> subTreeEntities = categoryJpaRepository.findSubTreeByIdNative(categoryId.getValue());
+
+        return subTreeEntities.stream()
+                .map(categoryDataAccessMapper::categoryEntityToCategory)
+                .collect(Collectors.toList());
     }
 }

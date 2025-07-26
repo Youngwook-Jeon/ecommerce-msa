@@ -18,4 +18,16 @@ public interface CategoryJpaRepository extends JpaRepository<CategoryEntity, Lon
 
     @Query("SELECT c FROM CategoryEntity c LEFT JOIN FETCH c.parent")
     List<CategoryEntity> findAllWithParent();
+
+    @Query(value =
+            "WITH RECURSIVE category_tree AS (" +
+            "    SELECT * FROM categories WHERE id = :categoryId" +
+            "    UNION ALL" +
+            "    SELECT c.* FROM categories c" +
+            "    INNER JOIN category_tree ct ON c.parent_id = ct.id" +
+            ")" +
+            "SELECT * FROM category_tree",
+            nativeQuery = true
+    )
+    List<CategoryEntity> findSubTreeByIdNative(@Param("categoryId") Long categoryId);
 }

@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -159,30 +160,26 @@ public class CategoryApplicationService {
             throw new IllegalArgumentException("Category ID for delete cannot be null.");
         }
         CategoryId categoryIdToDelete = new CategoryId(categoryIdValue);
-        log.info("Attempting to delete category with id: {}", categoryIdToDelete.getValue());
+        log.info("Attempting to soft-delete category and its subtree with root id: {}", categoryIdToDelete.getValue());
 
-        Category category = categoryRepository.findById(categoryIdToDelete)
-                .orElseThrow(() -> {
-                    log.warn("Category not found for id: {}", categoryIdToDelete.getValue());
-                    return new CategoryNotFoundException("Category with id " + categoryIdToDelete.getValue() + " not found, cannot delete.");
-                });
+        List<Category> categoriesToDelete = categoryRepository.findAllSubTreeById(categoryIdToDelete);
 
-        if (Category.STATUS_DELETED.equals(category.getStatus())) {
-            log.info("Category with id: {} is already marked as deleted.", categoryIdToDelete.getValue());
-            return new DeleteCategoryResponse(categoryIdToDelete.getValue(), "Category was already deleted.");
+        if (categoriesToDelete.isEmpty()) {
+            log.warn("Category not found for id: {}, cannot delete.", categoryIdToDelete.getValue());
+            throw new CategoryNotFoundException("Category with id " + categoryIdToDelete.getValue() + " not found, cannot delete.");
         }
 
-        // TODO: Business rule check
+        Category rootCategory = categoriesToDelete.stream()
+                .filter(c -> c.getId().equals(categoryIdToDelete))
+                .findFirst()
+                .orElse(categoriesToDelete.getFirst());
 
-        category.markAsDeleted();
+        categoriesToDelete.forEach(Category::markAsDeleted);
 
-        Category deletedCategory = categoryRepository.save(category);
-        log.info("Category id: {} marked as deleted successfully.", deletedCategory.getId().getValue());
+        List<Category> savedEntities = categoryRepository.saveAll(categoriesToDelete);
+        log.info("{} categories were marked as deleted.", savedEntities.size());
 
-        log.info("TODO: Outbox persistence logic for CategoryDeletedEvent (id: {}) needs to be implemented here.", deletedCategory.getId().getValue());
-
-        // 7. Return response
-        return new DeleteCategoryResponse(deletedCategory.getId().getValue(),
-                "Category " + deletedCategory.getName() + " (ID: " + deletedCategory.getId().getValue() + ") marked as deleted successfully.");
+        return new DeleteCategoryResponse(rootCategory.getId().getValue(),
+                "Category " + rootCategory.getName() + " (ID: " + rootCategory.getId().getValue() + ") marked as deleted successfully.");
     }
 }

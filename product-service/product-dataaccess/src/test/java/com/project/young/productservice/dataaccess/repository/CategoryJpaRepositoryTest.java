@@ -1,15 +1,17 @@
-
 package com.project.young.productservice.dataaccess.repository;
 
 import com.project.young.productservice.dataaccess.config.ProductDataAccessConfig;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.domain.entity.Category;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ContextConfiguration;
@@ -22,7 +24,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.util.Collections;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.*;
 
 @DataJpaTest
 @Testcontainers
@@ -49,165 +51,364 @@ class CategoryJpaRepositoryTest {
     @Autowired
     private CategoryJpaRepository categoryJpaRepository;
 
+    @Autowired
+    private TestEntityManager testEntityManager;
+
     @BeforeEach
     void setUp() {
-        // Clean up data before each test
         categoryJpaRepository.deleteAll();
+        testEntityManager.flush();
     }
 
-    @Test
-    @DisplayName("Should find active categories with their parent categories fetched")
-    void shouldFindActiveCategories_WithParentCategories() {
-        // Given
-        CategoryEntity electronics = createCategory("Electronics", Category.STATUS_ACTIVE, null);
-        CategoryEntity books = createCategory("Books", Category.STATUS_ACTIVE, null);
-        CategoryEntity inactiveClothing = createCategory("Clothing", "INACTIVE", null);
+    // 나머지 테스트 메서드들은 동일...
+    @Nested
+    @DisplayName("기본 CRUD 테스트")
+    class BasicCrudTests {
 
-        categoryJpaRepository.saveAll(List.of(electronics, books, inactiveClothing));
+        @Test
+        @DisplayName("카테고리 저장 및 조회 성공")
+        void saveAndFindCategory_Success() {
+            // Given
+            CategoryEntity category = createCategory("전자제품", Category.STATUS_ACTIVE, null);
 
-        CategoryEntity laptops = createCategory("Laptops", Category.STATUS_ACTIVE, electronics);
-        categoryJpaRepository.save(laptops);
-        categoryJpaRepository.flush();
+            // When
+            CategoryEntity savedCategory = categoryJpaRepository.save(category);
 
-        // When
-        List<CategoryEntity> activeCategories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
+            // Then
+            assertThat(savedCategory).isNotNull();
+            assertThat(savedCategory.getId()).isNotNull();
+            assertThat(savedCategory.getName()).isEqualTo("전자제품");
+            assertThat(savedCategory.getStatus()).isEqualTo(Category.STATUS_ACTIVE);
+        }
 
-        // Then
-        assertThat(activeCategories).hasSize(3);
-        assertThat(activeCategories)
-                .extracting(CategoryEntity::getName)
-                .containsExactlyInAnyOrder("Electronics", "Books", "Laptops");
+        @Test
+        @DisplayName("부모-자식 관계 카테고리 저장 성공")
+        void saveParentChildCategories_Success() {
+            // Given
+            CategoryEntity parent = createCategory("전자제품", Category.STATUS_ACTIVE, null);
+            CategoryEntity savedParent = categoryJpaRepository.save(parent);
 
-        // Verify N+1 problem prevention
-        CategoryEntity foundLaptops = findCategoryByName(activeCategories, "Laptops");
-        assertThat(foundLaptops.getParent()).isNotNull();
-        assertThat(foundLaptops.getParent().getName()).isEqualTo("Electronics");
+            CategoryEntity child = createCategory("노트북", Category.STATUS_ACTIVE, savedParent);
+
+            // When
+            CategoryEntity savedChild = categoryJpaRepository.save(child);
+
+            // Then
+            assertThat(savedChild.getParent()).isNotNull();
+            assertThat(savedChild.getParent().getId()).isEqualTo(savedParent.getId());
+            assertThat(savedChild.getParent().getName()).isEqualTo("전자제품");
+        }
     }
 
-    @Test
-    @DisplayName("Should find all categories with their parent categories fetched")
-    void shouldFindAllCategories_WithParentCategories() {
-        // Given
-        CategoryEntity electronics = createCategory("Electronics", Category.STATUS_ACTIVE, null);
-        CategoryEntity books = createCategory("Books", Category.STATUS_ACTIVE, null);
-        CategoryEntity inactiveClothing = createCategory("Clothing", "INACTIVE", null);
+    @Nested
+    @DisplayName("존재 여부 확인 테스트")
+    class ExistenceCheckTests {
 
-        categoryJpaRepository.saveAll(List.of(electronics, books, inactiveClothing));
+        @Test
+        @DisplayName("카테고리 이름으로 존재 여부 확인")
+        void existsByName_Success() {
+            // Given
+            CategoryEntity category = createCategory("전자제품", Category.STATUS_ACTIVE, null);
+            categoryJpaRepository.save(category);
 
-        CategoryEntity laptops = createCategory("Laptops", Category.STATUS_ACTIVE, electronics);
-        CategoryEntity fiction = createCategory("Fiction", "INACTIVE", books);
-        categoryJpaRepository.saveAll(List.of(laptops, fiction));
-        categoryJpaRepository.flush();
+            // When & Then
+            assertThat(categoryJpaRepository.existsByName("전자제품")).isTrue();
+            assertThat(categoryJpaRepository.existsByName("존재하지않는카테고리")).isFalse();
+        }
 
-        // When
-        List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
+        @Test
+        @DisplayName("특정 ID 제외하고 이름으로 존재 여부 확인")
+        void existsByNameAndIdNot_Success() {
+            // Given
+            CategoryEntity electronics = createCategory("전자제품", Category.STATUS_ACTIVE, null);
+            CategoryEntity books = createCategory("도서", Category.STATUS_ACTIVE, null);
 
-        // Then
-        assertThat(allCategories).hasSize(5);
-        assertThat(allCategories)
-                .extracting(CategoryEntity::getName)
-                .containsExactlyInAnyOrder("Electronics", "Books", "Clothing", "Laptops", "Fiction");
+            CategoryEntity savedElectronics = categoryJpaRepository.save(electronics);
+            CategoryEntity savedBooks = categoryJpaRepository.save(books);
 
-        // Verify N+1 problem prevention - parent should be fetched
-        CategoryEntity foundLaptops = findCategoryByName(allCategories, "Laptops");
-        assertThat(foundLaptops.getParent()).isNotNull();
-        assertThat(foundLaptops.getParent().getName()).isEqualTo("Electronics");
+            // When & Then
+            // 다른 ID에서 같은 이름이 존재하는 경우
+            assertThat(categoryJpaRepository.existsByNameAndIdNot("전자제품", savedBooks.getId())).isTrue();
 
-        CategoryEntity foundFiction = findCategoryByName(allCategories, "Fiction");
-        assertThat(foundFiction.getParent()).isNotNull();
-        assertThat(foundFiction.getParent().getName()).isEqualTo("Books");
+            // 자기 자신의 ID를 제외하면 같은 이름이 존재하지 않는 경우
+            assertThat(categoryJpaRepository.existsByNameAndIdNot("전자제품", savedElectronics.getId())).isFalse();
+
+            // 존재하지 않는 이름인 경우
+            assertThat(categoryJpaRepository.existsByNameAndIdNot("존재하지않는카테고리", savedElectronics.getId())).isFalse();
+        }
     }
 
-    @Test
-    @DisplayName("Should check if category name exists")
-    void shouldCheckIfCategoryNameExists() {
-        // Given
-        CategoryEntity electronics = createCategory("Electronics", Category.STATUS_ACTIVE, null);
-        categoryJpaRepository.save(electronics);
+    @Nested
+    @DisplayName("상태별 조회 테스트")
+    class StatusBasedQueryTests {
 
-        // When & Then
-        assertThat(categoryJpaRepository.existsByName("Electronics")).isTrue();
-        assertThat(categoryJpaRepository.existsByName("NonExistent")).isFalse();
+        @Test
+        @DisplayName("활성 상태 카테고리만 조회 (부모 정보 포함)")
+        void findAllWithParentByStatus_ActiveOnly_Success() {
+            // Given
+            CategoryEntity activeParent = createCategory("활성부모", Category.STATUS_ACTIVE, null);
+            CategoryEntity inactiveParent = createCategory("비활성부모", "INACTIVE", null);
+            categoryJpaRepository.saveAll(List.of(activeParent, inactiveParent));
+
+            CategoryEntity activeChild = createCategory("활성자식", Category.STATUS_ACTIVE, activeParent);
+            CategoryEntity inactiveChild = createCategory("비활성자식", "INACTIVE", inactiveParent);
+            categoryJpaRepository.saveAll(List.of(activeChild, inactiveChild));
+
+            categoryJpaRepository.flush();
+
+            // When
+            List<CategoryEntity> activeCategories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
+
+            // Then
+            assertThat(activeCategories).hasSize(2);
+            assertThat(activeCategories)
+                    .extracting(CategoryEntity::getName)
+                    .containsExactlyInAnyOrder("활성부모", "활성자식");
+
+            // 부모 정보가 올바르게 fetch되었는지 확인
+            CategoryEntity foundActiveChild = findCategoryByName(activeCategories, "활성자식");
+            assertThat(foundActiveChild.getParent()).isNotNull();
+            assertThat(foundActiveChild.getParent().getName()).isEqualTo("활성부모");
+        }
+
+        @Test
+        @DisplayName("활성 상태 카테고리가 없을 때 빈 리스트 반환")
+        void findAllWithParentByStatus_NoActiveCategories_ReturnsEmptyList() {
+            // Given
+            CategoryEntity inactiveCategory = createCategory("비활성카테고리", "INACTIVE", null);
+            categoryJpaRepository.save(inactiveCategory);
+
+            // When
+            List<CategoryEntity> activeCategories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
+
+            // Then
+            assertThat(activeCategories).isEmpty();
+        }
     }
 
-    @Test
-    @DisplayName("Should check if category name exists excluding a specific ID")
-    void shouldCheckIfCategoryNameExists_ExcludingSpecificId() {
-        // Given
-        CategoryEntity electronics = createCategory("Electronics", Category.STATUS_ACTIVE, null);
-        CategoryEntity books = createCategory("Books", Category.STATUS_ACTIVE, null);
-        categoryJpaRepository.saveAll(List.of(electronics, books));
+    @Nested
+    @DisplayName("전체 조회 테스트")
+    class FindAllTests {
 
-        // When & Then
-        assertThat(categoryJpaRepository.existsByNameAndIdNot("Electronics", books.getId())).isTrue();
-        assertThat(categoryJpaRepository.existsByNameAndIdNot("Electronics", electronics.getId())).isFalse();
-        assertThat(categoryJpaRepository.existsByNameAndIdNot("NonExistent", electronics.getId())).isFalse();
+        @Test
+        @DisplayName("모든 카테고리 조회 (부모 정보 포함)")
+        void findAllWithParent_Success() {
+            // Given
+            CategoryEntity activeParent = createCategory("활성부모", Category.STATUS_ACTIVE, null);
+            CategoryEntity inactiveParent = createCategory("비활성부모", "INACTIVE", null);
+            categoryJpaRepository.saveAll(List.of(activeParent, inactiveParent));
+
+            CategoryEntity activeChild = createCategory("활성자식", Category.STATUS_ACTIVE, activeParent);
+            CategoryEntity inactiveChild = createCategory("비활성자식", "INACTIVE", inactiveParent);
+            categoryJpaRepository.saveAll(List.of(activeChild, inactiveChild));
+
+            categoryJpaRepository.flush();
+
+            // When
+            List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
+
+            // Then
+            assertThat(allCategories).hasSize(4);
+            assertThat(allCategories)
+                    .extracting(CategoryEntity::getName)
+                    .containsExactlyInAnyOrder("활성부모", "비활성부모", "활성자식", "비활성자식");
+
+            // 부모 정보가 올바르게 fetch되었는지 확인
+            CategoryEntity foundActiveChild = findCategoryByName(allCategories, "활성자식");
+            assertThat(foundActiveChild.getParent()).isNotNull();
+            assertThat(foundActiveChild.getParent().getName()).isEqualTo("활성부모");
+
+            CategoryEntity foundInactiveChild = findCategoryByName(allCategories, "비활성자식");
+            assertThat(foundInactiveChild.getParent()).isNotNull();
+            assertThat(foundInactiveChild.getParent().getName()).isEqualTo("비활성부모");
+        }
+
+        @Test
+        @DisplayName("부모가 없는 최상위 카테고리들 조회")
+        void findAllWithParent_RootCategoriesOnly_Success() {
+            // Given
+            CategoryEntity root1 = createCategory("루트1", Category.STATUS_ACTIVE, null);
+            CategoryEntity root2 = createCategory("루트2", "INACTIVE", null);
+            categoryJpaRepository.saveAll(List.of(root1, root2));
+
+            // When
+            List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
+
+            // Then
+            assertThat(allCategories).hasSize(2);
+            assertThat(allCategories)
+                    .extracting(CategoryEntity::getName)
+                    .containsExactlyInAnyOrder("루트1", "루트2");
+
+            // 모든 카테고리의 부모가 null인지 확인
+            assertThat(allCategories)
+                    .allSatisfy(category -> assertThat(category.getParent()).isNull());
+        }
+
+        @Test
+        @DisplayName("카테고리가 없을 때 빈 리스트 반환")
+        void findAllWithParent_NoCategories_ReturnsEmptyList() {
+            // When
+            List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
+
+            // Then
+            assertThat(allCategories).isEmpty();
+        }
     }
 
-    @Test
-    @DisplayName("Should not find inactive categories when filtering by status")
-    void shouldNotFindInactiveCategories() {
-        // Given
-        CategoryEntity activeCategory = createCategory("Active", Category.STATUS_ACTIVE, null);
-        CategoryEntity inactiveCategory = createCategory("Inactive", "INACTIVE", null);
-        categoryJpaRepository.saveAll(List.of(activeCategory, inactiveCategory));
+    @Nested
+    @DisplayName("하위 트리 조회 테스트")
+    class SubTreeQueryTests {
 
-        // When
-        List<CategoryEntity> activeCategories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
+        @Test
+        @DisplayName("카테고리 하위 트리 조회 성공")
+        void findSubTreeByIdNative_Success() {
+            // Given
+            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity savedRoot = categoryJpaRepository.save(root);
 
-        // Then
-        assertThat(activeCategories).hasSize(1);
-        assertThat(activeCategories.getFirst().getName()).isEqualTo("Active");
+            CategoryEntity child1 = createCategory("자식1", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity child2 = createCategory("자식2", Category.STATUS_ACTIVE, savedRoot);
+            List<CategoryEntity> savedChildren = categoryJpaRepository.saveAll(List.of(child1, child2));
+
+            CategoryEntity grandChild = createCategory("손자", Category.STATUS_ACTIVE, savedChildren.get(0));
+            categoryJpaRepository.save(grandChild);
+
+            categoryJpaRepository.flush();
+
+            // When
+            List<CategoryEntity> subTree = categoryJpaRepository.findSubTreeByIdNative(savedRoot.getId());
+
+            // Then
+            assertThat(subTree).hasSize(4);
+            assertThat(subTree)
+                    .extracting(CategoryEntity::getName)
+                    .containsExactlyInAnyOrder("루트", "자식1", "자식2", "손자");
+        }
+
+        @Test
+        @DisplayName("리프 노드의 하위 트리 조회")
+        void findSubTreeByIdNative_LeafNode_ReturnsOnlyItself() {
+            // Given
+            CategoryEntity parent = createCategory("부모", Category.STATUS_ACTIVE, null);
+            CategoryEntity savedParent = categoryJpaRepository.save(parent);
+
+            CategoryEntity leaf = createCategory("리프", Category.STATUS_ACTIVE, savedParent);
+            CategoryEntity savedLeaf = categoryJpaRepository.save(leaf);
+
+            categoryJpaRepository.flush();
+
+            // When
+            List<CategoryEntity> subTree = categoryJpaRepository.findSubTreeByIdNative(savedLeaf.getId());
+
+            // Then
+            assertThat(subTree).hasSize(1);
+            assertThat(subTree.get(0).getName()).isEqualTo("리프");
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 ID로 하위 트리 조회")
+        void findSubTreeByIdNative_NonExistentId_ReturnsEmptyList() {
+            // When
+            List<CategoryEntity> subTree = categoryJpaRepository.findSubTreeByIdNative(999L);
+
+            // Then
+            assertThat(subTree).isEmpty();
+        }
+
+        @Test
+        @DisplayName("복잡한 트리 구조에서 중간 노드의 하위 트리 조회")
+        void findSubTreeByIdNative_ComplexTree_Success() {
+            // Given
+            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity savedRoot = categoryJpaRepository.save(root);
+
+            CategoryEntity branch1 = createCategory("가지1", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity branch2 = createCategory("가지2", Category.STATUS_ACTIVE, savedRoot);
+            List<CategoryEntity> savedBranches = categoryJpaRepository.saveAll(List.of(branch1, branch2));
+
+            CategoryEntity leaf1 = createCategory("잎1", Category.STATUS_ACTIVE, savedBranches.get(0));
+            CategoryEntity leaf2 = createCategory("잎2", Category.STATUS_ACTIVE, savedBranches.get(0));
+            CategoryEntity leaf3 = createCategory("잎3", Category.STATUS_ACTIVE, savedBranches.get(1));
+            categoryJpaRepository.saveAll(List.of(leaf1, leaf2, leaf3));
+
+            categoryJpaRepository.flush();
+
+            // When - 가지1의 하위 트리만 조회
+            List<CategoryEntity> subTree = categoryJpaRepository.findSubTreeByIdNative(savedBranches.get(0).getId());
+
+            // Then
+            assertThat(subTree).hasSize(3);
+            assertThat(subTree)
+                    .extracting(CategoryEntity::getName)
+                    .containsExactlyInAnyOrder("가지1", "잎1", "잎2");
+        }
     }
 
-    @Test
-    @DisplayName("Should find categories without a parent correctly")
-    void shouldFindCategoriesWithoutParent() {
-        // Given
-        CategoryEntity rootCategory = createCategory("Root", Category.STATUS_ACTIVE, null);
-        categoryJpaRepository.save(rootCategory);
+    @Nested
+    @DisplayName("N+1 문제 방지 테스트")
+    class NPlusOneProblemTests {
 
-        // When
-        List<CategoryEntity> activeCategories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
+        @Test
+        @DisplayName("findAllWithParentByStatus에서 N+1 문제가 발생하지 않는지 확인")
+        void findAllWithParentByStatus_PreventNPlusOneProblem() {
+            // Given
+            CategoryEntity parent = createCategory("부모", Category.STATUS_ACTIVE, null);
+            CategoryEntity savedParent = categoryJpaRepository.save(parent);
 
-        // Then
-        assertThat(activeCategories).hasSize(1);
-        assertThat(activeCategories.getFirst().getName()).isEqualTo("Root");
-        assertThat(activeCategories.getFirst().getParent()).isNull();
-    }
+            // 여러 자식 카테고리 생성
+            for (int i = 1; i <= 5; i++) {
+                CategoryEntity child = createCategory("자식" + i, Category.STATUS_ACTIVE, savedParent);
+                categoryJpaRepository.save(child);
+            }
+            categoryJpaRepository.flush();
 
-    @Test
-    @DisplayName("Should return empty list when no categories exist")
-    void shouldReturnEmptyList_WhenNoCategoriesExist() {
-        // When
-        List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
-        List<CategoryEntity> activeCategories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
+            // When
+            List<CategoryEntity> categories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
 
-        // Then
-        assertThat(allCategories).isEmpty();
-        assertThat(activeCategories).isEmpty();
-    }
+            // Then
+            assertThat(categories).hasSize(6); // 부모 1개 + 자식 5개
 
-    @Test
-    @DisplayName("Should handle mixed status categories in findAllWithParent")
-    void shouldHandleMixedStatusCategories_InFindAllWithParent() {
-        // Given
-        CategoryEntity activeParent = createCategory("Active Parent", Category.STATUS_ACTIVE, null);
-        CategoryEntity inactiveParent = createCategory("Inactive Parent", "INACTIVE", null);
-        categoryJpaRepository.saveAll(List.of(activeParent, inactiveParent));
+            // 모든 자식 카테고리의 부모 정보가 이미 로드되어 있는지 확인
+            // (실제로는 SQL 로그를 확인해야 하지만, 여기서는 부모 정보 접근이 가능한지만 확인)
+            categories.stream()
+                    .filter(c -> c.getName().startsWith("자식"))
+                    .forEach(child -> {
+                        assertThat(child.getParent()).isNotNull();
+                        assertThat(child.getParent().getName()).isEqualTo("부모");
+                    });
+        }
 
-        CategoryEntity activeChild = createCategory("Active Child", Category.STATUS_ACTIVE, activeParent);
-        CategoryEntity inactiveChild = createCategory("Inactive Child", "INACTIVE", inactiveParent);
-        categoryJpaRepository.saveAll(List.of(activeChild, inactiveChild));
+        @Test
+        @DisplayName("findAllWithParent에서 N+1 문제가 발생하지 않는지 확인")
+        void findAllWithParent_PreventNPlusOneProblem() {
+            // Given
+            CategoryEntity parent1 = createCategory("부모1", Category.STATUS_ACTIVE, null);
+            CategoryEntity parent2 = createCategory("부모2", "INACTIVE", null);
+            List<CategoryEntity> savedParents = categoryJpaRepository.saveAll(List.of(parent1, parent2));
 
-        // When
-        List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
+            // 각 부모에 자식들 생성
+            for (int i = 1; i <= 3; i++) {
+                CategoryEntity child1 = createCategory("부모1의자식" + i, Category.STATUS_ACTIVE, savedParents.get(0));
+                CategoryEntity child2 = createCategory("부모2의자식" + i, "INACTIVE", savedParents.get(1));
+                categoryJpaRepository.saveAll(List.of(child1, child2));
+            }
+            categoryJpaRepository.flush();
 
-        // Then
-        assertThat(allCategories).hasSize(4);
-        assertThat(allCategories)
-                .extracting(CategoryEntity::getName)
-                .containsExactlyInAnyOrder("Active Parent", "Inactive Parent", "Active Child", "Inactive Child");
+            // When
+            List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
+
+            // Then
+            assertThat(allCategories).hasSize(8); // 부모 2개 + 자식 6개
+
+            // 모든 자식 카테고리의 부모 정보가 이미 로드되어 있는지 확인
+            allCategories.stream()
+                    .filter(c -> c.getName().contains("자식"))
+                    .forEach(child -> {
+                        assertThat(child.getParent()).isNotNull();
+                        assertThat(child.getParent().getName()).startsWith("부모");
+                    });
+        }
     }
 
     private CategoryEntity createCategory(String name, String status, CategoryEntity parent) {
