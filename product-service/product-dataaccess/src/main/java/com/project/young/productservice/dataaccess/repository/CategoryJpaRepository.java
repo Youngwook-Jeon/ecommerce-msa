@@ -30,4 +30,41 @@ public interface CategoryJpaRepository extends JpaRepository<CategoryEntity, Lon
             nativeQuery = true
     )
     List<CategoryEntity> findSubTreeByIdNative(@Param("categoryId") Long categoryId);
+
+    @Query(value =
+            "WITH RECURSIVE category_tree AS (" +
+            "    SELECT * FROM categories WHERE id = :categoryId" +
+            "    UNION ALL" +
+            "    SELECT c.* FROM categories c" +
+            "    INNER JOIN category_tree ct ON c.parent_id = ct.id" +
+            "    WHERE c.status IN (:statusList)" +
+            ")" +
+            "SELECT * FROM category_tree",
+            nativeQuery = true
+    )
+    List<CategoryEntity> findSubTreeByIdAndStatusInNative(@Param("categoryId") Long categoryId, @Param("statusList") List<String> statusList);
+
+    @Query(value =
+            "WITH RECURSIVE category_ancestors AS (" +
+            "    SELECT * FROM categories WHERE id = :categoryId" +
+            "    UNION ALL" +
+            "    SELECT c.* FROM categories c" +
+            "    INNER JOIN category_ancestors ca ON c.id = ca.parent_id" +
+            ")" +
+            "SELECT * FROM category_ancestors",
+            nativeQuery = true
+    )
+    List<CategoryEntity> findAncestorsByIdNative(@Param("categoryId") Long categoryId);
+
+    @Query(value =
+            "WITH RECURSIVE category_depth AS (" +
+            "    SELECT id, parent_id, 0 AS depth FROM categories WHERE id = :categoryId" +
+            "    UNION ALL" +
+            "    SELECT c.id, c.parent_id, cd.depth + 1 FROM categories c" +
+            "    INNER JOIN category_depth cd ON c.id = cd.parent_id" +
+            ")" +
+            "SELECT MAX(depth) FROM category_depth", // The max depth is the distance to the root
+            nativeQuery = true
+    )
+    Integer getDepthByIdNative(@Param("categoryId") Long categoryId);
 }

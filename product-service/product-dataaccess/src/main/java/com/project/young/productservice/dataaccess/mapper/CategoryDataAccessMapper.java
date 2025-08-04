@@ -11,13 +11,21 @@ import java.util.ArrayList;
 public class CategoryDataAccessMapper {
 
     public Category categoryEntityToCategory(CategoryEntity categoryEntity) {
-        return Category.builder()
-                .categoryId(new CategoryId(categoryEntity.getId()))
-                .name(categoryEntity.getName())
-                .status(categoryEntity.getStatus())
-                .parentId(categoryEntity.getParent() != null ?
-                        new CategoryId(categoryEntity.getParent().getId()) : null)
-                .build();
+        if (categoryEntity == null) {
+            return null;
+        }
+
+        CategoryId parentId = (categoryEntity.getParent() != null)
+                ? new CategoryId(categoryEntity.getParent().getId())
+                : null;
+
+        // Use the 'reconstitute' factory method instead of the builder
+        return Category.reconstitute(
+                new CategoryId(categoryEntity.getId()),
+                categoryEntity.getName(),
+                parentId,
+                categoryEntity.getStatus()
+        );
     }
 
     public CategoryEntity categoryToCategoryEntity(Category category, CategoryEntity parentEntity) {

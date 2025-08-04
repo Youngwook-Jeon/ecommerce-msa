@@ -22,4 +22,10 @@ public interface CategoryRepository {
 
     List<Category> findAllSubTreeById(CategoryId categoryId);
 
+    List<Category> findSubTreeByIdAndStatusIn(CategoryId categoryId, List<String> statusList);
+
+    List<Category> findAllAncestorsById(CategoryId categoryId);
+
+    int getDepth(CategoryId categoryId);
+
 }

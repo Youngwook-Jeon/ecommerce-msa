@@ -3,7 +3,6 @@ package com.project.young.productservice.dataaccess.repository;
 import com.project.young.productservice.dataaccess.config.ProductDataAccessConfig;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.domain.entity.Category;
-import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -410,6 +409,188 @@ class CategoryJpaRepositoryTest {
                     });
         }
     }
+
+    @Nested
+    @DisplayName("카테고리 깊이 조회 테스트")
+    class CategoryDepthQueryTests {
+
+        @Test
+        @DisplayName("루트 카테고리의 깊이 조회 - 깊이 0")
+        void getDepthByIdNative_RootCategory_ReturnsZero() {
+            // Given
+            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity savedRoot = categoryJpaRepository.save(root);
+            categoryJpaRepository.flush();
+
+            // When
+            Integer depth = categoryJpaRepository.getDepthByIdNative(savedRoot.getId());
+
+            // Then
+            assertThat(depth).isEqualTo(0);
+        }
+
+        @Test
+        @DisplayName("1단계 자식 카테고리의 깊이 조회 - 깊이 1")
+        void getDepthByIdNative_FirstLevelChild_ReturnsOne() {
+            // Given
+            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity savedRoot = categoryJpaRepository.save(root);
+
+            CategoryEntity child = createCategory("자식", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity savedChild = categoryJpaRepository.save(child);
+            categoryJpaRepository.flush();
+
+            // When
+            Integer depth = categoryJpaRepository.getDepthByIdNative(savedChild.getId());
+
+            // Then
+            assertThat(depth).isEqualTo(1);
+        }
+
+        @Test
+        @DisplayName("깊은 계층 구조에서 깊이 조회")
+        void getDepthByIdNative_DeepHierarchy_ReturnsCorrectDepth() {
+            // Given - 5단계 깊이의 카테고리 구조 생성
+            CategoryEntity level0 = createCategory("레벨0", Category.STATUS_ACTIVE, null);
+            CategoryEntity savedLevel0 = categoryJpaRepository.save(level0);
+
+            CategoryEntity level1 = createCategory("레벨1", Category.STATUS_ACTIVE, savedLevel0);
+            CategoryEntity savedLevel1 = categoryJpaRepository.save(level1);
+
+            CategoryEntity level2 = createCategory("레벨2", Category.STATUS_ACTIVE, savedLevel1);
+            CategoryEntity savedLevel2 = categoryJpaRepository.save(level2);
+
+            CategoryEntity level3 = createCategory("레벨3", Category.STATUS_ACTIVE, savedLevel2);
+            CategoryEntity savedLevel3 = categoryJpaRepository.save(level3);
+
+            CategoryEntity level4 = createCategory("레벨4", Category.STATUS_ACTIVE, savedLevel3);
+            CategoryEntity savedLevel4 = categoryJpaRepository.save(level4);
+
+            categoryJpaRepository.flush();
+
+            // When & Then - 각 레벨의 깊이 확인
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedLevel0.getId())).isEqualTo(0);
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedLevel1.getId())).isEqualTo(1);
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedLevel2.getId())).isEqualTo(2);
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedLevel3.getId())).isEqualTo(3);
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedLevel4.getId())).isEqualTo(4);
+        }
+
+        @Test
+        @DisplayName("복잡한 트리 구조에서 각 브랜치의 깊이 조회")
+        void getDepthByIdNative_ComplexTreeStructure_ReturnsCorrectDepths() {
+            // Given - 복잡한 트리 구조 생성
+            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity savedRoot = categoryJpaRepository.save(root);
+
+            // 첫 번째 브랜치 (깊이 3)
+            CategoryEntity branch1_L1 = createCategory("브랜치1-레벨1", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity savedBranch1_L1 = categoryJpaRepository.save(branch1_L1);
+
+            CategoryEntity branch1_L2 = createCategory("브랜치1-레벨2", Category.STATUS_ACTIVE, savedBranch1_L1);
+            CategoryEntity savedBranch1_L2 = categoryJpaRepository.save(branch1_L2);
+
+            CategoryEntity branch1_L3 = createCategory("브랜치1-레벨3", Category.STATUS_ACTIVE, savedBranch1_L2);
+            CategoryEntity savedBranch1_L3 = categoryJpaRepository.save(branch1_L3);
+
+            // 두 번째 브랜치 (깊이 2)
+            CategoryEntity branch2_L1 = createCategory("브랜치2-레벨1", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity savedBranch2_L1 = categoryJpaRepository.save(branch2_L1);
+
+            CategoryEntity branch2_L2 = createCategory("브랜치2-레벨2", Category.STATUS_ACTIVE, savedBranch2_L1);
+            CategoryEntity savedBranch2_L2 = categoryJpaRepository.save(branch2_L2);
+
+            categoryJpaRepository.flush();
+
+            // When & Then
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedRoot.getId())).isEqualTo(0);
+
+            // 첫 번째 브랜치
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedBranch1_L1.getId())).isEqualTo(1);
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedBranch1_L2.getId())).isEqualTo(2);
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedBranch1_L3.getId())).isEqualTo(3);
+
+            // 두 번째 브랜치
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedBranch2_L1.getId())).isEqualTo(1);
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedBranch2_L2.getId())).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 카테고리 ID로 깊이 조회 - null 반환")
+        void getDepthByIdNative_NonExistentId_ReturnsNull() {
+            // When
+            Integer depth = categoryJpaRepository.getDepthByIdNative(999L);
+
+            // Then
+            assertThat(depth).isNull();
+        }
+
+        @Test
+        @DisplayName("자식이 많은 카테고리의 깊이 조회")
+        void getDepthByIdNative_CategoryWithManyChildren_ReturnsCorrectDepth() {
+            // Given
+            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity savedRoot = categoryJpaRepository.save(root);
+
+            // 루트 아래에 여러 자식 생성
+            for (int i = 1; i <= 5; i++) {
+                CategoryEntity child = createCategory("자식" + i, Category.STATUS_ACTIVE, savedRoot);
+                categoryJpaRepository.save(child);
+            }
+
+            // 첫 번째 자식 아래에 손자 생성
+            CategoryEntity firstChild = categoryJpaRepository.findAll().stream()
+                    .filter(c -> "자식1".equals(c.getName()))
+                    .findFirst()
+                    .orElseThrow();
+
+            CategoryEntity grandChild = createCategory("손자", Category.STATUS_ACTIVE, firstChild);
+            CategoryEntity savedGrandChild = categoryJpaRepository.save(grandChild);
+
+            categoryJpaRepository.flush();
+
+            // When & Then
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedRoot.getId())).isEqualTo(0);
+            assertThat(categoryJpaRepository.getDepthByIdNative(firstChild.getId())).isEqualTo(1);
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedGrandChild.getId())).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("중간 레벨 카테고리의 루트로부터의 깊이 조회")
+        void getDepthByIdNative_MiddleLevelCategory_ReturnsDistanceFromRoot() {
+            // Given
+            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity savedRoot = categoryJpaRepository.save(root);
+
+            CategoryEntity level1 = createCategory("레벨1", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity savedLevel1 = categoryJpaRepository.save(level1);
+
+            CategoryEntity level2 = createCategory("레벨2", Category.STATUS_ACTIVE, savedLevel1);
+            CategoryEntity savedLevel2 = categoryJpaRepository.save(level2);
+
+            // level1에서 다른 브랜치 생성
+            CategoryEntity level1_branch2 = createCategory("레벨1-브랜치2", Category.STATUS_ACTIVE, savedLevel1);
+            CategoryEntity savedLevel1_branch2 = categoryJpaRepository.save(level1_branch2);
+
+            CategoryEntity level2_branch2 = createCategory("레벨2-브랜치2", Category.STATUS_ACTIVE, savedLevel1_branch2);
+            CategoryEntity savedLevel2_branch2 = categoryJpaRepository.save(level2_branch2);
+
+            CategoryEntity level3_branch2 = createCategory("레벨3-브랜치2", Category.STATUS_ACTIVE, savedLevel2_branch2);
+            CategoryEntity savedLevel3_branch2 = categoryJpaRepository.save(level3_branch2);
+
+            categoryJpaRepository.flush();
+
+            // When & Then - 각 카테고리의 루트로부터의 깊이(거리) 확인
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedRoot.getId())).isEqualTo(0);           // 루트
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedLevel1.getId())).isEqualTo(1);         // 루트 -> 레벨1
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedLevel2.getId())).isEqualTo(2);         // 루트 -> 레벨1 -> 레벨2
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedLevel1_branch2.getId())).isEqualTo(2); // 루트 -> 레벨1 -> 레벨1-브랜치2
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedLevel2_branch2.getId())).isEqualTo(3); // 루트 -> 레벨1 -> 레벨1-브랜치2 -> 레벨2-브랜치2
+            assertThat(categoryJpaRepository.getDepthByIdNative(savedLevel3_branch2.getId())).isEqualTo(4); // 루트 -> 레벨1 -> 레벨1-브랜치2 -> 레벨2-브랜치2 -> 레벨3-브랜치2
+        }
+
+    }
+
 
     private CategoryEntity createCategory(String name, String status, CategoryEntity parent) {
         return new CategoryEntity(null, name, status, parent, Collections.emptyList());

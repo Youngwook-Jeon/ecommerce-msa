@@ -13,6 +13,7 @@ public class Category extends AggregateRoot<CategoryId> {
     private String status;
 
     public static final String STATUS_ACTIVE = "ACTIVE";
+    public static final String STATUS_INACTIVE = "INACTIVE";
     public static final String STATUS_DELETED = "DELETED";
 
     public static Builder builder() {
@@ -24,6 +25,13 @@ public class Category extends AggregateRoot<CategoryId> {
         this.name = builder.name;
         this.parentId = builder.parentId;
         this.status = builder.status;
+    }
+
+    private Category(CategoryId id, String name, CategoryId parentId, String status) {
+        super.setId(id);
+        this.name = name;
+        this.parentId = parentId;
+        this.status = status;
     }
 
     public String getName() {
@@ -39,6 +47,9 @@ public class Category extends AggregateRoot<CategoryId> {
     }
 
     public void changeName(String newName) {
+        if (isDeleted()) {
+            throw new CategoryDomainException("Cannot change the name of a deleted category.");
+        }
         if (newName == null || newName.isBlank()) {
             throw new CategoryDomainException("New category name cannot be null or blank.");
         }
@@ -49,15 +60,34 @@ public class Category extends AggregateRoot<CategoryId> {
     }
 
     public void changeParent(CategoryId newParentId) {
+        if (isDeleted()) {
+            throw new CategoryDomainException("Cannot change the parent of a deleted category.");
+        }
         if (this.getId() != null && newParentId != null && newParentId.equals(this.getId())) {
             throw new CategoryDomainException("A category cannot be set as its own parent.");
         }
         this.parentId = newParentId;
     }
 
+    public void changeStatus(String newStatus) {
+        if (isDeleted()) {
+            throw new CategoryDomainException("Cannot change the status of a deleted category.");
+        }
+        if (!STATUS_ACTIVE.equals(newStatus) && !STATUS_INACTIVE.equals(newStatus)) {
+            throw new CategoryDomainException("Invalid status provided for update: " + newStatus);
+        }
+        this.status = newStatus;
+    }
+
     public void markAsDeleted() {
-        if (STATUS_DELETED.equals(this.status)) return;
+        if (isDeleted()) {
+            return; // Idempotent
+        }
         this.status = STATUS_DELETED;
+    }
+
+    public boolean isDeleted() {
+        return STATUS_DELETED.equals(this.status);
     }
 
     public void assignId(Long val) {
@@ -119,5 +149,20 @@ public class Category extends AggregateRoot<CategoryId> {
             }
 
         }
+    }
+
+    /**
+     * !!! FOR PERSISTENCE MAPPING ONLY !!!
+     * Reconstitutes a Category object from a persistent state (e.g., database).
+     * This method bypasses initial creation validations and should NOT be used
+     * for creating new business objects. Use the builder for new instances.
+     * @param id The existing ID from the database.
+     * @param name The existing name from the database.
+     * @param parentId The existing parent ID from the database.
+     * @param status The existing status from the database.
+     * @return A reconstituted Category object.
+     */
+    public static Category reconstitute(CategoryId id, String name, CategoryId parentId, String status) {
+        return new Category(id, name, parentId, status);
     }
 }

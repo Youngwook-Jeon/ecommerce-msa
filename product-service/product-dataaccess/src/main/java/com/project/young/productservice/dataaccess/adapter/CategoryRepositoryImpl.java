@@ -104,4 +104,37 @@ public class CategoryRepositoryImpl implements CategoryRepository {
                 .map(categoryDataAccessMapper::categoryEntityToCategory)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public List<Category> findSubTreeByIdAndStatusIn(CategoryId categoryId, List<String> statusList) {
+        if (categoryId == null || categoryId.getValue() == null || statusList == null || statusList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<CategoryEntity> subTreeEntities = categoryJpaRepository.findSubTreeByIdAndStatusInNative(categoryId.getValue(), statusList);
+
+        return subTreeEntities.stream()
+                .map(categoryDataAccessMapper::categoryEntityToCategory)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<Category> findAllAncestorsById(CategoryId categoryId) {
+        if (categoryId == null || categoryId.getValue() == null) {
+            return Collections.emptyList();
+        }
+        List<CategoryEntity> ancestorEntities = categoryJpaRepository.findAncestorsByIdNative(categoryId.getValue());
+
+        return ancestorEntities.stream()
+                .map(categoryDataAccessMapper::categoryEntityToCategory)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public int getDepth(CategoryId categoryId) {
+        if (categoryId == null || categoryId.getValue() == null) {
+            throw new IllegalArgumentException("CategoryId object can not be null.");
+        }
+        Integer depth = categoryJpaRepository.getDepthByIdNative(categoryId.getValue());
+        return (depth != null) ? depth : 0;
+    }
 }
