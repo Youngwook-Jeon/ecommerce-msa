@@ -2,6 +2,7 @@ package com.project.young.productservice.dataaccess.repository;
 
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -67,4 +68,8 @@ public interface CategoryJpaRepository extends JpaRepository<CategoryEntity, Lon
             nativeQuery = true
     )
     Integer getDepthByIdNative(@Param("categoryId") Long categoryId);
+
+    @Modifying
+    @Query("UPDATE CategoryEntity c SET c.status = :status WHERE c.id IN :ids")
+    void updateStatusForIds(@Param("status") String status, @Param("ids") List<Long> ids);
 }

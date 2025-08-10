@@ -70,18 +70,50 @@ public class CategoryApplicationService {
         CategoryId categoryId = new CategoryId(categoryIdValue);
         log.info("Attempting to update category with id: {}", categoryId.getValue());
 
-        List<Category> categoriesToUpdate = findCategoriesForUpdate(categoryId, command.getStatus());
-
-        if (categoriesToUpdate.isEmpty()) {
-            throw new CategoryNotFoundException("Category with id " + categoryId.getValue() + " not found.");
-        }
-
-        Category mainCategory = findMainCategory(categoriesToUpdate, categoryId);
+        Category mainCategory = categoryRepository.findById(new CategoryId(categoryIdValue))
+                .orElseThrow(() -> new CategoryNotFoundException("Category with id " + categoryId.getValue() + " not found."));
         validateCategoryCanBeUpdated(mainCategory);
 
-        boolean hasChanges = performUpdates(mainCategory, categoriesToUpdate, command, categoryId);
+        boolean nameOrParentChanged = applyNameChange(mainCategory, command.getName(), mainCategory.getId());
+        nameOrParentChanged |= applyParentChange(mainCategory, command.getParentId(), mainCategory.getId());
 
-        String message = finalizeUpdate(mainCategory, categoriesToUpdate, hasChanges);
+        // 상태 변경은 Bulk Update로 별도 처리
+        String oldStatus = mainCategory.getStatus();
+        String newStatus = command.getStatus();
+        boolean statusChanged = false;
+
+        if (newStatus != null && !oldStatus.equals(newStatus)) {
+            statusChanged = true;
+            List<CategoryId> idsToUpdateStatus;
+
+            if (Category.STATUS_ACTIVE.equals(newStatus)) { // INACTIVE -> ACTIVE
+                idsToUpdateStatus = categoryRepository.findAllAncestorsById(mainCategory.getId())
+                        .stream().map(Category::getId).toList();
+            } else { // ACTIVE -> INACTIVE
+                idsToUpdateStatus = categoryRepository.findSubTreeByIdAndStatusIn(mainCategory.getId(), List.of(Category.STATUS_ACTIVE))
+                        .stream().map(Category::getId).toList();
+            }
+
+            // 비즈니스 규칙 검증
+            if (!idsToUpdateStatus.isEmpty()) {
+                List<Category> categoriesToValidate = categoryRepository.findAllById(idsToUpdateStatus);
+                categoryDomainService.validateStatusChangeRules(categoriesToValidate, newStatus);
+
+                categoryRepository.updateStatusForIds(newStatus, idsToUpdateStatus);
+                log.info("{} categories' status updated via bulk operation.", idsToUpdateStatus.size());
+            }
+        }
+
+        String message;
+        if (nameOrParentChanged || statusChanged) {
+            if (statusChanged) mainCategory.changeStatus(newStatus);
+            categoryRepository.save(mainCategory);
+
+            message = "Category '" + mainCategory.getName() + "' updated successfully.";
+            // TODO: Outbox 로직
+        } else {
+            message = "Category '" + mainCategory.getName() + "' was not changed.";
+        }
 
         return categoryDataMapper.toUpdateCategoryResponse(mainCategory, message);
     }

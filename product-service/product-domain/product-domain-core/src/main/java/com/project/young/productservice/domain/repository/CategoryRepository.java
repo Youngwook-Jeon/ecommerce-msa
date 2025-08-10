@@ -20,6 +20,8 @@ public interface CategoryRepository {
 
     Optional<Category> findById(CategoryId categoryId);
 
+    List<Category> findAllById(List<CategoryId> categoryIdList);
+
     List<Category> findAllSubTreeById(CategoryId categoryId);
 
     List<Category> findSubTreeByIdAndStatusIn(CategoryId categoryId, List<String> statusList);
@@ -27,5 +29,7 @@ public interface CategoryRepository {
     List<Category> findAllAncestorsById(CategoryId categoryId);
 
     int getDepth(CategoryId categoryId);
+
+    void updateStatusForIds(String status, List<CategoryId> categoryIdList);
 
 }
