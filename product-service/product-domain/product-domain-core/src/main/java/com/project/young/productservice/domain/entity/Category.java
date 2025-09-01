@@ -3,9 +3,11 @@ package com.project.young.productservice.domain.entity;
 import com.project.young.common.domain.entity.AggregateRoot;
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.productservice.domain.exception.CategoryDomainException;
+import lombok.Getter;
 
 import java.util.Optional;
 
+@Getter
 public class Category extends AggregateRoot<CategoryId> {
 
     private String name;
@@ -34,16 +36,8 @@ public class Category extends AggregateRoot<CategoryId> {
         this.status = status;
     }
 
-    public String getName() {
-        return name;
-    }
-
     public Optional<CategoryId> getParentId() {
         return Optional.ofNullable(parentId);
-    }
-
-    public String getStatus() {
-        return status;
     }
 
     public void changeName(String newName) {

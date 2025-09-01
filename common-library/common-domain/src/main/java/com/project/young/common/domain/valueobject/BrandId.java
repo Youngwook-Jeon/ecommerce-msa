@@ -2,12 +2,12 @@ package com.project.young.common.domain.valueobject;
 
 import java.util.UUID;
 
-public class ProductId extends BaseId<UUID> {
-    public ProductId(UUID value) {
+public class BrandId extends BaseId<UUID> {
+    public BrandId(UUID value) {
         super(value);
     }
 
-    public ProductId() {
+    public BrandId() {
         super(UUID.randomUUID());
     }
 }
