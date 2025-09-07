@@ -125,8 +125,46 @@ public class CategoryDomainServiceImpl implements CategoryDomainService {
         validateDeletionRules(categoriesToDelete);
 
         categoriesToDelete.forEach(Category::markAsDeleted);
+        log.info("Prepared {} categories for deletion", categoriesToDelete.size());
 
         return categoriesToDelete;
+    }
+
+    @Override
+    public void processStatusChange(List<Category> categories, String newStatus) {
+        log.info("Processing status change for {} categories to status: {}", categories.size(), newStatus);
+
+        if (categories.isEmpty()) {
+            throw new IllegalArgumentException("Categories list cannot be null or empty");
+        }
+        if (newStatus == null) {
+            throw new IllegalArgumentException("New status cannot be null");
+        }
+
+        List<Category> categoriesToUpdate = categories.stream()
+                .filter(category -> !Objects.equals(category.getStatus(), newStatus))
+                .toList();
+
+        if (categoriesToUpdate.isEmpty()) {
+            log.info("No categories need status update - all are already in status: {}", newStatus);
+            return;
+        }
+
+        log.info("Updating status for {} categories (filtered from {})",
+                categoriesToUpdate.size(), categories.size());
+
+        for (Category category : categoriesToUpdate) {
+            try {
+                category.changeStatus(newStatus);
+                log.debug("Updated category {} status to {}", category.getId().getValue(), newStatus);
+            } catch (CategoryDomainException e) {
+                log.error("Failed to update category {} status: {}", category.getId().getValue(), e.getMessage());
+                throw new CategoryDomainException(
+                        String.format("Failed to update category %s status: %s",
+                                category.getId().getValue(), e.getMessage()), e);
+            }
+        }
+
     }
 
     private void validateCircularReference(CategoryId categoryId, CategoryId newParentId) {

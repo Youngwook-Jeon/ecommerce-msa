@@ -41,15 +41,26 @@ public interface ProductRepository {
 
     void deleteById(ProductId productId);
 
-    void updateStatusForIds(String status, List<ProductId> productIds);
+    void updateStatusByIds(String status, List<ProductId> productIds);
 
-    void updateStatusForCategoryIds(String status, List<CategoryId> categoryIds);
+    void updateStatusByCategoryId(String status, CategoryId categoryId);
 
-    void updateStatusForBrandId(String status, BrandId brandId);
+    void updateStatusByCategoryIds(String status, List<CategoryId> categoryIds);
+
+    void updateStatusByBrandId(String status, BrandId brandId);
+
+    void nullifyCategoryReference(CategoryId categoryId);
+
+    void nullifyBrandReference(BrandId brandId);
 
     long countByStatus(String status);
 
     long countByCategoryId(CategoryId categoryId);
 
     long countByBrandId(BrandId brandId);
+
+    long countByCategoryIdAndStatus(CategoryId categoryId, String status);
+
+    long countByBrandIdAndStatus(BrandId brandId, String status);
+
 }

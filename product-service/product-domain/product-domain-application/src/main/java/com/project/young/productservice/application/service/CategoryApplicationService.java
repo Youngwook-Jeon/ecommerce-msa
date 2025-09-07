@@ -150,44 +150,10 @@ public class CategoryApplicationService {
         }
     }
 
-    private List<Category> findCategoriesForUpdate(CategoryId categoryId, String newStatus) {
-        Category mainCategory = categoryRepository.findById(categoryId).orElse(null);
-        if (mainCategory == null) {
-            return Collections.emptyList();
-        }
-
-        if (newStatus == null || mainCategory.getStatus().equals(newStatus)) {
-            return List.of(mainCategory);
-        }
-
-        return switch (newStatus) {
-            case Category.STATUS_ACTIVE -> categoryRepository.findAllAncestorsById(categoryId); // INACTIVE -> ACTIVE
-            case Category.STATUS_INACTIVE -> categoryRepository.findSubTreeByIdAndStatusIn( // ACTIVE -> INACTIVE
-                    categoryId, List.of(Category.STATUS_ACTIVE));
-            default -> List.of(mainCategory);
-        };
-    }
-
-    private Category findMainCategory(List<Category> categories, CategoryId categoryId) {
-        return categories.stream()
-                .filter(c -> c.getId().equals(categoryId))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Main category not found in the update list."));
-    }
-
     private void validateCategoryCanBeUpdated(Category category) {
         if (category.isDeleted()) {
             throw new CategoryDomainException("Cannot update a category that has been deleted.");
         }
-    }
-
-    private boolean performUpdates(Category mainCategory, List<Category> categoriesToUpdate,
-                                   UpdateCategoryCommand command, CategoryId categoryId) {
-        boolean nameChanged = applyNameChange(mainCategory, command.getName(), categoryId);
-        boolean parentChanged = applyParentChange(mainCategory, command.getParentId(), categoryId);
-        boolean statusChanged = applyStatusChange(categoriesToUpdate, command.getStatus());
-
-        return nameChanged || parentChanged || statusChanged;
     }
 
     private boolean applyNameChange(Category category, String newName, CategoryId categoryId) {
@@ -233,21 +199,8 @@ public class CategoryApplicationService {
         }
 
         categoryDomainService.validateStatusChangeRules(categoriesThatNeedChange, newStatus);
-
-        categoriesThatNeedChange.forEach(cat -> cat.changeStatus(newStatus));
+        categoryDomainService.processStatusChange(categoriesThatNeedChange, newStatus);
         return true;
-    }
-
-    private String finalizeUpdate(Category mainCategory, List<Category> categoriesToUpdate, boolean hasChanges) {
-        if (hasChanges) {
-            categoryRepository.saveAll(categoriesToUpdate);
-            scheduleOutboxEvent("CategoryUpdated", mainCategory.getId());
-            log.info("{} categories updated for category id: {}",
-                    categoriesToUpdate.size(), mainCategory.getId().getValue());
-            return "Category '" + mainCategory.getName() + "' updated successfully.";
-        } else {
-            return "Category '" + mainCategory.getName() + "' was not changed.";
-        }
     }
 
     private Category persistCategory(Category category) {

@@ -41,4 +41,12 @@ public interface CategoryDomainService {
      * @return A list of all categories that were marked for deletion.
      */
     List<Category> prepareForDeletion(CategoryId categoryId);
+
+    /**
+     * Processes status change for categories (entity state change only)
+     * @param categories The categories to update
+     * @param newStatus The new status to apply
+     */
+    void processStatusChange(List<Category> categories, String newStatus);
+
 }
