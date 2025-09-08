@@ -206,53 +206,6 @@ public class ProductDomainServiceImpl implements ProductDomainService {
         return productsToDelete;
     }
 
-    // 이벤트 핸들러 메서드들
-    @Override
-    public void handleCategoryStatusChanged(CategoryId categoryId, String oldStatus, String newStatus) {
-        log.info("Handling category status change: category={}, {} -> {}",
-                categoryId.getValue(), oldStatus, newStatus);
-
-        if (Category.STATUS_INACTIVE.equals(newStatus) && Category.STATUS_ACTIVE.equals(oldStatus)) {
-            productRepository.updateStatusByCategoryId(Product.STATUS_INACTIVE, categoryId);
-            log.info("Products under category {} set to INACTIVE", categoryId.getValue());
-        }
-    }
-
-    @Override
-    public void handleBrandStatusChanged(BrandId brandId, String oldStatus, String newStatus) {
-        log.info("Handling brand status change: brand={}, {} -> {}",
-                brandId.getValue(), oldStatus, newStatus);
-
-        if (Brand.STATUS_INACTIVE.equals(newStatus) && Brand.STATUS_ACTIVE.equals(oldStatus)) {
-            productRepository.updateStatusByBrandId(Product.STATUS_INACTIVE, brandId);
-            log.info("Products under brand {} set to INACTIVE", brandId.getValue());
-        }
-    }
-
-    @Override
-    public void handleCategoryDeleted(List<CategoryId> categoryIds) {
-        log.info("Handling category deletion for {} categories", categoryIds.size());
-
-        for (CategoryId categoryId : categoryIds) {
-            long affectedProducts = productRepository.countByCategoryId(categoryId);
-            if (affectedProducts > 0) {
-                log.info("Nullifying category reference for {} products", affectedProducts);
-                productRepository.nullifyCategoryReference(categoryId);
-            }
-        }
-    }
-
-    @Override
-    public void handleBrandDeleted(BrandId brandId) {
-        log.info("Handling brand deletion: brand={}", brandId.getValue());
-
-        long affectedProducts = productRepository.countByBrandId(brandId);
-        if (affectedProducts > 0) {
-            log.info("Nullifying brand reference for {} products", affectedProducts);
-            productRepository.nullifyBrandReference(brandId);
-        }
-    }
-
     private boolean isValidStatusTransition(String currentStatus, String newStatus) {
         return switch (currentStatus) {
             case Product.STATUS_ACTIVE -> Product.STATUS_INACTIVE.equals(newStatus);

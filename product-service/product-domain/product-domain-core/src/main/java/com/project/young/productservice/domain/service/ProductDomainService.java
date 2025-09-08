@@ -49,24 +49,4 @@ public interface ProductDomainService {
      * Prepares products for deletion by validating rules and marking as deleted
      */
     List<Product> prepareProductsForDeletion(List<ProductId> productIds);
-
-    /**
-     * Handles category status change by updating related products
-     */
-    void handleCategoryStatusChanged(CategoryId categoryId, String oldStatus, String newStatus);
-
-    /**
-     * Handles brand status change by updating related products
-     */
-    void handleBrandStatusChanged(BrandId brandId, String oldStatus, String newStatus);
-
-    /**
-     * Handles category deletion by nullifying category references
-     */
-    void handleCategoryDeleted(List<CategoryId> categoryIds);
-
-    /**
-     * Handles brand deletion by nullifying brand references
-     */
-    void handleBrandDeleted(BrandId brandId);
 }

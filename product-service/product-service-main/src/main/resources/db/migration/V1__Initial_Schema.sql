@@ -24,7 +24,7 @@ CREATE TABLE products
     description    TEXT,
     base_price     DECIMAL(12, 2) NOT NULL,
     status         VARCHAR(20)    NOT NULL DEFAULT 'ACTIVE',
-    condition_type VARCHAR(50)             DEFAULT 'new',
+    condition_type VARCHAR(50)             DEFAULT 'NEW',
     brand_id       UUID           REFERENCES brands (id) ON DELETE SET NULL,
     created_at     TIMESTAMP               DEFAULT CURRENT_TIMESTAMP,
     updated_at     TIMESTAMP               DEFAULT CURRENT_TIMESTAMP

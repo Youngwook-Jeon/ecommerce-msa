@@ -1,7 +1,8 @@
 package com.project.young.productservice;
 
-import com.project.young.productservice.domain.ProductDomainService;
-import com.project.young.productservice.domain.ProductDomainServiceImpl;
+import com.project.young.productservice.domain.repository.ProductRepository;
+import com.project.young.productservice.domain.service.ProductDomainService;
+import com.project.young.productservice.domain.service.ProductDomainServiceImpl;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
