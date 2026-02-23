@@ -4,6 +4,7 @@ import com.project.young.common.application.web.ErrorDTO;
 import com.project.young.common.application.web.GlobalExceptionHandler;
 import com.project.young.productservice.domain.exception.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -16,27 +17,27 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @ControllerAdvice
 public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler {
 
-    @ResponseBody
-    @ExceptionHandler(value = {ProductDomainException.class})
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorDTO handleException(ProductDomainException productDomainException) {
-        log.warn(productDomainException.getMessage(), productDomainException);
-        return ErrorDTO.builder()
-                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message(productDomainException.getMessage())
-                .build();
-    }
-
-    @ResponseBody
-    @ExceptionHandler(value = {ProductAlreadyExistsException.class})
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorDTO handleException(ProductAlreadyExistsException productAlreadyExistsException) {
-        log.warn(productAlreadyExistsException.getMessage(), productAlreadyExistsException);
-        return ErrorDTO.builder()
-                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
-                .message(productAlreadyExistsException.getMessage())
-                .build();
-    }
+//    @ResponseBody
+//    @ExceptionHandler(value = {ProductDomainException.class})
+//    @ResponseStatus(HttpStatus.BAD_REQUEST)
+//    public ErrorDTO handleException(ProductDomainException productDomainException) {
+//        log.warn(productDomainException.getMessage(), productDomainException);
+//        return ErrorDTO.builder()
+//                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
+//                .message(productDomainException.getMessage())
+//                .build();
+//    }
+//
+//    @ResponseBody
+//    @ExceptionHandler(value = {ProductAlreadyExistsException.class})
+//    @ResponseStatus(HttpStatus.BAD_REQUEST)
+//    public ErrorDTO handleException(ProductAlreadyExistsException productAlreadyExistsException) {
+//        log.warn(productAlreadyExistsException.getMessage(), productAlreadyExistsException);
+//        return ErrorDTO.builder()
+//                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
+//                .message(productAlreadyExistsException.getMessage())
+//                .build();
+//    }
 
     @ResponseBody
     @ExceptionHandler(value = {DuplicateCategoryNameException.class})
@@ -90,6 +91,17 @@ public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler
         return ErrorDTO.builder()
                 .code(HttpStatus.UNAUTHORIZED.getReasonPhrase())
                 .message(authenticationException.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(value = {DataIntegrityViolationException.class})
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDTO handleException(DataIntegrityViolationException dataIntegrityViolationException) {
+        log.warn(dataIntegrityViolationException.getMessage(), dataIntegrityViolationException);
+        return ErrorDTO.builder()
+                .code(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(dataIntegrityViolationException.getMessage())
                 .build();
     }
 }

@@ -23,34 +23,38 @@ spring:
     name: edge-service
   cloud:
     gateway:
-      httpclient:
-        connect-timeout: 2000 # 2s
-        response-timeout: 5s
-        pool:
-          type: elastic
-          max-idle-time: 15s
-          max-life-time: 60s
-      routes:
-#                - id: customer-route
-#                  uri: ${CUSTOMER_SERVICE_URL:http://localhost:9001}
-#                  predicates:
-#                    - Path=/api/customers/**
-#                  filters:
-#                    - RewritePath=/api/(?<segment>.*), /$\{segment}
-#                    - TokenRelay=
-        - id: product-route
-          uri: ${PRODUCT_SERVICE_URL:http://localhost:9002}
-          predicates:
-            - Path=/api/${api-version}/product_service/**
-          filters:
-            - RewritePath=/api/${api-version}/product_service/(?<segment>.*), /$\{segment}
-        - id: spa
-          uri: ${spa-uri}
-          predicates:
-            - Path=/**
-      default-filters:
-        - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin Access-Control-Request-Headers
-        - SaveSession
+      server:
+        webflux:
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin Access-Control-Request-Headers
+            - SaveSession
+          routes:
+            #                - id: customer-route
+            #                  uri: ${CUSTOMER_SERVICE_URL:http://localhost:9001}
+            #                  predicates:
+            #                    - Path=/api/customers/**
+            #                  filters:
+            #                    - RewritePath=/api/(?<segment>.*), /$\{segment}
+            #                    - TokenRelay=
+            - id: product-route
+              uri: ${PRODUCT_SERVICE_URL:http://localhost:9002}
+              predicates:
+                - Path=/api/${api-version}/product_service/**
+              filters:
+                - RewritePath=/api/${api-version}/product_service/(?<segment>.*), /$\{segment}
+            - id: spa
+              uri: ${spa-uri}
+              predicates:
+                - Path=/**
+              filters:
+                - PreserveHostHeader
+          httpclient:
+            connect-timeout: 2000
+            response-timeout: 5s
+            pool:
+              type: elastic
+              max-idle-time: 15s
+              max-life-time: 60s
   data:
     redis:
       connect-timeout: 2s

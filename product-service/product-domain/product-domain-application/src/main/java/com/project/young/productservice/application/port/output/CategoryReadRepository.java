@@ -1,12 +1,12 @@
 package com.project.young.productservice.application.port.output;
 
-import com.project.young.productservice.application.dto.CategoryDto;
+import com.project.young.productservice.application.port.output.view.ReadCategoryView;
 
 import java.util.List;
 
 public interface CategoryReadRepository {
 
-    List<CategoryDto> findAllActiveCategoryHierarchy();
+    List<ReadCategoryView> findAllActiveCategoryHierarchy();
 
-    List<CategoryDto> findAllCategoryHierarchy();
+    List<ReadCategoryView> findAllCategoryHierarchy();
 }

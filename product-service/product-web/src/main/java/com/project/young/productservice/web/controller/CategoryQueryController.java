@@ -1,7 +1,9 @@
 package com.project.young.productservice.web.controller;
 
-import com.project.young.productservice.application.dto.CategoryDto;
+import com.project.young.productservice.application.port.output.view.ReadCategoryView;
 import com.project.young.productservice.application.service.CategoryQueryService;
+import com.project.young.productservice.web.dto.ReadCategoryResponse;
+import com.project.young.productservice.web.mapper.CategoryQueryResponseMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -17,23 +19,26 @@ import java.util.List;
 public class CategoryQueryController {
 
     private final CategoryQueryService categoryQueryService;
+    private final CategoryQueryResponseMapper categoryQueryResponseMapper;
 
-    public CategoryQueryController(CategoryQueryService categoryQueryService) {
+    public CategoryQueryController(CategoryQueryService categoryQueryService,
+                                   CategoryQueryResponseMapper categoryQueryResponseMapper) {
         this.categoryQueryService = categoryQueryService;
+        this.categoryQueryResponseMapper = categoryQueryResponseMapper;
     }
 
     @GetMapping("/hierarchy")
-    public ResponseEntity<List<CategoryDto>> getAllActiveCategoryHierarchy() {
+    public ResponseEntity<ReadCategoryResponse> getAllActiveCategoryHierarchy() {
         log.info("REST request to get category hierarchy.");
-        List<CategoryDto> categoryHierarchy = categoryQueryService.getAllActiveCategoryHierarchy();
-        return ResponseEntity.ok(categoryHierarchy);
+        List<ReadCategoryView> categoryHierarchy = categoryQueryService.getAllActiveCategoryHierarchy();
+        return ResponseEntity.ok(categoryQueryResponseMapper.toReadCategoryResponse(categoryHierarchy));
     }
 
     @GetMapping("/admin/hierarchy")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<List<CategoryDto>> getAdminCategoryHierarchy() {
+    public ResponseEntity<ReadCategoryResponse> getAdminCategoryHierarchy() {
         log.info("REST request to get category hierarchy for admin.");
-        List<CategoryDto> categoryHierarchy = categoryQueryService.getAdminCategoryHierarchy();
-        return ResponseEntity.ok(categoryHierarchy);
+        List<ReadCategoryView> categoryHierarchy = categoryQueryService.getAdminCategoryHierarchy();
+        return ResponseEntity.ok(categoryQueryResponseMapper.toReadCategoryResponse(categoryHierarchy));
     }
 }

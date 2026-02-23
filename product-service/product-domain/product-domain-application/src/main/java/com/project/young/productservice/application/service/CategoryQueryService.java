@@ -1,6 +1,6 @@
 package com.project.young.productservice.application.service;
 
-import com.project.young.productservice.application.dto.CategoryDto;
+import com.project.young.productservice.application.port.output.view.ReadCategoryView;
 import com.project.young.productservice.application.port.output.CategoryReadRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,11 +17,11 @@ public class CategoryQueryService {
         this.categoryReadRepository = categoryReadRepository;
     }
 
-    public List<CategoryDto> getAllActiveCategoryHierarchy() {
+    public List<ReadCategoryView> getAllActiveCategoryHierarchy() {
         return categoryReadRepository.findAllActiveCategoryHierarchy();
     }
 
-    public List<CategoryDto> getAdminCategoryHierarchy() {
+    public List<ReadCategoryView> getAdminCategoryHierarchy() {
         return categoryReadRepository.findAllCategoryHierarchy();
     }
 }

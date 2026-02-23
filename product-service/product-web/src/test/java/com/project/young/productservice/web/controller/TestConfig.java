@@ -3,7 +3,6 @@ package com.project.young.productservice.web.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.productservice.application.service.CategoryApplicationService;
 import com.project.young.productservice.application.service.CategoryQueryService;
-import com.project.young.productservice.domain.ports.input.service.ProductApplicationService;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
@@ -37,11 +36,6 @@ public class TestConfig {
     @Bean
     public Validator validator() {
         return validatorFactory().getValidator();
-    }
-
-    @Bean
-    public ProductApplicationService productApplicationService() {
-        return mock(ProductApplicationService.class);
     }
 
     @Bean

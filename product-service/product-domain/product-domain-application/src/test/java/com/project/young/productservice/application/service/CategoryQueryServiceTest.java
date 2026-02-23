@@ -1,7 +1,8 @@
 package com.project.young.productservice.application.service;
 
-import com.project.young.productservice.application.dto.CategoryDto;
 import com.project.young.productservice.application.port.output.CategoryReadRepository;
+import com.project.young.productservice.application.port.output.view.ReadCategoryView;
+import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -11,9 +12,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.verify;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class CategoryQueryServiceTest {
@@ -25,23 +25,44 @@ class CategoryQueryServiceTest {
     private CategoryQueryService categoryQueryService;
 
     @Test
-    @DisplayName("Should call repository and return its result directly")
-    void testGetCategoryHierarchy() {
-        // Arrange
-        // Create a mock DTO list. The test doesn't care how this list is constructed.
-        List<CategoryDto> mockHierarchy = List.of(new CategoryDto(1L, "Test", null, "ACTIVE", List.of()));
+    @DisplayName("getAllActiveCategoryHierarchy: repository를 호출하고 결과를 그대로 반환한다")
+    void getAllActiveCategoryHierarchy_ReturnsRepositoryResult() {
+        // Given
+        List<ReadCategoryView> mockHierarchy = List.of(
+                new ReadCategoryView(1L, "Root", null, CategoryStatus.ACTIVE, List.of(
+                        new ReadCategoryView(2L, "Child", 1L, CategoryStatus.ACTIVE, List.of())
+                ))
+        );
 
-        // Mock the repository port to return the predefined DTO list
         when(categoryReadRepository.findAllActiveCategoryHierarchy()).thenReturn(mockHierarchy);
 
-        // Act
-        List<CategoryDto> actualHierarchy = categoryQueryService.getAllActiveCategoryHierarchy();
+        // When
+        List<ReadCategoryView> result = categoryQueryService.getAllActiveCategoryHierarchy();
 
-        // Assert
-        // Check if the service returned the exact list from the repository
-        assertEquals(mockHierarchy, actualHierarchy);
+        // Then
+        assertThat(result).isSameAs(mockHierarchy);
+        verify(categoryReadRepository, times(1)).findAllActiveCategoryHierarchy();
+        verify(categoryReadRepository, never()).findAllCategoryHierarchy();
+        verifyNoMoreInteractions(categoryReadRepository);
+    }
 
-        // Verify that the repository method was called exactly once
-        verify(categoryReadRepository).findAllActiveCategoryHierarchy();
+    @Test
+    @DisplayName("getAdminCategoryHierarchy: repository를 호출하고 결과를 그대로 반환한다")
+    void getAdminCategoryHierarchy_ReturnsRepositoryResult() {
+        // Given
+        List<ReadCategoryView> mockHierarchy = List.of(
+                new ReadCategoryView(1L, "Root", null, CategoryStatus.ACTIVE, List.of())
+        );
+
+        when(categoryReadRepository.findAllCategoryHierarchy()).thenReturn(mockHierarchy);
+
+        // When
+        List<ReadCategoryView> result = categoryQueryService.getAdminCategoryHierarchy();
+
+        // Then
+        assertThat(result).isSameAs(mockHierarchy);
+        verify(categoryReadRepository, times(1)).findAllCategoryHierarchy();
+        verify(categoryReadRepository, never()).findAllActiveCategoryHierarchy();
+        verifyNoMoreInteractions(categoryReadRepository);
     }
 }

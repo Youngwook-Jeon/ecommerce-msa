@@ -2,7 +2,7 @@ package com.project.young.productservice.dataaccess.repository;
 
 import com.project.young.productservice.dataaccess.config.ProductDataAccessConfig;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
-import com.project.young.productservice.domain.entity.Category;
+import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -59,7 +59,6 @@ class CategoryJpaRepositoryTest {
         testEntityManager.flush();
     }
 
-    // 나머지 테스트 메서드들은 동일...
     @Nested
     @DisplayName("기본 CRUD 테스트")
     class BasicCrudTests {
@@ -68,7 +67,7 @@ class CategoryJpaRepositoryTest {
         @DisplayName("카테고리 저장 및 조회 성공")
         void saveAndFindCategory_Success() {
             // Given
-            CategoryEntity category = createCategory("전자제품", Category.STATUS_ACTIVE, null);
+            CategoryEntity category = createCategory("전자제품", CategoryStatusEntity.ACTIVE, null);
 
             // When
             CategoryEntity savedCategory = categoryJpaRepository.save(category);
@@ -77,17 +76,19 @@ class CategoryJpaRepositoryTest {
             assertThat(savedCategory).isNotNull();
             assertThat(savedCategory.getId()).isNotNull();
             assertThat(savedCategory.getName()).isEqualTo("전자제품");
-            assertThat(savedCategory.getStatus()).isEqualTo(Category.STATUS_ACTIVE);
+            assertThat(savedCategory.getStatus()).isEqualTo(CategoryStatusEntity.ACTIVE);
+            assertThat(savedCategory.getCreatedAt()).isNotNull();
+            assertThat(savedCategory.getUpdatedAt()).isNotNull();
         }
 
         @Test
         @DisplayName("부모-자식 관계 카테고리 저장 성공")
         void saveParentChildCategories_Success() {
             // Given
-            CategoryEntity parent = createCategory("전자제품", Category.STATUS_ACTIVE, null);
+            CategoryEntity parent = createCategory("전자제품", CategoryStatusEntity.ACTIVE, null);
             CategoryEntity savedParent = categoryJpaRepository.save(parent);
 
-            CategoryEntity child = createCategory("노트북", Category.STATUS_ACTIVE, savedParent);
+            CategoryEntity child = createCategory("노트북", CategoryStatusEntity.ACTIVE, savedParent);
 
             // When
             CategoryEntity savedChild = categoryJpaRepository.save(child);
@@ -107,7 +108,7 @@ class CategoryJpaRepositoryTest {
         @DisplayName("카테고리 이름으로 존재 여부 확인")
         void existsByName_Success() {
             // Given
-            CategoryEntity category = createCategory("전자제품", Category.STATUS_ACTIVE, null);
+            CategoryEntity category = createCategory("전자제품", CategoryStatusEntity.ACTIVE, null);
             categoryJpaRepository.save(category);
 
             // When & Then
@@ -119,8 +120,8 @@ class CategoryJpaRepositoryTest {
         @DisplayName("특정 ID 제외하고 이름으로 존재 여부 확인")
         void existsByNameAndIdNot_Success() {
             // Given
-            CategoryEntity electronics = createCategory("전자제품", Category.STATUS_ACTIVE, null);
-            CategoryEntity books = createCategory("도서", Category.STATUS_ACTIVE, null);
+            CategoryEntity electronics = createCategory("전자제품", CategoryStatusEntity.ACTIVE, null);
+            CategoryEntity books = createCategory("도서", CategoryStatusEntity.ACTIVE, null);
 
             CategoryEntity savedElectronics = categoryJpaRepository.save(electronics);
             CategoryEntity savedBooks = categoryJpaRepository.save(books);
@@ -145,18 +146,18 @@ class CategoryJpaRepositoryTest {
         @DisplayName("활성 상태 카테고리만 조회 (부모 정보 포함)")
         void findAllWithParentByStatus_ActiveOnly_Success() {
             // Given
-            CategoryEntity activeParent = createCategory("활성부모", Category.STATUS_ACTIVE, null);
-            CategoryEntity inactiveParent = createCategory("비활성부모", "INACTIVE", null);
+            CategoryEntity activeParent = createCategory("활성부모", CategoryStatusEntity.ACTIVE, null);
+            CategoryEntity inactiveParent = createCategory("비활성부모", CategoryStatusEntity.INACTIVE, null);
             categoryJpaRepository.saveAll(List.of(activeParent, inactiveParent));
 
-            CategoryEntity activeChild = createCategory("활성자식", Category.STATUS_ACTIVE, activeParent);
-            CategoryEntity inactiveChild = createCategory("비활성자식", "INACTIVE", inactiveParent);
+            CategoryEntity activeChild = createCategory("활성자식", CategoryStatusEntity.ACTIVE, activeParent);
+            CategoryEntity inactiveChild = createCategory("비활성자식", CategoryStatusEntity.INACTIVE, inactiveParent);
             categoryJpaRepository.saveAll(List.of(activeChild, inactiveChild));
 
             categoryJpaRepository.flush();
 
             // When
-            List<CategoryEntity> activeCategories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
+            List<CategoryEntity> activeCategories = categoryJpaRepository.findAllWithParentByStatus(CategoryStatusEntity.ACTIVE);
 
             // Then
             assertThat(activeCategories).hasSize(2);
@@ -174,11 +175,11 @@ class CategoryJpaRepositoryTest {
         @DisplayName("활성 상태 카테고리가 없을 때 빈 리스트 반환")
         void findAllWithParentByStatus_NoActiveCategories_ReturnsEmptyList() {
             // Given
-            CategoryEntity inactiveCategory = createCategory("비활성카테고리", "INACTIVE", null);
+            CategoryEntity inactiveCategory = createCategory("비활성카테고리", CategoryStatusEntity.INACTIVE, null);
             categoryJpaRepository.save(inactiveCategory);
 
             // When
-            List<CategoryEntity> activeCategories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
+            List<CategoryEntity> activeCategories = categoryJpaRepository.findAllWithParentByStatus(CategoryStatusEntity.ACTIVE);
 
             // Then
             assertThat(activeCategories).isEmpty();
@@ -193,12 +194,12 @@ class CategoryJpaRepositoryTest {
         @DisplayName("모든 카테고리 조회 (부모 정보 포함)")
         void findAllWithParent_Success() {
             // Given
-            CategoryEntity activeParent = createCategory("활성부모", Category.STATUS_ACTIVE, null);
-            CategoryEntity inactiveParent = createCategory("비활성부모", "INACTIVE", null);
+            CategoryEntity activeParent = createCategory("활성부모", CategoryStatusEntity.ACTIVE, null);
+            CategoryEntity inactiveParent = createCategory("비활성부모", CategoryStatusEntity.INACTIVE, null);
             categoryJpaRepository.saveAll(List.of(activeParent, inactiveParent));
 
-            CategoryEntity activeChild = createCategory("활성자식", Category.STATUS_ACTIVE, activeParent);
-            CategoryEntity inactiveChild = createCategory("비활성자식", "INACTIVE", inactiveParent);
+            CategoryEntity activeChild = createCategory("활성자식", CategoryStatusEntity.ACTIVE, activeParent);
+            CategoryEntity inactiveChild = createCategory("비활성자식", CategoryStatusEntity.INACTIVE, inactiveParent);
             categoryJpaRepository.saveAll(List.of(activeChild, inactiveChild));
 
             categoryJpaRepository.flush();
@@ -226,8 +227,8 @@ class CategoryJpaRepositoryTest {
         @DisplayName("부모가 없는 최상위 카테고리들 조회")
         void findAllWithParent_RootCategoriesOnly_Success() {
             // Given
-            CategoryEntity root1 = createCategory("루트1", Category.STATUS_ACTIVE, null);
-            CategoryEntity root2 = createCategory("루트2", "INACTIVE", null);
+            CategoryEntity root1 = createCategory("루트1", CategoryStatusEntity.ACTIVE, null);
+            CategoryEntity root2 = createCategory("루트2", CategoryStatusEntity.INACTIVE, null);
             categoryJpaRepository.saveAll(List.of(root1, root2));
 
             // When
@@ -263,14 +264,14 @@ class CategoryJpaRepositoryTest {
         @DisplayName("카테고리 하위 트리 조회 성공")
         void findSubTreeByIdNative_Success() {
             // Given
-            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity root = createCategory("루트", CategoryStatusEntity.ACTIVE, null);
             CategoryEntity savedRoot = categoryJpaRepository.save(root);
 
-            CategoryEntity child1 = createCategory("자식1", Category.STATUS_ACTIVE, savedRoot);
-            CategoryEntity child2 = createCategory("자식2", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity child1 = createCategory("자식1", CategoryStatusEntity.ACTIVE, savedRoot);
+            CategoryEntity child2 = createCategory("자식2", CategoryStatusEntity.ACTIVE, savedRoot);
             List<CategoryEntity> savedChildren = categoryJpaRepository.saveAll(List.of(child1, child2));
 
-            CategoryEntity grandChild = createCategory("손자", Category.STATUS_ACTIVE, savedChildren.get(0));
+            CategoryEntity grandChild = createCategory("손자", CategoryStatusEntity.ACTIVE, savedChildren.get(0));
             categoryJpaRepository.save(grandChild);
 
             categoryJpaRepository.flush();
@@ -289,10 +290,10 @@ class CategoryJpaRepositoryTest {
         @DisplayName("리프 노드의 하위 트리 조회")
         void findSubTreeByIdNative_LeafNode_ReturnsOnlyItself() {
             // Given
-            CategoryEntity parent = createCategory("부모", Category.STATUS_ACTIVE, null);
+            CategoryEntity parent = createCategory("부모", CategoryStatusEntity.ACTIVE, null);
             CategoryEntity savedParent = categoryJpaRepository.save(parent);
 
-            CategoryEntity leaf = createCategory("리프", Category.STATUS_ACTIVE, savedParent);
+            CategoryEntity leaf = createCategory("리프", CategoryStatusEntity.ACTIVE, savedParent);
             CategoryEntity savedLeaf = categoryJpaRepository.save(leaf);
 
             categoryJpaRepository.flush();
@@ -319,16 +320,16 @@ class CategoryJpaRepositoryTest {
         @DisplayName("복잡한 트리 구조에서 중간 노드의 하위 트리 조회")
         void findSubTreeByIdNative_ComplexTree_Success() {
             // Given
-            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity root = createCategory("루트", CategoryStatusEntity.ACTIVE, null);
             CategoryEntity savedRoot = categoryJpaRepository.save(root);
 
-            CategoryEntity branch1 = createCategory("가지1", Category.STATUS_ACTIVE, savedRoot);
-            CategoryEntity branch2 = createCategory("가지2", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity branch1 = createCategory("가지1", CategoryStatusEntity.ACTIVE, savedRoot);
+            CategoryEntity branch2 = createCategory("가지2", CategoryStatusEntity.ACTIVE, savedRoot);
             List<CategoryEntity> savedBranches = categoryJpaRepository.saveAll(List.of(branch1, branch2));
 
-            CategoryEntity leaf1 = createCategory("잎1", Category.STATUS_ACTIVE, savedBranches.get(0));
-            CategoryEntity leaf2 = createCategory("잎2", Category.STATUS_ACTIVE, savedBranches.get(0));
-            CategoryEntity leaf3 = createCategory("잎3", Category.STATUS_ACTIVE, savedBranches.get(1));
+            CategoryEntity leaf1 = createCategory("잎1", CategoryStatusEntity.ACTIVE, savedBranches.get(0));
+            CategoryEntity leaf2 = createCategory("잎2", CategoryStatusEntity.ACTIVE, savedBranches.get(0));
+            CategoryEntity leaf3 = createCategory("잎3", CategoryStatusEntity.ACTIVE, savedBranches.get(1));
             categoryJpaRepository.saveAll(List.of(leaf1, leaf2, leaf3));
 
             categoryJpaRepository.flush();
@@ -352,18 +353,18 @@ class CategoryJpaRepositoryTest {
         @DisplayName("findAllWithParentByStatus에서 N+1 문제가 발생하지 않는지 확인")
         void findAllWithParentByStatus_PreventNPlusOneProblem() {
             // Given
-            CategoryEntity parent = createCategory("부모", Category.STATUS_ACTIVE, null);
+            CategoryEntity parent = createCategory("부모", CategoryStatusEntity.ACTIVE, null);
             CategoryEntity savedParent = categoryJpaRepository.save(parent);
 
             // 여러 자식 카테고리 생성
             for (int i = 1; i <= 5; i++) {
-                CategoryEntity child = createCategory("자식" + i, Category.STATUS_ACTIVE, savedParent);
+                CategoryEntity child = createCategory("자식" + i, CategoryStatusEntity.ACTIVE, savedParent);
                 categoryJpaRepository.save(child);
             }
             categoryJpaRepository.flush();
 
             // When
-            List<CategoryEntity> categories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
+            List<CategoryEntity> categories = categoryJpaRepository.findAllWithParentByStatus(CategoryStatusEntity.ACTIVE);
 
             // Then
             assertThat(categories).hasSize(6); // 부모 1개 + 자식 5개
@@ -382,14 +383,14 @@ class CategoryJpaRepositoryTest {
         @DisplayName("findAllWithParent에서 N+1 문제가 발생하지 않는지 확인")
         void findAllWithParent_PreventNPlusOneProblem() {
             // Given
-            CategoryEntity parent1 = createCategory("부모1", Category.STATUS_ACTIVE, null);
-            CategoryEntity parent2 = createCategory("부모2", "INACTIVE", null);
+            CategoryEntity parent1 = createCategory("부모1", CategoryStatusEntity.ACTIVE, null);
+            CategoryEntity parent2 = createCategory("부모2", CategoryStatusEntity.INACTIVE, null);
             List<CategoryEntity> savedParents = categoryJpaRepository.saveAll(List.of(parent1, parent2));
 
             // 각 부모에 자식들 생성
             for (int i = 1; i <= 3; i++) {
-                CategoryEntity child1 = createCategory("부모1의자식" + i, Category.STATUS_ACTIVE, savedParents.get(0));
-                CategoryEntity child2 = createCategory("부모2의자식" + i, "INACTIVE", savedParents.get(1));
+                CategoryEntity child1 = createCategory("부모1의자식" + i, CategoryStatusEntity.ACTIVE, savedParents.get(0));
+                CategoryEntity child2 = createCategory("부모2의자식" + i, CategoryStatusEntity.INACTIVE, savedParents.get(1));
                 categoryJpaRepository.saveAll(List.of(child1, child2));
             }
             categoryJpaRepository.flush();
@@ -418,7 +419,7 @@ class CategoryJpaRepositoryTest {
         @DisplayName("루트 카테고리의 깊이 조회 - 깊이 0")
         void getDepthByIdNative_RootCategory_ReturnsZero() {
             // Given
-            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity root = createCategory("루트", CategoryStatusEntity.ACTIVE, null);
             CategoryEntity savedRoot = categoryJpaRepository.save(root);
             categoryJpaRepository.flush();
 
@@ -433,10 +434,10 @@ class CategoryJpaRepositoryTest {
         @DisplayName("1단계 자식 카테고리의 깊이 조회 - 깊이 1")
         void getDepthByIdNative_FirstLevelChild_ReturnsOne() {
             // Given
-            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity root = createCategory("루트", CategoryStatusEntity.ACTIVE, null);
             CategoryEntity savedRoot = categoryJpaRepository.save(root);
 
-            CategoryEntity child = createCategory("자식", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity child = createCategory("자식", CategoryStatusEntity.ACTIVE, savedRoot);
             CategoryEntity savedChild = categoryJpaRepository.save(child);
             categoryJpaRepository.flush();
 
@@ -451,19 +452,19 @@ class CategoryJpaRepositoryTest {
         @DisplayName("깊은 계층 구조에서 깊이 조회")
         void getDepthByIdNative_DeepHierarchy_ReturnsCorrectDepth() {
             // Given - 5단계 깊이의 카테고리 구조 생성
-            CategoryEntity level0 = createCategory("레벨0", Category.STATUS_ACTIVE, null);
+            CategoryEntity level0 = createCategory("레벨0", CategoryStatusEntity.ACTIVE, null);
             CategoryEntity savedLevel0 = categoryJpaRepository.save(level0);
 
-            CategoryEntity level1 = createCategory("레벨1", Category.STATUS_ACTIVE, savedLevel0);
+            CategoryEntity level1 = createCategory("레벨1", CategoryStatusEntity.ACTIVE, savedLevel0);
             CategoryEntity savedLevel1 = categoryJpaRepository.save(level1);
 
-            CategoryEntity level2 = createCategory("레벨2", Category.STATUS_ACTIVE, savedLevel1);
+            CategoryEntity level2 = createCategory("레벨2", CategoryStatusEntity.ACTIVE, savedLevel1);
             CategoryEntity savedLevel2 = categoryJpaRepository.save(level2);
 
-            CategoryEntity level3 = createCategory("레벨3", Category.STATUS_ACTIVE, savedLevel2);
+            CategoryEntity level3 = createCategory("레벨3", CategoryStatusEntity.ACTIVE, savedLevel2);
             CategoryEntity savedLevel3 = categoryJpaRepository.save(level3);
 
-            CategoryEntity level4 = createCategory("레벨4", Category.STATUS_ACTIVE, savedLevel3);
+            CategoryEntity level4 = createCategory("레벨4", CategoryStatusEntity.ACTIVE, savedLevel3);
             CategoryEntity savedLevel4 = categoryJpaRepository.save(level4);
 
             categoryJpaRepository.flush();
@@ -480,24 +481,24 @@ class CategoryJpaRepositoryTest {
         @DisplayName("복잡한 트리 구조에서 각 브랜치의 깊이 조회")
         void getDepthByIdNative_ComplexTreeStructure_ReturnsCorrectDepths() {
             // Given - 복잡한 트리 구조 생성
-            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity root = createCategory("루트", CategoryStatusEntity.ACTIVE, null);
             CategoryEntity savedRoot = categoryJpaRepository.save(root);
 
             // 첫 번째 브랜치 (깊이 3)
-            CategoryEntity branch1_L1 = createCategory("브랜치1-레벨1", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity branch1_L1 = createCategory("브랜치1-레벨1", CategoryStatusEntity.ACTIVE, savedRoot);
             CategoryEntity savedBranch1_L1 = categoryJpaRepository.save(branch1_L1);
 
-            CategoryEntity branch1_L2 = createCategory("브랜치1-레벨2", Category.STATUS_ACTIVE, savedBranch1_L1);
+            CategoryEntity branch1_L2 = createCategory("브랜치1-레벨2", CategoryStatusEntity.ACTIVE, savedBranch1_L1);
             CategoryEntity savedBranch1_L2 = categoryJpaRepository.save(branch1_L2);
 
-            CategoryEntity branch1_L3 = createCategory("브랜치1-레벨3", Category.STATUS_ACTIVE, savedBranch1_L2);
+            CategoryEntity branch1_L3 = createCategory("브랜치1-레벨3", CategoryStatusEntity.ACTIVE, savedBranch1_L2);
             CategoryEntity savedBranch1_L3 = categoryJpaRepository.save(branch1_L3);
 
             // 두 번째 브랜치 (깊이 2)
-            CategoryEntity branch2_L1 = createCategory("브랜치2-레벨1", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity branch2_L1 = createCategory("브랜치2-레벨1", CategoryStatusEntity.ACTIVE, savedRoot);
             CategoryEntity savedBranch2_L1 = categoryJpaRepository.save(branch2_L1);
 
-            CategoryEntity branch2_L2 = createCategory("브랜치2-레벨2", Category.STATUS_ACTIVE, savedBranch2_L1);
+            CategoryEntity branch2_L2 = createCategory("브랜치2-레벨2", CategoryStatusEntity.ACTIVE, savedBranch2_L1);
             CategoryEntity savedBranch2_L2 = categoryJpaRepository.save(branch2_L2);
 
             categoryJpaRepository.flush();
@@ -529,12 +530,12 @@ class CategoryJpaRepositoryTest {
         @DisplayName("자식이 많은 카테고리의 깊이 조회")
         void getDepthByIdNative_CategoryWithManyChildren_ReturnsCorrectDepth() {
             // Given
-            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity root = createCategory("루트", CategoryStatusEntity.ACTIVE, null);
             CategoryEntity savedRoot = categoryJpaRepository.save(root);
 
             // 루트 아래에 여러 자식 생성
             for (int i = 1; i <= 5; i++) {
-                CategoryEntity child = createCategory("자식" + i, Category.STATUS_ACTIVE, savedRoot);
+                CategoryEntity child = createCategory("자식" + i, CategoryStatusEntity.ACTIVE, savedRoot);
                 categoryJpaRepository.save(child);
             }
 
@@ -544,7 +545,7 @@ class CategoryJpaRepositoryTest {
                     .findFirst()
                     .orElseThrow();
 
-            CategoryEntity grandChild = createCategory("손자", Category.STATUS_ACTIVE, firstChild);
+            CategoryEntity grandChild = createCategory("손자", CategoryStatusEntity.ACTIVE, firstChild);
             CategoryEntity savedGrandChild = categoryJpaRepository.save(grandChild);
 
             categoryJpaRepository.flush();
@@ -559,23 +560,23 @@ class CategoryJpaRepositoryTest {
         @DisplayName("중간 레벨 카테고리의 루트로부터의 깊이 조회")
         void getDepthByIdNative_MiddleLevelCategory_ReturnsDistanceFromRoot() {
             // Given
-            CategoryEntity root = createCategory("루트", Category.STATUS_ACTIVE, null);
+            CategoryEntity root = createCategory("루트", CategoryStatusEntity.ACTIVE, null);
             CategoryEntity savedRoot = categoryJpaRepository.save(root);
 
-            CategoryEntity level1 = createCategory("레벨1", Category.STATUS_ACTIVE, savedRoot);
+            CategoryEntity level1 = createCategory("레벨1", CategoryStatusEntity.ACTIVE, savedRoot);
             CategoryEntity savedLevel1 = categoryJpaRepository.save(level1);
 
-            CategoryEntity level2 = createCategory("레벨2", Category.STATUS_ACTIVE, savedLevel1);
+            CategoryEntity level2 = createCategory("레벨2", CategoryStatusEntity.ACTIVE, savedLevel1);
             CategoryEntity savedLevel2 = categoryJpaRepository.save(level2);
 
             // level1에서 다른 브랜치 생성
-            CategoryEntity level1_branch2 = createCategory("레벨1-브랜치2", Category.STATUS_ACTIVE, savedLevel1);
+            CategoryEntity level1_branch2 = createCategory("레벨1-브랜치2", CategoryStatusEntity.ACTIVE, savedLevel1);
             CategoryEntity savedLevel1_branch2 = categoryJpaRepository.save(level1_branch2);
 
-            CategoryEntity level2_branch2 = createCategory("레벨2-브랜치2", Category.STATUS_ACTIVE, savedLevel1_branch2);
+            CategoryEntity level2_branch2 = createCategory("레벨2-브랜치2", CategoryStatusEntity.ACTIVE, savedLevel1_branch2);
             CategoryEntity savedLevel2_branch2 = categoryJpaRepository.save(level2_branch2);
 
-            CategoryEntity level3_branch2 = createCategory("레벨3-브랜치2", Category.STATUS_ACTIVE, savedLevel2_branch2);
+            CategoryEntity level3_branch2 = createCategory("레벨3-브랜치2", CategoryStatusEntity.ACTIVE, savedLevel2_branch2);
             CategoryEntity savedLevel3_branch2 = categoryJpaRepository.save(level3_branch2);
 
             categoryJpaRepository.flush();
@@ -592,15 +593,21 @@ class CategoryJpaRepositoryTest {
     }
 
 
-    private CategoryEntity createCategory(String name, String status, CategoryEntity parent) {
-        return new CategoryEntity(null, name, status, parent, Collections.emptyList());
+    private CategoryEntity createCategory(String name, CategoryStatusEntity status, CategoryEntity parent) {
+        return CategoryEntity.builder()
+                .name(name)
+                .status(status)
+                .parent(parent)
+                .children(Collections.emptyList())
+                .products(Collections.emptyList())
+                .build();
     }
 
     private CategoryEntity findCategoryByName(List<CategoryEntity> categories, String name) {
         return categories.stream()
                 .filter(c -> name.equals(c.getName()))
                 .findFirst()
-                .orElseThrow(() -> new AssertionError("Category not found: " + name));
+                .orElseThrow(() -> new AssertionError("CategoryStatusEntity.ACTIVE not found: " + name));
     }
 
     @Configuration

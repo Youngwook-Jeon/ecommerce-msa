@@ -1,7 +1,11 @@
 package com.project.young.productservice.application.service;
 
 import com.project.young.common.domain.valueobject.CategoryId;
-import com.project.young.productservice.application.dto.*;
+import com.project.young.productservice.application.dto.CreateCategoryCommand;
+import com.project.young.productservice.application.dto.CreateCategoryResult;
+import com.project.young.productservice.application.dto.DeleteCategoryResult;
+import com.project.young.productservice.application.dto.UpdateCategoryCommand;
+import com.project.young.productservice.application.dto.UpdateCategoryResult;
 import com.project.young.productservice.application.mapper.CategoryDataMapper;
 import com.project.young.productservice.domain.entity.Category;
 import com.project.young.productservice.domain.exception.CategoryDomainException;
@@ -9,6 +13,7 @@ import com.project.young.productservice.domain.exception.CategoryNotFoundExcepti
 import com.project.young.productservice.domain.exception.DuplicateCategoryNameException;
 import com.project.young.productservice.domain.repository.CategoryRepository;
 import com.project.young.productservice.domain.service.CategoryDomainService;
+import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -29,8 +34,10 @@ class CategoryApplicationServiceTest {
 
     @Mock
     private CategoryRepository categoryRepository;
+
     @Mock
     private CategoryDomainService categoryDomainService;
+
     @Mock
     private CategoryDataMapper categoryDataMapper;
 
@@ -38,128 +45,130 @@ class CategoryApplicationServiceTest {
     private CategoryApplicationService categoryApplicationService;
 
     @Nested
-    @DisplayName("카테고리 생성 테스트")
+    @DisplayName("createCategory")
     class CreateCategoryTests {
 
         @Test
-        @DisplayName("부모 카테고리가 있는 카테고리 생성 성공")
-        void createCategory_WithParent_Success() {
-            // Given
-            Long parentId = 1L;
-            CreateCategoryCommand command = CreateCategoryCommand.builder()
-                    .name("새 카테고리")
-                    .parentId(parentId)
-                    .build();
-
-            CategoryId parentCategoryId = new CategoryId(parentId);
-            Category parentCategory = Category.builder()
-                    .categoryId(parentCategoryId)
-                    .name("부모 카테고리")
-                    .status(Category.STATUS_ACTIVE)
-                    .build();
-
-            Category categoryToSave = Category.builder()
-                    .name("새 카테고리")
-                    .parentId(parentCategoryId)
-                    .build();
-
-            Category savedCategory = Category.builder()
-                    .categoryId(new CategoryId(10L))
-                    .name("새 카테고리")
-                    .parentId(parentCategoryId)
-                    .build();
-
-            CreateCategoryResponse expectedResponse = new CreateCategoryResponse(
-                    "새 카테고리",
-                    "Category 새 카테고리 created successfully."
-            );
-
-            when(categoryDomainService.isCategoryNameUnique("새 카테고리")).thenReturn(true);
-            when(categoryDomainService.validateParentCategory(parentCategoryId)).thenReturn(parentCategory);
-            when(categoryDomainService.isParentDepthLessThanLimit(parentCategoryId)).thenReturn(true);
-            when(categoryDataMapper.toCategory(command, parentCategoryId)).thenReturn(categoryToSave);
-            when(categoryRepository.save(categoryToSave)).thenReturn(savedCategory);
-            when(categoryDataMapper.toCreateCategoryResponse(eq(savedCategory), anyString()))
-                    .thenReturn(expectedResponse);
-
-            // When
-            CreateCategoryResponse response = categoryApplicationService.createCategory(command);
-
-            // Then
-            assertThat(response).isNotNull();
-            assertThat(response.name()).isEqualTo("새 카테고리");
-            assertThat(response.message()).contains("created successfully");
-
-            verify(categoryDomainService).isCategoryNameUnique("새 카테고리");
-            verify(categoryDomainService).validateParentCategory(parentCategoryId);
-            verify(categoryDomainService).isParentDepthLessThanLimit(parentCategoryId);
-            verify(categoryRepository).save(categoryToSave);
-        }
-
-        @Test
-        @DisplayName("최상위 카테고리 생성 성공")
+        @DisplayName("부모 없는 카테고리 생성 성공")
         void createCategory_WithoutParent_Success() {
             // Given
             CreateCategoryCommand command = CreateCategoryCommand.builder()
-                    .name("최상위 카테고리")
+                    .name("최상위")
                     .parentId(null)
                     .build();
 
-            Category categoryToSave = Category.builder()
-                    .name("최상위 카테고리")
+            Category toSave = Category.builder()
+                    .name("최상위")
                     .parentId(null)
                     .build();
 
-            Category savedCategory = Category.builder()
-                    .categoryId(new CategoryId(10L))
-                    .name("최상위 카테고리")
-                    .parentId(null)
-                    .build();
-
-            CreateCategoryResponse expectedResponse = new CreateCategoryResponse(
-                    "최상위 카테고리",
-                    "Category 최상위 카테고리 created successfully."
+            Category saved = Category.reconstitute(
+                    new CategoryId(10L),
+                    "최상위",
+                    null,
+                    CategoryStatus.ACTIVE
             );
 
-            when(categoryDomainService.isCategoryNameUnique("최상위 카테고리")).thenReturn(true);
-            when(categoryDataMapper.toCategory(command, null)).thenReturn(categoryToSave);
-            when(categoryRepository.save(categoryToSave)).thenReturn(savedCategory);
-            when(categoryDataMapper.toCreateCategoryResponse(eq(savedCategory), anyString()))
-                    .thenReturn(expectedResponse);
+            CreateCategoryResult expected = CreateCategoryResult.builder()
+                    .id(10L)
+                    .name("최상위")
+                    .build();
+
+            when(categoryDomainService.isCategoryNameUnique("최상위")).thenReturn(true);
+            when(categoryDataMapper.toCategory(command, null)).thenReturn(toSave);
+            when(categoryRepository.save(toSave)).thenReturn(saved);
+            when(categoryDataMapper.toCreateCategoryResult(saved)).thenReturn(expected);
 
             // When
-            CreateCategoryResponse response = categoryApplicationService.createCategory(command);
+            CreateCategoryResult result = categoryApplicationService.createCategory(command);
 
             // Then
-            assertThat(response).isNotNull();
-            assertThat(response.name()).isEqualTo("최상위 카테고리");
+            assertThat(result).isNotNull();
+            assertThat(result.id()).isEqualTo(10L);
+            assertThat(result.name()).isEqualTo("최상위");
 
-            verify(categoryDomainService).isCategoryNameUnique("최상위 카테고리");
-            verify(categoryDomainService, never()).validateParentCategory(any(CategoryId.class));
-            verify(categoryDomainService, never()).isParentDepthLessThanLimit(any(CategoryId.class));
+            verify(categoryDomainService).isCategoryNameUnique("최상위");
+            verify(categoryDomainService, never()).validateParentCategory(any());
+            verify(categoryRepository).save(toSave);
+            verify(categoryDataMapper).toCreateCategoryResult(saved);
         }
 
         @Test
-        @DisplayName("중복된 카테고리 이름으로 생성 실패")
+        @DisplayName("부모 있는 카테고리 생성 성공")
+        void createCategory_WithParent_Success() {
+            // Given
+            CreateCategoryCommand command = CreateCategoryCommand.builder()
+                    .name("노트북")
+                    .parentId(1L)
+                    .build();
+
+            CategoryId parentId = new CategoryId(1L);
+            Category parentCategory = Category.reconstitute(
+                    parentId,
+                    "전자제품",
+                    null,
+                    CategoryStatus.ACTIVE
+            );
+
+            Category toSave = Category.builder()
+                    .name("노트북")
+                    .parentId(parentId)
+                    .build();
+
+            Category saved = Category.reconstitute(
+                    new CategoryId(11L),
+                    "노트북",
+                    parentId,
+                    CategoryStatus.ACTIVE
+            );
+
+            CreateCategoryResult expected = CreateCategoryResult.builder()
+                    .id(11L)
+                    .name("노트북")
+                    .build();
+
+            when(categoryDomainService.isCategoryNameUnique("노트북")).thenReturn(true);
+            when(categoryDomainService.validateParentCategory(parentId)).thenReturn(parentCategory);
+            when(categoryDomainService.isParentDepthLessThanLimit(parentCategory.getId())).thenReturn(true);
+
+            when(categoryDataMapper.toCategory(command, parentId)).thenReturn(toSave);
+            when(categoryRepository.save(toSave)).thenReturn(saved);
+            when(categoryDataMapper.toCreateCategoryResult(saved)).thenReturn(expected);
+
+            // When
+            CreateCategoryResult result = categoryApplicationService.createCategory(command);
+
+            // Then
+            assertThat(result.id()).isEqualTo(11L);
+            assertThat(result.name()).isEqualTo("노트북");
+
+            verify(categoryDomainService).validateParentCategory(parentId);
+            verify(categoryDomainService).isParentDepthLessThanLimit(parentCategory.getId());
+            verify(categoryRepository).save(toSave);
+        }
+
+        @Test
+        @DisplayName("이름 중복이면 DuplicateCategoryNameException")
         void createCategory_DuplicateName_ThrowsException() {
             // Given
             CreateCategoryCommand command = CreateCategoryCommand.builder()
-                    .name("중복 카테고리")
+                    .name("중복")
                     .parentId(null)
                     .build();
 
-            when(categoryDomainService.isCategoryNameUnique("중복 카테고리")).thenReturn(false);
+            when(categoryDomainService.isCategoryNameUnique("중복")).thenReturn(false);
 
             // When & Then
             assertThatThrownBy(() -> categoryApplicationService.createCategory(command))
                     .isInstanceOf(DuplicateCategoryNameException.class)
                     .hasMessageContaining("already exists");
 
-            verify(categoryRepository, never()).save(any(Category.class));
+            verify(categoryRepository, never()).save(any());
+            verify(categoryDataMapper, never()).toCreateCategoryResult(any());
         }
 
         @Test
-        @DisplayName("저장 후 ID가 할당되지 않아 실패")
+        @DisplayName("저장 후 ID가 할당되지 않으면 CategoryDomainException")
         void createCategory_IdNotAssigned_ThrowsException() {
             // Given
             CreateCategoryCommand command = CreateCategoryCommand.builder()
@@ -167,411 +176,184 @@ class CategoryApplicationServiceTest {
                     .parentId(null)
                     .build();
 
-            Category categoryToSave = Category.builder()
+            Category toSave = Category.builder()
                     .name("새 카테고리")
                     .parentId(null)
                     .build();
 
-            Category savedCategoryWithoutId = Category.builder()
+            Category savedWithoutId = Category.builder()
                     .name("새 카테고리")
                     .parentId(null)
-                    .build(); // ID가 null인 상태
+                    .build();
 
             when(categoryDomainService.isCategoryNameUnique("새 카테고리")).thenReturn(true);
-            when(categoryDataMapper.toCategory(command, null)).thenReturn(categoryToSave);
-            when(categoryRepository.save(categoryToSave)).thenReturn(savedCategoryWithoutId);
+            when(categoryDataMapper.toCategory(command, null)).thenReturn(toSave);
+            when(categoryRepository.save(toSave)).thenReturn(savedWithoutId);
 
             // When & Then
             assertThatThrownBy(() -> categoryApplicationService.createCategory(command))
                     .isInstanceOf(CategoryDomainException.class)
                     .hasMessageContaining("Failed to assign ID");
+
+            verify(categoryDataMapper, never()).toCreateCategoryResult(any());
         }
     }
 
     @Nested
-    @DisplayName("카테고리 수정 테스트")
+    @DisplayName("updateCategory")
     class UpdateCategoryTests {
 
         @Test
-        @DisplayName("카테고리 이름 수정 성공")
-        void updateCategory_ChangeName_Success() {
-            // Given
-            Long categoryId = 1L;
-            CategoryId categoryIdVo = new CategoryId(categoryId);
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("수정된 카테고리")
-                    .build();
-
-            Category existingCategory = Category.builder()
-                    .categoryId(categoryIdVo)
-                    .name("기존 카테고리")
-                    .parentId(null)
-                    .status(Category.STATUS_ACTIVE)
-                    .build();
-
-            UpdateCategoryResponse expectedResponse = new UpdateCategoryResponse(
-                    "수정된 카테고리",
-                    "Category '수정된 카테고리' updated successfully."
-            );
-
-            when(categoryRepository.findById(categoryIdVo)).thenReturn(Optional.of(existingCategory));
-            when(categoryDomainService.isCategoryNameUniqueForUpdate("수정된 카테고리", categoryIdVo)).thenReturn(true);
-            when(categoryRepository.save(existingCategory)).thenReturn(existingCategory);
-            when(categoryDataMapper.toUpdateCategoryResponse(eq(existingCategory), anyString()))
-                    .thenReturn(expectedResponse);
-
-            // When
-            UpdateCategoryResponse response = categoryApplicationService.updateCategory(categoryId, command);
-
-            // Then
-            assertThat(response).isNotNull();
-            assertThat(response.name()).isEqualTo("수정된 카테고리");
-            assertThat(response.message()).contains("updated successfully");
-
-            verify(categoryDomainService).isCategoryNameUniqueForUpdate("수정된 카테고리", categoryIdVo);
-            verify(categoryRepository).save(existingCategory);
+        @DisplayName("요청이 null이면 IllegalArgumentException")
+        void updateCategory_InvalidRequest_ThrowsException() {
+            assertThatThrownBy(() -> categoryApplicationService.updateCategory(null, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Invalid update request");
         }
 
         @Test
-        @DisplayName("카테고리 부모 변경 성공")
-        void updateCategory_ChangeParent_Success() {
+        @DisplayName("대상이 없으면 CategoryNotFoundException")
+        void updateCategory_NotFound_ThrowsException() {
             // Given
-            Long categoryId = 1L;
-            Long newParentId = 2L;
-            CategoryId categoryIdVo = new CategoryId(categoryId);
-            CategoryId newParentIdVo = new CategoryId(newParentId);
-
             UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .parentId(newParentId)
+                    .name("변경")
+                    .status(CategoryStatus.ACTIVE)
                     .build();
 
-            Category existingCategory = Category.builder()
-                    .categoryId(categoryIdVo)
-                    .name("카테고리")
-                    .parentId(null)
-                    .status(Category.STATUS_ACTIVE)
-                    .build();
-
-            UpdateCategoryResponse expectedResponse = new UpdateCategoryResponse(
-                    "카테고리",
-                    "Category '카테고리' updated successfully."
-            );
-
-            when(categoryRepository.findById(categoryIdVo)).thenReturn(Optional.of(existingCategory));
-            doNothing().when(categoryDomainService).validateParentChangeRules(categoryIdVo, newParentIdVo);
-            when(categoryRepository.save(existingCategory)).thenReturn(existingCategory);
-            when(categoryDataMapper.toUpdateCategoryResponse(eq(existingCategory), anyString()))
-                    .thenReturn(expectedResponse);
-
-            // When
-            UpdateCategoryResponse response = categoryApplicationService.updateCategory(categoryId, command);
-
-            // Then
-            assertThat(response).isNotNull();
-            assertThat(response.message()).contains("updated successfully");
-
-            verify(categoryDomainService).validateParentChangeRules(categoryIdVo, newParentIdVo);
-            verify(categoryRepository).save(existingCategory);
-        }
-
-        @Test
-        @DisplayName("카테고리 상태 변경 성공 (ACTIVE -> INACTIVE)")
-        void updateCategory_ChangeStatusToInactive_Success() {
-            // Given
-            Long categoryId = 1L;
-            CategoryId categoryIdVo = new CategoryId(categoryId);
-            CategoryId childCategoryId = new CategoryId(2L);
-
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .status(Category.STATUS_INACTIVE)
-                    .build();
-
-            Category mainCategory = Category.builder()
-                    .categoryId(categoryIdVo)
-                    .name("메인 카테고리")
-                    .status(Category.STATUS_ACTIVE)
-                    .build();
-
-            Category childCategory = Category.builder()
-                    .categoryId(childCategoryId)
-                    .name("자식 카테고리")
-                    .parentId(categoryIdVo)
-                    .status(Category.STATUS_ACTIVE)
-                    .build();
-
-            List<Category> subtreeCategories = List.of(mainCategory, childCategory);
-            List<CategoryId> categoryIds = List.of(categoryIdVo, childCategoryId);
-
-            UpdateCategoryResponse expectedResponse = new UpdateCategoryResponse(
-                    "메인 카테고리",
-                    "Category '메인 카테고리' updated successfully."
-            );
-
-            when(categoryRepository.findById(categoryIdVo)).thenReturn(Optional.of(mainCategory));
-            when(categoryRepository.findSubTreeByIdAndStatusIn(categoryIdVo, List.of(Category.STATUS_ACTIVE)))
-                    .thenReturn(subtreeCategories);
-            when(categoryRepository.findAllById(categoryIds)).thenReturn(subtreeCategories);
-            doNothing().when(categoryDomainService).validateStatusChangeRules(subtreeCategories, Category.STATUS_INACTIVE);
-            doNothing().when(categoryRepository).updateStatusForIds(Category.STATUS_INACTIVE, categoryIds);
-            when(categoryRepository.save(mainCategory)).thenReturn(mainCategory);
-            when(categoryDataMapper.toUpdateCategoryResponse(eq(mainCategory), anyString()))
-                    .thenReturn(expectedResponse);
-
-            // When
-            UpdateCategoryResponse response = categoryApplicationService.updateCategory(categoryId, command);
-
-            // Then
-            assertThat(response).isNotNull();
-            assertThat(response.message()).contains("updated successfully");
-
-            verify(categoryRepository).findSubTreeByIdAndStatusIn(categoryIdVo, List.of(Category.STATUS_ACTIVE));
-            verify(categoryRepository).findAllById(categoryIds);
-            verify(categoryDomainService).validateStatusChangeRules(subtreeCategories, Category.STATUS_INACTIVE);
-            verify(categoryRepository).updateStatusForIds(Category.STATUS_INACTIVE, categoryIds);
-            verify(categoryRepository).save(mainCategory);
-        }
-
-        @Test
-        @DisplayName("카테고리 상태 변경 성공 (INACTIVE -> ACTIVE)")
-        void updateCategory_ChangeStatusToActive_Success() {
-            // Given
-            Long categoryId = 1L;
-            CategoryId categoryIdVo = new CategoryId(categoryId);
-            CategoryId parentCategoryId = new CategoryId(10L);
-
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .status(Category.STATUS_ACTIVE)
-                    .build();
-
-            Category mainCategory = Category.reconstitute(
-                    categoryIdVo, "메인 카테고리", parentCategoryId, Category.STATUS_INACTIVE);
-
-            Category parentCategory = Category.reconstitute(
-                    parentCategoryId, "부모 카테고리", null, Category.STATUS_INACTIVE);
-
-            List<Category> ancestorCategories = List.of(parentCategory, mainCategory);
-            List<CategoryId> ancestorIds = List.of(parentCategoryId, categoryIdVo);
-
-            UpdateCategoryResponse expectedResponse = new UpdateCategoryResponse(
-                    "메인 카테고리",
-                    "Category '메인 카테고리' updated successfully."
-            );
-
-            when(categoryRepository.findById(categoryIdVo)).thenReturn(Optional.of(mainCategory));
-            when(categoryRepository.findAllAncestorsById(categoryIdVo)).thenReturn(ancestorCategories);
-            when(categoryRepository.findAllById(ancestorIds)).thenReturn(ancestorCategories);
-            doNothing().when(categoryDomainService).validateStatusChangeRules(ancestorCategories, Category.STATUS_ACTIVE);
-            doNothing().when(categoryRepository).updateStatusForIds(Category.STATUS_ACTIVE, ancestorIds);
-            when(categoryRepository.save(mainCategory)).thenReturn(mainCategory);
-            when(categoryDataMapper.toUpdateCategoryResponse(eq(mainCategory), anyString()))
-                    .thenReturn(expectedResponse);
-
-            // When
-            UpdateCategoryResponse response = categoryApplicationService.updateCategory(categoryId, command);
-
-            // Then
-            assertThat(response).isNotNull();
-            assertThat(response.message()).contains("updated successfully");
-
-            verify(categoryRepository).findAllAncestorsById(categoryIdVo);
-            verify(categoryRepository).findAllById(ancestorIds);
-            verify(categoryDomainService).validateStatusChangeRules(ancestorCategories, Category.STATUS_ACTIVE);
-            verify(categoryRepository).updateStatusForIds(Category.STATUS_ACTIVE, ancestorIds);
-            verify(categoryRepository).save(mainCategory);
-        }
-
-        @Test
-        @DisplayName("변경사항이 없는 경우")
-        void updateCategory_NoChanges_Success() {
-            // Given
-            Long categoryId = 1L;
-            CategoryId categoryIdVo = new CategoryId(categoryId);
-
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("기존 카테고리")  // 동일한 이름
-                    .status(Category.STATUS_ACTIVE)  // 동일한 상태
-                    .build();
-
-            Category existingCategory = Category.builder()
-                    .categoryId(categoryIdVo)
-                    .name("기존 카테고리")
-                    .status(Category.STATUS_ACTIVE)
-                    .build();
-
-            UpdateCategoryResponse expectedResponse = new UpdateCategoryResponse(
-                    "기존 카테고리",
-                    "Category '기존 카테고리' was not changed."
-            );
-
-            when(categoryRepository.findById(categoryIdVo)).thenReturn(Optional.of(existingCategory));
-            when(categoryDataMapper.toUpdateCategoryResponse(eq(existingCategory), anyString()))
-                    .thenReturn(expectedResponse);
-
-            // When
-            UpdateCategoryResponse response = categoryApplicationService.updateCategory(categoryId, command);
-
-            // Then
-            assertThat(response).isNotNull();
-            assertThat(response.message()).contains("was not changed");
-
-            verify(categoryRepository, never()).save(any(Category.class));
-            verify(categoryRepository, never()).updateStatusForIds(anyString(), anyList());
-        }
-
-        @Test
-        @DisplayName("존재하지 않는 카테고리 수정 실패")
-        void updateCategory_CategoryNotFound_ThrowsException() {
-            // Given
-            Long categoryId = 999L;
-            CategoryId categoryIdVo = new CategoryId(categoryId);
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("수정된 카테고리")
-                    .build();
-
-            when(categoryRepository.findById(categoryIdVo)).thenReturn(Optional.empty());
+            when(categoryRepository.findById(new CategoryId(999L))).thenReturn(Optional.empty());
 
             // When & Then
-            assertThatThrownBy(() -> categoryApplicationService.updateCategory(categoryId, command))
+            assertThatThrownBy(() -> categoryApplicationService.updateCategory(999L, command))
                     .isInstanceOf(CategoryNotFoundException.class)
-                    .hasMessageContaining("Category with id")
-                    .hasMessageContaining("not found");
+                    .hasMessageContaining("Category with id 999 not found");
 
-            verify(categoryRepository, never()).save(any(Category.class));
+            verify(categoryRepository, never()).save(any());
         }
 
         @Test
-        @DisplayName("삭제된 카테고리 수정 실패")
-        void updateCategory_DeletedCategory_ThrowsException() {
+        @DisplayName("이름 변경 시 저장하고 UpdateCategoryResult 반환")
+        void updateCategory_ChangeName_SavesAndReturnsResult() {
             // Given
-            Long categoryId = 1L;
-            CategoryId categoryIdVo = new CategoryId(categoryId);
             UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("수정된 카테고리")
+                    .name("수정된 이름")
+                    .status(CategoryStatus.ACTIVE)
                     .build();
 
-            Category deletedCategory = Category.builder()
-                    .categoryId(categoryIdVo)
-                    .name("삭제된 카테고리")
-                    .status(Category.STATUS_DELETED)
+            CategoryId id = new CategoryId(1L);
+            Category main = Category.reconstitute(id, "기존 이름", null, CategoryStatus.ACTIVE);
+
+            UpdateCategoryResult expected = UpdateCategoryResult.builder()
+                    .id(1L)
+                    .name("수정된 이름")
+                    .parentId(null)
+                    .status(CategoryStatus.ACTIVE)
                     .build();
 
-            when(categoryRepository.findById(categoryIdVo)).thenReturn(Optional.of(deletedCategory));
+            when(categoryRepository.findById(id)).thenReturn(Optional.of(main));
+            when(categoryDomainService.isCategoryNameUniqueForUpdate("수정된 이름", id)).thenReturn(true);
+            when(categoryRepository.save(main)).thenReturn(main);
+            when(categoryDataMapper.toUpdateCategoryResult(main)).thenReturn(expected);
 
-            // When & Then
-            assertThatThrownBy(() -> categoryApplicationService.updateCategory(categoryId, command))
-                    .isInstanceOf(CategoryDomainException.class)
-                    .hasMessageContaining("Cannot update a category that has been deleted");
+            // When
+            UpdateCategoryResult result = categoryApplicationService.updateCategory(1L, command);
 
-            verify(categoryRepository, never()).save(any(Category.class));
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.id()).isEqualTo(1L);
+            assertThat(result.name()).isEqualTo("수정된 이름");
+
+            verify(categoryDomainService).isCategoryNameUniqueForUpdate("수정된 이름", id);
+            verify(categoryRepository).save(main);
+            verify(categoryDataMapper).toUpdateCategoryResult(main);
         }
 
         @Test
-        @DisplayName("상태 변경 시 도메인 검증 실패")
-        void updateCategory_StatusChangeValidationFailed_ThrowsException() {
+        @DisplayName("상태 변경 시 bulk update 수행 후 저장한다")
+        void updateCategory_StatusChange_PerformsBulkUpdate() {
             // Given
-            Long categoryId = 1L;
-            CategoryId categoryIdVo = new CategoryId(categoryId);
-
             UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .status(Category.STATUS_INACTIVE)
+                    .name(null)
+                    .parentId(null)
+                    .status(CategoryStatus.INACTIVE)
                     .build();
 
-            Category existingCategory = Category.builder()
-                    .categoryId(categoryIdVo)
+            CategoryId id = new CategoryId(1L);
+            Category main = Category.reconstitute(id, "카테고리", null, CategoryStatus.ACTIVE);
+
+            List<CategoryId> affectedIds = List.of(id, new CategoryId(2L));
+            List<Category> affectedCategories = List.of(
+                    Category.reconstitute(new CategoryId(1L), "카테고리", null, CategoryStatus.ACTIVE),
+                    Category.reconstitute(new CategoryId(2L), "자식", id, CategoryStatus.ACTIVE)
+            );
+
+            UpdateCategoryResult expected = UpdateCategoryResult.builder()
+                    .id(1L)
                     .name("카테고리")
-                    .status(Category.STATUS_ACTIVE)
+                    .parentId(null)
+                    .status(CategoryStatus.INACTIVE)
                     .build();
 
-            List<Category> subtreeCategories = List.of(existingCategory);
-            List<CategoryId> categoryIds = List.of(categoryIdVo);
+            when(categoryRepository.findById(id)).thenReturn(Optional.of(main));
+            when(categoryDomainService.getAffectedCategories(id, CategoryStatus.INACTIVE)).thenReturn(affectedIds);
+            when(categoryRepository.findAllById(affectedIds)).thenReturn(affectedCategories);
+            doNothing().when(categoryDomainService).validateStatusChangeRules(affectedCategories, CategoryStatus.INACTIVE);
+            doNothing().when(categoryRepository).updateStatusForIds(CategoryStatus.INACTIVE, affectedIds);
 
-            when(categoryRepository.findById(categoryIdVo)).thenReturn(Optional.of(existingCategory));
-            when(categoryRepository.findSubTreeByIdAndStatusIn(categoryIdVo, List.of(Category.STATUS_ACTIVE)))
-                    .thenReturn(subtreeCategories);
-            when(categoryRepository.findAllById(categoryIds)).thenReturn(subtreeCategories);
-            doThrow(new CategoryDomainException("Invalid status transition"))
-                    .when(categoryDomainService).validateStatusChangeRules(subtreeCategories, Category.STATUS_INACTIVE);
+            when(categoryRepository.save(main)).thenReturn(main);
+            when(categoryDataMapper.toUpdateCategoryResult(main)).thenReturn(expected);
 
-            // When & Then
-            assertThatThrownBy(() -> categoryApplicationService.updateCategory(categoryId, command))
-                    .isInstanceOf(CategoryDomainException.class)
-                    .hasMessageContaining("Invalid status transition");
+            // When
+            UpdateCategoryResult result = categoryApplicationService.updateCategory(1L, command);
 
-            verify(categoryRepository, never()).updateStatusForIds(anyString(), anyList());
-            verify(categoryRepository, never()).save(any(Category.class));
+            // Then
+            assertThat(result.status()).isEqualTo(CategoryStatus.INACTIVE);
+
+            verify(categoryRepository).findAllById(affectedIds);
+            verify(categoryDomainService).validateStatusChangeRules(affectedCategories, CategoryStatus.INACTIVE);
+            verify(categoryRepository).updateStatusForIds(CategoryStatus.INACTIVE, affectedIds);
+            verify(categoryRepository).save(main);
         }
     }
 
     @Nested
-    @DisplayName("카테고리 삭제 테스트")
+    @DisplayName("deleteCategory")
     class DeleteCategoryTests {
 
         @Test
-        @DisplayName("카테고리 및 하위 카테고리 삭제 성공")
-        void deleteCategory_WithSubtree_Success() {
-            // Given
-            Long categoryId = 1L;
-            CategoryId categoryIdVo = new CategoryId(categoryId);
-
-            Category rootCategory = Category.builder()
-                    .categoryId(categoryIdVo)
-                    .name("루트 카테고리")
-                    .parentId(null)
-                    .status(Category.STATUS_DELETED)
-                    .build();
-
-            Category childCategory = Category.builder()
-                    .categoryId(new CategoryId(2L))
-                    .name("자식 카테고리")
-                    .parentId(categoryIdVo)
-                    .status(Category.STATUS_DELETED)
-                    .build();
-
-            List<Category> categoriesToDelete = List.of(rootCategory, childCategory);
-
-            when(categoryDomainService.prepareForDeletion(categoryIdVo)).thenReturn(categoriesToDelete);
-            when(categoryRepository.saveAll(categoriesToDelete)).thenReturn(categoriesToDelete);
-
-            // When
-            DeleteCategoryResponse response = categoryApplicationService.deleteCategory(categoryId);
-
-            // Then
-            assertThat(response).isNotNull();
-            assertThat(response.id()).isEqualTo(categoryId);
-            assertThat(response.message()).contains("marked as deleted successfully");
-
-            verify(categoryDomainService).prepareForDeletion(categoryIdVo);
-            verify(categoryRepository).saveAll(categoriesToDelete);
-        }
-
-        @Test
-        @DisplayName("존재하지 않는 카테고리 삭제 실패")
-        void deleteCategory_CategoryNotFound_ThrowsException() {
-            // Given
-            Long categoryId = 999L;
-            CategoryId categoryIdVo = new CategoryId(categoryId);
-
-            when(categoryDomainService.prepareForDeletion(categoryIdVo))
-                    .thenThrow(new CategoryNotFoundException("Category with id 999 not found."));
-
-            // When & Then
-            assertThatThrownBy(() -> categoryApplicationService.deleteCategory(categoryId))
-                    .isInstanceOf(CategoryNotFoundException.class)
-                    .hasMessageContaining("Category with id")
-                    .hasMessageContaining("not found");
-
-            verify(categoryRepository, never()).saveAll(anyList());
-        }
-
-        @Test
-        @DisplayName("null ID로 삭제 시도 실패")
+        @DisplayName("null id이면 IllegalArgumentException")
         void deleteCategory_NullId_ThrowsException() {
-            // When & Then
             assertThatThrownBy(() -> categoryApplicationService.deleteCategory(null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Category ID for delete cannot be null");
 
             verify(categoryDomainService, never()).prepareForDeletion(any());
+            verify(categoryRepository, never()).saveAll(anyList());
+        }
+
+        @Test
+        @DisplayName("삭제 성공 시 root 정보를 반환한다")
+        void deleteCategory_Success() {
+            // Given
+            CategoryId rootId = new CategoryId(1L);
+
+            Category rootDeleted = Category.reconstitute(rootId, "루트", null, CategoryStatus.DELETED);
+            Category childDeleted = Category.reconstitute(new CategoryId(2L), "자식", rootId, CategoryStatus.DELETED);
+
+            List<Category> toDelete = List.of(rootDeleted, childDeleted);
+
+            when(categoryDomainService.prepareForDeletion(rootId)).thenReturn(toDelete);
+            when(categoryRepository.saveAll(toDelete)).thenReturn(toDelete);
+
+            // When
+            DeleteCategoryResult result = categoryApplicationService.deleteCategory(1L);
+
+            // Then
+            assertThat(result).isNotNull();
+            assertThat(result.id()).isEqualTo(1L);
+            assertThat(result.name()).isEqualTo("루트");
+
+            verify(categoryDomainService).prepareForDeletion(rootId);
+            verify(categoryRepository).saveAll(toDelete);
         }
     }
 }

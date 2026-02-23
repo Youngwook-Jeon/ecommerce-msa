@@ -1,12 +1,14 @@
 package com.project.young.productservice.dataaccess.adapter;
 
-import com.project.young.productservice.application.dto.CategoryDto;
+import com.project.young.productservice.application.port.output.view.ReadCategoryView;
 import com.project.young.productservice.application.port.output.CategoryReadRepository;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
+import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
+import com.project.young.productservice.dataaccess.mapper.CategoryDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
-import com.project.young.productservice.domain.entity.Category;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
@@ -14,30 +16,34 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Repository
+@Transactional(readOnly = true)
 @Slf4j
 public class CategoryReadRepositoryImpl implements CategoryReadRepository {
 
     private final CategoryJpaRepository categoryJpaRepository;
+    private final CategoryDataAccessMapper categoryDataAccessMapper;
 
-    public CategoryReadRepositoryImpl(CategoryJpaRepository categoryJpaRepository) {
+    public CategoryReadRepositoryImpl(CategoryJpaRepository categoryJpaRepository,
+                                      CategoryDataAccessMapper categoryDataAccessMapper) {
         this.categoryJpaRepository = categoryJpaRepository;
+        this.categoryDataAccessMapper = categoryDataAccessMapper;
     }
 
     @Override
-    public List<CategoryDto> findAllActiveCategoryHierarchy() {
-        List<CategoryEntity> allActiveCategories = categoryJpaRepository.findAllWithParentByStatus(Category.STATUS_ACTIVE);
+    public List<ReadCategoryView> findAllActiveCategoryHierarchy() {
+        List<CategoryEntity> allActiveCategories = categoryJpaRepository.findAllWithParentByStatus(CategoryStatusEntity.ACTIVE);
         log.info("Found {} active categories from the database.", allActiveCategories.size());
         return buildHierarchyFromEntities(allActiveCategories);
     }
 
     @Override
-    public List<CategoryDto> findAllCategoryHierarchy() {
+    public List<ReadCategoryView> findAllCategoryHierarchy() {
         List<CategoryEntity> allCategories = categoryJpaRepository.findAllWithParent();
         log.info("Found {} total categories from the database for admin.", allCategories.size());
         return buildHierarchyFromEntities(allCategories);
     }
 
-    private List<CategoryDto> buildHierarchyFromEntities(List<CategoryEntity> entities) {
+    private List<ReadCategoryView> buildHierarchyFromEntities(List<CategoryEntity> entities) {
         if (entities.isEmpty()) {
             return Collections.emptyList();
         }
@@ -48,26 +54,26 @@ public class CategoryReadRepositoryImpl implements CategoryReadRepository {
 
         return entities.stream()
                 .filter(category -> category.getParent() == null)
-                .map(rootEntity -> buildDtoTree(rootEntity, childrenByParentIdMap))
+                .map(rootEntity -> buildViewTree(rootEntity, childrenByParentIdMap))
                 .collect(Collectors.toList());
     }
 
-    private CategoryDto buildDtoTree(CategoryEntity entity, Map<Long, List<CategoryEntity>> childrenMap) {
+    private ReadCategoryView buildViewTree(CategoryEntity entity, Map<Long, List<CategoryEntity>> childrenMap) {
         List<CategoryEntity> childEntities = childrenMap.getOrDefault(entity.getId(), Collections.emptyList());
 
-        // Recursively build DTOs for each child. This creates the list of child DTOs.
-        List<CategoryDto> childDtos = childEntities.stream()
-                .map(childEntity -> buildDtoTree(childEntity, childrenMap))
+        // Recursively build views for each child. This creates the list of child views.
+        List<ReadCategoryView> childViews = childEntities.stream()
+                .map(childEntity -> buildViewTree(childEntity, childrenMap))
                 .collect(Collectors.toList());
 
         Long parentId = (entity.getParent() != null) ? entity.getParent().getId() : null;
 
-        return new CategoryDto(
+        return new ReadCategoryView(
                 entity.getId(),
                 entity.getName(),
                 parentId,
-                entity.getStatus(),
-                childDtos
+                categoryDataAccessMapper.toDomainStatus(entity.getStatus()),
+                childViews
         );
     }
 }

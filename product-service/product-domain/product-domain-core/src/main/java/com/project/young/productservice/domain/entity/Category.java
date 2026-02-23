@@ -3,6 +3,7 @@ package com.project.young.productservice.domain.entity;
 import com.project.young.common.domain.entity.AggregateRoot;
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.productservice.domain.exception.CategoryDomainException;
+import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import lombok.Getter;
 
 import java.util.Optional;
@@ -12,7 +13,7 @@ public class Category extends AggregateRoot<CategoryId> {
 
     private String name;
     private CategoryId parentId;
-    private String status;
+    private CategoryStatus status;
 
     public static final String STATUS_ACTIVE = "ACTIVE";
     public static final String STATUS_INACTIVE = "INACTIVE";
@@ -29,7 +30,7 @@ public class Category extends AggregateRoot<CategoryId> {
         this.status = builder.status;
     }
 
-    private Category(CategoryId id, String name, CategoryId parentId, String status) {
+    private Category(CategoryId id, String name, CategoryId parentId, CategoryStatus status) {
         super.setId(id);
         this.name = name;
         this.parentId = parentId;
@@ -63,11 +64,11 @@ public class Category extends AggregateRoot<CategoryId> {
         this.parentId = newParentId;
     }
 
-    public void changeStatus(String newStatus) {
-        if (isDeleted()) {
+    public void changeStatus(CategoryStatus newStatus) {
+        if (this.status.isDeleted()) {
             throw new CategoryDomainException("Cannot change the status of a deleted category.");
         }
-        if (!STATUS_ACTIVE.equals(newStatus) && !STATUS_INACTIVE.equals(newStatus)) {
+        if (!this.status.canTransitionTo(newStatus)) {
             throw new CategoryDomainException("Invalid status provided for update: " + newStatus);
         }
         this.status = newStatus;
@@ -77,11 +78,11 @@ public class Category extends AggregateRoot<CategoryId> {
         if (isDeleted()) {
             return; // Idempotent
         }
-        this.status = STATUS_DELETED;
+        this.status = CategoryStatus.DELETED;
     }
 
     public boolean isDeleted() {
-        return STATUS_DELETED.equals(this.status);
+        return this.status.isDeleted();
     }
 
     public void assignId(Long val) {
@@ -98,7 +99,7 @@ public class Category extends AggregateRoot<CategoryId> {
         private CategoryId categoryId;
         private String name;
         private CategoryId parentId;
-        private String status = STATUS_ACTIVE;
+        private CategoryStatus status = CategoryStatus.ACTIVE;
 
         public Builder categoryId(CategoryId categoryId) {
             this.categoryId = categoryId;
@@ -115,7 +116,7 @@ public class Category extends AggregateRoot<CategoryId> {
             return this;
         }
 
-        public Builder status(String status) {
+        public Builder status(CategoryStatus status) {
             this.status = status;
             return this;
         }
@@ -138,8 +139,8 @@ public class Category extends AggregateRoot<CategoryId> {
                 throw new CategoryDomainException("Category cannot be its own parent.");
             }
 
-            if (this.status == null || (!this.status.equals(STATUS_ACTIVE) && !this.status.equals(STATUS_DELETED))) {
-                throw new CategoryDomainException("Category must have a valid initial status (ACTIVE or DELETED).");
+            if (!this.status.isActive()) {
+                throw new CategoryDomainException("Category must have a valid initial ACTIVE status.");
             }
 
         }
@@ -156,7 +157,7 @@ public class Category extends AggregateRoot<CategoryId> {
      * @param status The existing status from the database.
      * @return A reconstituted Category object.
      */
-    public static Category reconstitute(CategoryId id, String name, CategoryId parentId, String status) {
+    public static Category reconstitute(CategoryId id, String name, CategoryId parentId, CategoryStatus status) {
         return new Category(id, name, parentId, status);
     }
 }

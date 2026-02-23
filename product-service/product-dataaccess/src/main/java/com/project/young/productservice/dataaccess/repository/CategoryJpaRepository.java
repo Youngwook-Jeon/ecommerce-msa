@@ -1,6 +1,7 @@
 package com.project.young.productservice.dataaccess.repository;
 
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
+import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -15,7 +16,7 @@ public interface CategoryJpaRepository extends JpaRepository<CategoryEntity, Lon
     boolean existsByNameAndIdNot(String name, Long idToExclude);
 
     @Query("SELECT c FROM CategoryEntity c LEFT JOIN FETCH c.parent WHERE c.status = :status")
-    List<CategoryEntity> findAllWithParentByStatus(@Param("status") String status);
+    List<CategoryEntity> findAllWithParentByStatus(@Param("status") CategoryStatusEntity status);
 
     @Query("SELECT c FROM CategoryEntity c LEFT JOIN FETCH c.parent")
     List<CategoryEntity> findAllWithParent();
@@ -38,12 +39,13 @@ public interface CategoryJpaRepository extends JpaRepository<CategoryEntity, Lon
             "    UNION ALL" +
             "    SELECT c.* FROM categories c" +
             "    INNER JOIN category_tree ct ON c.parent_id = ct.id" +
-            "    WHERE c.status IN (:statusList)" +
+            "    WHERE c.status = ANY (CAST(:statusList AS category_status[]))" +
             ")" +
             "SELECT * FROM category_tree",
             nativeQuery = true
     )
-    List<CategoryEntity> findSubTreeByIdAndStatusInNative(@Param("categoryId") Long categoryId, @Param("statusList") List<String> statusList);
+    List<CategoryEntity> findSubTreeByIdAndStatusInNative(@Param("categoryId") Long categoryId,
+                                                          @Param("statusList") String[] statusList);
 
     @Query(value =
             "WITH RECURSIVE category_ancestors AS (" +
@@ -58,18 +60,47 @@ public interface CategoryJpaRepository extends JpaRepository<CategoryEntity, Lon
     List<CategoryEntity> findAncestorsByIdNative(@Param("categoryId") Long categoryId);
 
     @Query(value =
-            "WITH RECURSIVE category_depth AS (" +
-            "    SELECT id, parent_id, 0 AS depth FROM categories WHERE id = :categoryId" +
-            "    UNION ALL" +
-            "    SELECT c.id, c.parent_id, cd.depth + 1 FROM categories c" +
-            "    INNER JOIN category_depth cd ON c.id = cd.parent_id" +
-            ")" +
-            "SELECT MAX(depth) FROM category_depth", // The max depth is the distance to the root
+            "WITH RECURSIVE category_depth AS ( " +
+            "    SELECT id, parent_id, 0 AS depth " +
+            "    FROM categories " +
+            "    WHERE id = :categoryId " +
+            "    UNION ALL " +
+            "    SELECT c.id, c.parent_id, cd.depth + 1 " +
+            "    FROM categories c " +
+            "    INNER JOIN category_depth cd ON c.id = cd.parent_id " +
+            "    WHERE cd.depth < 100 " +
+            ") " +
+            "SELECT COALESCE(MAX(depth), 0) FROM category_depth",
             nativeQuery = true
     )
     Integer getDepthByIdNative(@Param("categoryId") Long categoryId);
 
+    /**
+     * Returns the maximum depth (height) of the subtree rooted at :categoryId,
+     * counting the root as depth=1.
+     *
+     * statusList is a String[] of enum names (e.g., {"ACTIVE","INACTIVE"}).
+     * DELETED can be excluded by simply not passing it in.
+     */
+    @Query(value =
+            "WITH RECURSIVE subtree AS ( " +
+            "    SELECT id, parent_id, 1 AS depth " +
+            "    FROM categories " +
+            "    WHERE id = :categoryId " +
+            "      AND status = ANY (CAST(:statusList AS category_status[])) " +
+            "    UNION ALL " +
+            "    SELECT c.id, c.parent_id, s.depth + 1 " +
+            "    FROM categories c " +
+            "    INNER JOIN subtree s ON c.parent_id = s.id " +
+            "    WHERE c.status = ANY (CAST(:statusList AS category_status[])) " +
+            ") " +
+            "SELECT COALESCE(MAX(depth), 0) FROM subtree",
+            nativeQuery = true
+    )
+    Integer getMaxSubtreeDepthByIdAndStatusInNative(@Param("categoryId") Long categoryId,
+                                                    @Param("statusList") String[] statusList);
+
     @Modifying
     @Query("UPDATE CategoryEntity c SET c.status = :status WHERE c.id IN :ids")
-    void updateStatusForIds(@Param("status") String status, @Param("ids") List<Long> ids);
+    void updateStatusForIds(@Param("status") CategoryStatusEntity status, @Param("ids") List<Long> ids);
 }

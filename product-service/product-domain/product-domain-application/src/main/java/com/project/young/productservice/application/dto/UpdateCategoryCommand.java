@@ -1,5 +1,6 @@
 package com.project.young.productservice.application.dto;
 
+import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
@@ -22,6 +23,5 @@ public class UpdateCategoryCommand {
     @Positive(message = "Parent category id must be a positive number.")
     private Long parentId;
 
-    @Pattern(regexp = "ACTIVE|INACTIVE", message = "Status must be either ACTIVE or INACTIVE.")
-    private String status; // DELETED state is handled by the dedicated delete endpoint
+    private CategoryStatus status;
 }

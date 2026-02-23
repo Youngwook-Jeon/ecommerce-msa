@@ -1,18 +1,26 @@
 package com.project.young.productservice.dataaccess.entity;
 
+import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+@Entity
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @Table(name = "categories")
-@Entity
 public class CategoryEntity {
 
     @Id
@@ -23,43 +31,67 @@ public class CategoryEntity {
     @Column(name = "name", nullable = false, length = 50)
     private String name;
 
-    @Column(name = "status", nullable = false, length = 20)
-    private String status;
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, columnDefinition = "category_status")
+    private CategoryStatusEntity status;
+
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @LastModifiedDate
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")
     private CategoryEntity parent;
 
-    @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Builder.Default
     private List<CategoryEntity> children = new ArrayList<>();
 
-    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "category", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, fetch = FetchType.LAZY)
     @Builder.Default
     private List<ProductEntity> products = new ArrayList<>();
 
-    @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @Builder.Default
-    private List<CategoryFilterAttributeEntity> filterAttributes = new ArrayList<>();
+    public void setParent(CategoryEntity parent) {
+        if (this.parent != null) {
+            this.parent.getChildren().remove(this);
+        }
 
+        this.parent = parent;
+
+        if (parent != null && !parent.getChildren().contains(this)) {
+            parent.getChildren().add(this);
+        }
+    }
 
     public void addChild(CategoryEntity child) {
-        children.add(child);
-        child.setParent(this);
+        if (!children.contains(child)) {
+            children.add(child);
+            child.parent = this;
+        }
     }
 
     public void removeChild(CategoryEntity child) {
-        children.remove(child);
-        child.setParent(null);
+        if (children.remove(child)) {
+            child.parent = null;
+        }
     }
 
     public void addProduct(ProductEntity product) {
-        products.add(product);
-        product.setCategory(this);
+        if (!products.contains(product)) {
+            products.add(product);
+            product.setCategory(this);
+        }
     }
 
     public void removeProduct(ProductEntity product) {
-        products.remove(product);
-        product.setCategory(null);
+        if (products.remove(product)) {
+            product.setCategory(null);
+        }
     }
 
     @Override

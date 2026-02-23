@@ -2,6 +2,7 @@ package com.project.young.productservice.domain.service;
 
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.productservice.domain.entity.Category;
+import com.project.young.productservice.domain.valueobject.CategoryStatus;
 
 import java.util.List;
 
@@ -32,7 +33,7 @@ public interface CategoryDomainService {
      * @param categories The categories to validate
      * @param newStatus The new status to apply
      */
-    void validateStatusChangeRules(List<Category> categories, String newStatus);
+    void validateStatusChangeRules(List<Category> categories, CategoryStatus newStatus);
 
     /**
      * Prepares a list of categories for deletion by validating business rules
@@ -42,11 +43,5 @@ public interface CategoryDomainService {
      */
     List<Category> prepareForDeletion(CategoryId categoryId);
 
-    /**
-     * Processes status change for categories (entity state change only)
-     * @param categories The categories to update
-     * @param newStatus The new status to apply
-     */
-    void processStatusChange(List<Category> categories, String newStatus);
-
+    List<CategoryId> getAffectedCategories(CategoryId categoryId, CategoryStatus newStatus);
 }

@@ -2,6 +2,7 @@ package com.project.young.productservice.domain.repository;
 
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.productservice.domain.entity.Category;
+import com.project.young.productservice.domain.valueobject.CategoryStatus;
 
 import java.util.List;
 import java.util.Optional;
@@ -24,12 +25,14 @@ public interface CategoryRepository {
 
     List<Category> findAllSubTreeById(CategoryId categoryId);
 
-    List<Category> findSubTreeByIdAndStatusIn(CategoryId categoryId, List<String> statusList);
+    List<Category> findSubTreeByIdAndStatusIn(CategoryId categoryId, List<CategoryStatus> statusList);
 
     List<Category> findAllAncestorsById(CategoryId categoryId);
 
     int getDepth(CategoryId categoryId);
 
-    void updateStatusForIds(String status, List<CategoryId> categoryIdList);
+    int getMaxSubtreeDepthByIdAndStatusIn(CategoryId categoryId, List<CategoryStatus> statusList);
+
+    void updateStatusForIds(CategoryStatus status, List<CategoryId> categoryIdList);
 
 }

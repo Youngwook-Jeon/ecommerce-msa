@@ -1,17 +1,15 @@
 package com.project.young.productservice.application.service;
 
-import com.project.young.common.domain.event.publisher.DomainEventPublisher;
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.productservice.application.dto.*;
 import com.project.young.productservice.application.mapper.CategoryDataMapper;
 import com.project.young.productservice.domain.entity.Category;
-import com.project.young.productservice.domain.event.CategoryDeletedEvent;
-import com.project.young.productservice.domain.event.CategoryStatusChangedEvent;
 import com.project.young.productservice.domain.exception.CategoryDomainException;
 import com.project.young.productservice.domain.exception.CategoryNotFoundException;
 import com.project.young.productservice.domain.exception.DuplicateCategoryNameException;
 import com.project.young.productservice.domain.repository.CategoryRepository;
 import com.project.young.productservice.domain.service.CategoryDomainService;
+import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,20 +23,17 @@ public class CategoryApplicationService {
     private final CategoryRepository categoryRepository;
     private final CategoryDomainService categoryDomainService;
     private final CategoryDataMapper categoryDataMapper;
-    private final DomainEventPublisher domainEventPublisher;
 
     public CategoryApplicationService(CategoryRepository categoryRepository,
                                       CategoryDomainService categoryDomainService,
-                                      CategoryDataMapper categoryDataMapper,
-                                      DomainEventPublisher domainEventPublisher) {
+                                      CategoryDataMapper categoryDataMapper) {
         this.categoryRepository = categoryRepository;
         this.categoryDomainService = categoryDomainService;
         this.categoryDataMapper = categoryDataMapper;
-        this.domainEventPublisher = domainEventPublisher;
     }
 
     @Transactional
-    public CreateCategoryResponse createCategory(CreateCategoryCommand command) {
+    public CreateCategoryResult createCategory(CreateCategoryCommand command) {
         log.info("Attempting to create category with name: {}", command.getName());
 
         if (!categoryDomainService.isCategoryNameUnique(command.getName())) {
@@ -63,67 +58,56 @@ public class CategoryApplicationService {
         Category savedCategory = persistCategory(newCategory);
 
         log.info("Category saved successfully with id: {}", savedCategory.getId().getValue());
-        return categoryDataMapper.toCreateCategoryResponse(savedCategory,
-                "Category " + savedCategory.getName() + " created successfully.");
+
+        return categoryDataMapper.toCreateCategoryResult(savedCategory);
     }
 
     @Transactional
-    public UpdateCategoryResponse updateCategory(Long categoryIdValue, UpdateCategoryCommand command) {
-        validateUpdateRequest(categoryIdValue);
+    public UpdateCategoryResult updateCategory(Long categoryIdValue, UpdateCategoryCommand command) {
+        validateUpdateRequest(categoryIdValue, command);
 
         CategoryId categoryId = new CategoryId(categoryIdValue);
         log.info("Attempting to update category with id: {}", categoryId.getValue());
 
-        Category mainCategory = categoryRepository.findById(new CategoryId(categoryIdValue))
+        Category mainCategory = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new CategoryNotFoundException("Category with id " + categoryId.getValue() + " not found."));
+
         validateCategoryCanBeUpdated(mainCategory);
 
         boolean nameOrParentChanged = applyNameChange(mainCategory, command.getName(), mainCategory.getId());
         nameOrParentChanged |= applyParentChange(mainCategory, command.getParentId(), mainCategory.getId());
 
         // 상태 변경은 Bulk Update로 별도 처리
-        String oldStatus = mainCategory.getStatus();
-        String newStatus = command.getStatus();
+        CategoryStatus oldStatus = mainCategory.getStatus();
+        CategoryStatus newStatus = command.getStatus();
         boolean statusChanged = false;
 
-        if (newStatus != null && !oldStatus.equals(newStatus)) {
+        if (oldStatus != newStatus) {
             statusChanged = true;
-            List<CategoryId> idsToUpdateStatus;
-
-            if (Category.STATUS_ACTIVE.equals(newStatus)) { // INACTIVE -> ACTIVE
-                idsToUpdateStatus = categoryRepository.findAllAncestorsById(mainCategory.getId())
-                        .stream().map(Category::getId).toList();
-            } else { // ACTIVE -> INACTIVE
-                idsToUpdateStatus = categoryRepository.findSubTreeByIdAndStatusIn(mainCategory.getId(), List.of(Category.STATUS_ACTIVE))
-                        .stream().map(Category::getId).toList();
-            }
+            List<CategoryId> idsToUpdateStatus = categoryDomainService.getAffectedCategories(mainCategory.getId(), newStatus);
 
             // 비즈니스 규칙 검증
             if (!idsToUpdateStatus.isEmpty()) {
                 List<Category> categoriesToValidate = categoryRepository.findAllById(idsToUpdateStatus);
                 categoryDomainService.validateStatusChangeRules(categoriesToValidate, newStatus);
-
+                categoriesToValidate.forEach(category -> category.changeStatus(newStatus));
                 categoryRepository.updateStatusForIds(newStatus, idsToUpdateStatus);
                 log.info("{} categories' status updated via bulk operation.", idsToUpdateStatus.size());
             }
         }
 
-        String message;
         if (nameOrParentChanged || statusChanged) {
             if (statusChanged) mainCategory.changeStatus(newStatus);
             categoryRepository.save(mainCategory);
 
-            message = "Category '" + mainCategory.getName() + "' updated successfully.";
             // TODO: Outbox 로직
-        } else {
-            message = "Category '" + mainCategory.getName() + "' was not changed.";
         }
 
-        return categoryDataMapper.toUpdateCategoryResponse(mainCategory, message);
+        return categoryDataMapper.toUpdateCategoryResult(mainCategory);
     }
 
     @Transactional
-    public DeleteCategoryResponse deleteCategory(Long categoryIdValue) {
+    public DeleteCategoryResult deleteCategory(Long categoryIdValue) {
         validateDeleteRequest(categoryIdValue);
 
         CategoryId categoryId = new CategoryId(categoryIdValue);
@@ -134,83 +118,15 @@ public class CategoryApplicationService {
         categoryRepository.saveAll(categoriesToDelete);
 
         Category rootCategory = categoriesToDelete.getFirst();
-        List<CategoryId> deletedCategoryIds = categoriesToDelete.stream()
-                .map(Category::getId)
-                .toList();
-
-        CategoryDeletedEvent deletionEvent = new CategoryDeletedEvent(
-                categoryId,
-                rootCategory.getName(),
-                deletedCategoryIds
-        );
-        domainEventPublisher.publishEventAfterCommit(deletionEvent);
-
-        for (Category category : categoriesToDelete) {
-            CategoryStatusChangedEvent statusEvent = new CategoryStatusChangedEvent(
-                    category.getId(),
-                    category.getStatus(),
-                    Category.STATUS_DELETED
-            );
-            domainEventPublisher.publishEventAfterCommit(statusEvent);
-        }
 
         log.info("{} categories (including sub-categories) marked as deleted.", categoriesToDelete.size());
 
-        return new DeleteCategoryResponse(rootCategory.getId().getValue(),
-                "Category " + rootCategory.getName() + " (ID: " + rootCategory.getId().getValue() + ") marked as deleted successfully.");
+        return new DeleteCategoryResult(rootCategory.getId().getValue(), rootCategory.getName());
     }
 
-    @Transactional
-    public void updateCategoriesStatus(List<CategoryId> categoryIds, String newStatus) {
-        log.info("Updating status for {} categories to: {}", categoryIds.size(), newStatus);
-
-        List<Category> categories = categoryRepository.findAllById(categoryIds);
-
-        if (categories.size() != categoryIds.size()) {
-            throw new IllegalArgumentException("Some categories not found");
-        }
-
-        // 현재 상태 기록
-        List<StatusChangeRecord> statusChanges = categories.stream()
-                .map(category -> new StatusChangeRecord(category.getId(), category.getStatus(), newStatus))
-                .filter(record -> !record.oldStatus().equals(record.newStatus()))
-                .toList();
-
-        if (statusChanges.isEmpty()) {
-            log.info("No categories need status update - all are already in status: {}", newStatus);
-            return;
-        }
-
-        categoryDomainService.validateStatusChangeRules(categories, newStatus);
-        categoryDomainService.processStatusChange(categories, newStatus);
-
-        categoryRepository.saveAll(categories);
-
-        statusChanges.forEach(change -> {
-            CategoryStatusChangedEvent event = new CategoryStatusChangedEvent(
-                    change.categoryId(), change.oldStatus(), change.newStatus()
-            );
-            domainEventPublisher.publishEventAfterCommit(event);
-        });
-
-        log.info("Successfully updated status for {} categories and published {} events",
-                categories.size(), statusChanges.size());
-    }
-
-    private void publishStatusChangeEvents(List<CategoryId> categoryIds, String oldStatus, String newStatus) {
-        categoryIds.forEach(categoryId -> {
-            CategoryStatusChangedEvent event = new CategoryStatusChangedEvent(
-                    categoryId, oldStatus, newStatus
-            );
-            domainEventPublisher.publishEventAfterCommit(event);
-            log.debug("Scheduled status change event for category: {}", categoryId.getValue());
-        });
-    }
-
-
-    private void validateUpdateRequest(Long categoryIdValue) {
-        if (categoryIdValue == null) {
-            throw new IllegalArgumentException("Category ID for update cannot be null.");
+    private void validateUpdateRequest(Long categoryIdValue, UpdateCategoryCommand command) {
+        if (categoryIdValue == null || command == null) {
+            throw new IllegalArgumentException("Invalid update request.");
         }
     }
 
@@ -238,22 +154,26 @@ public class CategoryApplicationService {
         return false;
     }
 
-    private boolean applyParentChange(Category category, Long newParentIdValue, CategoryId categoryId) {
+    private boolean applyParentChange(Category category, Long newParentIdValue, CategoryId selfId) {
         CategoryId newParentId = (newParentIdValue != null) ? new CategoryId(newParentIdValue) : null;
         CategoryId currentParentId = category.getParentId().orElse(null);
 
-        if (!Objects.equals(currentParentId, newParentId)) {
-            log.info("Attempting to change parent for category id: {} from '{}' to '{}'",
-                    categoryId.getValue(),
-                    currentParentId != null ? currentParentId.getValue() : "null",
-                    newParentId != null ? newParentId.getValue() : "null");
+        if (Objects.equals(currentParentId, newParentId)) {
+            return false;
+        }
 
-            categoryDomainService.validateParentChangeRules(categoryId, newParentId);
-
-            category.changeParent(newParentId);
+        log.info("Attempting to change parent for category id: {} from '{}' to '{}'",
+                selfId.getValue(),
+                currentParentId != null ? currentParentId.getValue() : "null",
+                newParentId != null ? newParentId.getValue() : "null");
+        if (newParentId == null) {
+            category.changeParent(null);
             return true;
         }
-        return false;
+
+        categoryDomainService.validateParentChangeRules(selfId, newParentId);
+        category.changeParent(newParentId);
+        return true;
     }
 
     private Category persistCategory(Category category) {
@@ -265,10 +185,4 @@ public class CategoryApplicationService {
         return savedCategory;
     }
 
-    private void scheduleOutboxEvent(String eventType, CategoryId categoryId) {
-        // TODO: 실제 아웃박스 패턴 구현
-        log.info("TODO: Schedule {} event for category id: {}", eventType, categoryId.getValue());
-    }
-
-    private record StatusChangeRecord(CategoryId categoryId, String oldStatus, String newStatus) {}
 }

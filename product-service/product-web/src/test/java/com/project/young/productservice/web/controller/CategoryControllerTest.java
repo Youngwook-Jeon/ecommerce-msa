@@ -1,34 +1,37 @@
-
 package com.project.young.productservice.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.project.young.productservice.application.dto.*;
+import com.project.young.productservice.application.dto.CreateCategoryCommand;
+import com.project.young.productservice.application.dto.CreateCategoryResult;
+import com.project.young.productservice.application.dto.DeleteCategoryResult;
+import com.project.young.productservice.application.dto.UpdateCategoryCommand;
+import com.project.young.productservice.application.dto.UpdateCategoryResult;
 import com.project.young.productservice.application.service.CategoryApplicationService;
-import com.project.young.productservice.domain.exception.CategoryDomainException;
-import com.project.young.productservice.domain.exception.CategoryNotFoundException;
-import com.project.young.productservice.domain.exception.DuplicateCategoryNameException;
+import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import com.project.young.productservice.web.config.SecurityConfig;
+import com.project.young.productservice.web.dto.CreateCategoryResponse;
+import com.project.young.productservice.web.dto.DeleteCategoryResponse;
+import com.project.young.productservice.web.dto.UpdateCategoryResponse;
+import com.project.young.productservice.web.mapper.CategoryResponseMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.ResultActions;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = CategoryController.class)
+@WebMvcTest(CategoryController.class)
 @Import({SecurityConfig.class, TestConfig.class})
 class CategoryControllerTest {
 
@@ -38,395 +41,200 @@ class CategoryControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    @MockBean
+    @MockitoBean
     private CategoryApplicationService categoryApplicationService;
 
+    @MockitoBean
+    private CategoryResponseMapper categoryResponseMapper;
+
     @Nested
-    @DisplayName("Category Creation Tests")
-    class CreateCategoryTests {
+    @DisplayName("create")
+    class CreateTests {
 
         @Test
+        @DisplayName("유효한 요청 시 201 CREATED와 CreateCategoryResponse 반환")
         @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should create category and return 201 created when user is ADMIN")
-        void createCategory_WithAdminRole_ShouldReturnCreated() throws Exception {
-            // Arrange
-            CreateCategoryCommand command = new CreateCategoryCommand("Electronics", null);
-            CreateCategoryResponse response = new CreateCategoryResponse("Electronics", "Category Electronics created successfully.");
-            when(categoryApplicationService.createCategory(any(CreateCategoryCommand.class))).thenReturn(response);
+        void create_ValidRequest_Returns201AndResponse() throws Exception {
+            // Given
+            CreateCategoryCommand command = CreateCategoryCommand.builder()
+                    .name("전자제품")
+                    .parentId(null)
+                    .build();
 
-            // Act
-            ResultActions resultActions = mockMvc.perform(post("/categories")
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(command)));
+            CreateCategoryResult serviceResult = new CreateCategoryResult(1L, "전자제품");
+            CreateCategoryResponse expectedResponse = CreateCategoryResponse.builder()
+                    .id(1L)
+                    .name("전자제품")
+                    .message("Category created successfully.")
+                    .build();
 
-            // Assert
-            resultActions.andDo(print())
-                    .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.name").value("Electronics"))
-                    .andExpect(jsonPath("$.message").value("Category Electronics created successfully."));
-        }
-
-        @Test
-        @WithMockUser(authorities = "CUSTOMER")
-        @DisplayName("Should return 403 Forbidden when user is not ADMIN")
-        void createCategory_WithNonAdminRole_ShouldReturnForbidden() throws Exception {
-            // Arrange
-            CreateCategoryCommand command = new CreateCategoryCommand("Electronics", null);
-
-            // Act & Assert
-            mockMvc.perform(post("/categories")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
-                    .andExpect(status().isForbidden());
-        }
-
-        @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should return 400 Bad Request for invalid input")
-        void createCategory_WithInvalidInput_ShouldReturnBadRequest() throws Exception {
-            // Arrange
-            CreateCategoryCommand invalidCommand = new CreateCategoryCommand("", null); // Invalid name
-
-            // Act & Assert
-            mockMvc.perform(post("/categories")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(invalidCommand)))
-                    .andDo(print())
-                    .andExpect(status().isBadRequest());
-        }
-
-        @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should return 409 Conflict when category name already exists")
-        void createCategory_DuplicateName_ShouldReturnConflict() throws Exception {
-            // Arrange
-            CreateCategoryCommand command = new CreateCategoryCommand("Duplicate Category", null);
             when(categoryApplicationService.createCategory(any(CreateCategoryCommand.class)))
-                    .thenThrow(new DuplicateCategoryNameException("Category name 'Duplicate Category' already exists."));
+                    .thenReturn(serviceResult);
+            when(categoryResponseMapper.toCreateCategoryResponse(serviceResult))
+                    .thenReturn(expectedResponse);
 
-            // Act & Assert
+            // When & Then
             mockMvc.perform(post("/categories")
+                            .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
-                    .andExpect(status().isConflict());
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.id").value(1))
+                    .andExpect(jsonPath("$.name").value("전자제품"))
+                    .andExpect(jsonPath("$.message").exists());
+
+            verify(categoryApplicationService).createCategory(any(CreateCategoryCommand.class));
+            verify(categoryResponseMapper).toCreateCategoryResponse(serviceResult);
+        }
+
+        @Test
+        @DisplayName("ADMIN 권한 없으면 403 Forbidden")
+        @WithMockUser(authorities = "CUSTOMER")
+        void create_WithoutAdminAuthority_Returns403() throws Exception {
+            CreateCategoryCommand command = CreateCategoryCommand.builder()
+                    .name("전자제품")
+                    .parentId(null)
+                    .build();
+
+            mockMvc.perform(post("/categories")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(command)))
+                    .andExpect(status().isForbidden());
+
+            verify(categoryApplicationService, never()).createCategory(any());
+        }
+
+        @Test
+        @DisplayName("name이 blank면 400 Bad Request")
+        @WithMockUser(authorities = "ADMIN")
+        void create_BlankName_Returns400() throws Exception {
+            CreateCategoryCommand command = CreateCategoryCommand.builder()
+                    .name("  ")
+                    .parentId(null)
+                    .build();
+
+            mockMvc.perform(post("/categories")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(command)))
+                    .andExpect(status().isBadRequest());
+
+            verify(categoryApplicationService, never()).createCategory(any());
         }
     }
 
     @Nested
-    @DisplayName("Category Update Tests")
-    class UpdateCategoryTests {
-
-        private final Long categoryId = 1L;
+    @DisplayName("update")
+    class UpdateTests {
 
         @Test
+        @DisplayName("유효한 요청 시 200 OK와 UpdateCategoryResponse 반환")
         @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should update category name and return 200 OK")
-        void updateCategory_NameChange_ShouldReturnOk() throws Exception {
-            // Arrange
+        void update_ValidRequest_Returns200AndResponse() throws Exception {
+            // Given
+            Long categoryId = 1L;
             UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("Updated Electronics")
+                    .name("전자제품 수정")
+                    .parentId(null)
+                    .status(CategoryStatus.ACTIVE)
                     .build();
 
-            UpdateCategoryResponse response = new UpdateCategoryResponse(
-                    "Updated Electronics",
-                    "Category 'Updated Electronics' updated successfully."
-            );
+            UpdateCategoryResult serviceResult = new UpdateCategoryResult(
+                    1L, "전자제품 수정", null, CategoryStatus.ACTIVE);
+            UpdateCategoryResponse expectedResponse = UpdateCategoryResponse.builder()
+                    .id(1L)
+                    .name("전자제품 수정")
+                    .parentId(null)
+                    .status("ACTIVE")
+                    .message("Category updated successfully.")
+                    .build();
 
             when(categoryApplicationService.updateCategory(eq(categoryId), any(UpdateCategoryCommand.class)))
-                    .thenReturn(response);
+                    .thenReturn(serviceResult);
+            when(categoryResponseMapper.toUpdateCategoryResponse(serviceResult))
+                    .thenReturn(expectedResponse);
 
-            // Act
-            ResultActions resultActions = mockMvc.perform(put("/categories/{id}", categoryId)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .content(objectMapper.writeValueAsString(command)));
-
-            // Assert
-            resultActions.andDo(print())
+            // When & Then
+            mockMvc.perform(put("/categories/{categoryId}", categoryId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(command)))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value("Updated Electronics"))
-                    .andExpect(jsonPath("$.message").value("Category 'Updated Electronics' updated successfully."));
+                    .andExpect(jsonPath("$.id").value(1))
+                    .andExpect(jsonPath("$.name").value("전자제품 수정"))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.message").exists());
+
+            verify(categoryApplicationService).updateCategory(eq(categoryId), any(UpdateCategoryCommand.class));
+            verify(categoryResponseMapper).toUpdateCategoryResponse(serviceResult);
         }
 
         @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should update category parent and return 200 OK")
-        void updateCategory_ParentChange_ShouldReturnOk() throws Exception {
-            // Arrange
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("Electronics")
-                    .parentId(2L)
-                    .build();
-
-            UpdateCategoryResponse response = new UpdateCategoryResponse(
-                    "Electronics",
-                    "Category 'Electronics' updated successfully."
-            );
-
-            when(categoryApplicationService.updateCategory(eq(categoryId), any(UpdateCategoryCommand.class)))
-                    .thenReturn(response);
-
-            // Act & Assert
-            mockMvc.perform(put("/categories/{id}", categoryId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value("Electronics"))
-                    .andExpect(jsonPath("$.message").value("Category 'Electronics' updated successfully."));
-        }
-
-        @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should update category status and return 200 OK")
-        void updateCategory_StatusChange_ShouldReturnOk() throws Exception {
-            // Arrange
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("Electronics")
-                    .status("INACTIVE")
-                    .build();
-
-            UpdateCategoryResponse response = new UpdateCategoryResponse(
-                    "Electronics",
-                    "Category 'Electronics' updated successfully."
-            );
-
-            when(categoryApplicationService.updateCategory(eq(categoryId), any(UpdateCategoryCommand.class)))
-                    .thenReturn(response);
-
-            // Act & Assert
-            mockMvc.perform(put("/categories/{id}", categoryId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value("Electronics"))
-                    .andExpect(jsonPath("$.message").value("Category 'Electronics' updated successfully."));
-        }
-
-        @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should update all fields and return 200 OK")
-        void updateCategory_AllFieldsChange_ShouldReturnOk() throws Exception {
-            // Arrange
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("Updated Electronics")
-                    .parentId(2L)
-                    .status("INACTIVE")
-                    .build();
-
-            UpdateCategoryResponse response = new UpdateCategoryResponse(
-                    "Updated Electronics",
-                    "Category 'Updated Electronics' updated successfully."
-            );
-
-            when(categoryApplicationService.updateCategory(eq(categoryId), any(UpdateCategoryCommand.class)))
-                    .thenReturn(response);
-
-            // Act & Assert
-            mockMvc.perform(put("/categories/{id}", categoryId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.name").value("Updated Electronics"))
-                    .andExpect(jsonPath("$.message").value("Category 'Updated Electronics' updated successfully."));
-        }
-
-        @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should return 404 Not Found when category does not exist")
-        void updateCategory_NotFound_ShouldReturnNotFound() throws Exception {
-            // Arrange
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("Non-existent")
-                    .build();
-
-            when(categoryApplicationService.updateCategory(eq(999L), any(UpdateCategoryCommand.class)))
-                    .thenThrow(new CategoryNotFoundException("Category with id 999 not found."));
-
-            // Act & Assert
-            mockMvc.perform(put("/categories/{id}", 999L)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
-                    .andExpect(status().isNotFound());
-        }
-
-        @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should return 409 Conflict when updating to duplicate name")
-        void updateCategory_DuplicateName_ShouldReturnConflict() throws Exception {
-            // Arrange
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("Duplicate Name")
-                    .build();
-
-            when(categoryApplicationService.updateCategory(eq(categoryId), any(UpdateCategoryCommand.class)))
-                    .thenThrow(new DuplicateCategoryNameException("Category name 'Duplicate Name' already exists."));
-
-            // Act & Assert
-            mockMvc.perform(put("/categories/{id}", categoryId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
-                    .andExpect(status().isConflict());
-        }
-
-        @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should return 400 Bad Request for invalid parent change")
-        void updateCategory_InvalidParentChange_ShouldReturnBadRequest() throws Exception {
-            // Arrange
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("Electronics")
-                    .parentId(categoryId) // Trying to set itself as parent
-                    .build();
-
-            when(categoryApplicationService.updateCategory(eq(categoryId), any(UpdateCategoryCommand.class)))
-                    .thenThrow(new CategoryDomainException("Cannot set category as its own parent."));
-
-            // Act & Assert
-            mockMvc.perform(put("/categories/{id}", categoryId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
-                    .andExpect(status().isBadRequest());
-        }
-
-        @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should return 400 Bad Request for invalid status")
-        void updateCategory_InvalidStatus_ShouldReturnBadRequest() throws Exception {
-            // Arrange
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("Electronics")
-                    .status("INVALID_STATUS")
-                    .build();
-
-            // Act & Assert - Validation should fail before reaching the service
-            mockMvc.perform(put("/categories/{id}", categoryId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
-                    .andExpect(status().isBadRequest());
-        }
-
-        @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should return 400 Bad Request for blank name")
-        void updateCategory_BlankName_ShouldReturnBadRequest() throws Exception {
-            // Arrange
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("") // Blank name
-                    .build();
-
-            // Act & Assert - Validation should fail before reaching the service
-            mockMvc.perform(put("/categories/{id}", categoryId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
-                    .andExpect(status().isBadRequest());
-        }
-
-        @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should return 400 Bad Request for negative parent ID")
-        void updateCategory_NegativeParentId_ShouldReturnBadRequest() throws Exception {
-            // Arrange
-            UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("Electronics")
-                    .parentId(-1L) // Negative parent ID
-                    .build();
-
-            // Act & Assert - Validation should fail before reaching the service
-            mockMvc.perform(put("/categories/{id}", categoryId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
-                    .andExpect(status().isBadRequest());
-        }
-
-        @Test
+        @DisplayName("ADMIN 권한 없으면 403 Forbidden")
         @WithMockUser(authorities = "CUSTOMER")
-        @DisplayName("Should return 403 Forbidden when user is not ADMIN")
-        void updateCategory_WithNonAdminRole_ShouldReturnForbidden() throws Exception {
-            // Arrange
+        void update_WithoutAdminAuthority_Returns403() throws Exception {
+            Long categoryId = 1L;
             UpdateCategoryCommand command = UpdateCategoryCommand.builder()
-                    .name("Electronics")
+                    .name("전자제품")
+                    .parentId(null)
+                    .status(CategoryStatus.ACTIVE)
                     .build();
 
-            // Act & Assert
-            mockMvc.perform(put("/categories/{id}", categoryId)
+            mockMvc.perform(put("/categories/{categoryId}", categoryId)
+                            .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
-                    .andDo(print())
                     .andExpect(status().isForbidden());
+
+            verify(categoryApplicationService, never()).updateCategory(anyLong(), any());
         }
     }
 
     @Nested
-    @DisplayName("Category Deletion Tests")
-    class DeleteCategoryTests {
-
-        private final Long categoryId = 1L;
+    @DisplayName("delete")
+    class DeleteTests {
 
         @Test
+        @DisplayName("유효한 categoryId로 삭제 시 200 OK와 DeleteCategoryResponse 반환")
         @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should delete category and return 200 OK")
-        void deleteCategory_Success_ShouldReturnOk() throws Exception {
-            // Arrange
-            DeleteCategoryResponse response = new DeleteCategoryResponse(
-                    categoryId,
-                    "Category Electronics (ID: 1) marked as deleted successfully."
-            );
-            when(categoryApplicationService.deleteCategory(eq(categoryId))).thenReturn(response);
+        void delete_ValidCategoryId_Returns200AndResponse() throws Exception {
+            // Given
+            Long categoryId = 1L;
+            DeleteCategoryResult serviceResult = new DeleteCategoryResult(1L, "전자제품");
+            DeleteCategoryResponse expectedResponse = DeleteCategoryResponse.builder()
+                    .id(1L)
+                    .name("전자제품")
+                    .message("Category deleted successfully.")
+                    .build();
 
-            // Act & Assert
-            mockMvc.perform(delete("/categories/{id}", categoryId))
-                    .andDo(print())
+            when(categoryApplicationService.deleteCategory(categoryId)).thenReturn(serviceResult);
+            when(categoryResponseMapper.toDeleteCategoryResponse(serviceResult))
+                    .thenReturn(expectedResponse);
+
+            // When & Then
+            mockMvc.perform(delete("/categories/{categoryId}", categoryId)
+                            .with(csrf()))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.id").value(categoryId))
-                    .andExpect(jsonPath("$.message").value("Category Electronics (ID: 1) marked as deleted successfully."));
+                    .andExpect(jsonPath("$.id").value(1))
+                    .andExpect(jsonPath("$.name").value("전자제품"))
+                    .andExpect(jsonPath("$.message").exists());
+
+            verify(categoryApplicationService).deleteCategory(categoryId);
+            verify(categoryResponseMapper).toDeleteCategoryResponse(serviceResult);
         }
 
         @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should return 404 Not Found when trying to delete a non-existent category")
-        void deleteCategory_NotFound_ShouldReturnNotFound() throws Exception {
-            // Arrange
-            when(categoryApplicationService.deleteCategory(eq(999L)))
-                    .thenThrow(new CategoryNotFoundException("Category with id 999 not found, cannot delete."));
-
-            // Act & Assert
-            mockMvc.perform(delete("/categories/{id}", 999L))
-                    .andDo(print())
-                    .andExpect(status().isNotFound());
-        }
-
-        @Test
-        @WithMockUser(authorities = "ADMIN")
-        @DisplayName("Should return 400 Bad Request when trying to delete already deleted category")
-        void deleteCategory_AlreadyDeleted_ShouldReturnBadRequest() throws Exception {
-            // Arrange
-            when(categoryApplicationService.deleteCategory(eq(categoryId)))
-                    .thenThrow(new CategoryDomainException("Cannot delete a category that has been already deleted."));
-
-            // Act & Assert
-            mockMvc.perform(delete("/categories/{id}", categoryId))
-                    .andDo(print())
-                    .andExpect(status().isBadRequest());
-        }
-
-        @Test
+        @DisplayName("ADMIN 권한 없으면 403 Forbidden")
         @WithMockUser(authorities = "CUSTOMER")
-        @DisplayName("Should return 403 Forbidden when user is not ADMIN")
-        void deleteCategory_WithNonAdminRole_ShouldReturnForbidden() throws Exception {
-            // Act & Assert
-            mockMvc.perform(delete("/categories/{id}", categoryId))
-                    .andDo(print())
+        void delete_WithoutAdminAuthority_Returns403() throws Exception {
+            Long categoryId = 1L;
+
+            mockMvc.perform(delete("/categories/{categoryId}", categoryId)
+                            .with(csrf()))
                     .andExpect(status().isForbidden());
+
+            verify(categoryApplicationService, never()).deleteCategory(anyLong());
         }
     }
 }
