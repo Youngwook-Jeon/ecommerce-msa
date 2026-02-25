@@ -22,7 +22,7 @@ public interface CategoryDomainService {
     Category validateParentCategory(CategoryId parentId);
 
     /**
-     * Validates parent change rules including existence, depth limit, and circular reference
+     * Validates parent change rules including validation, depth limit, and circular reference
      * @param categoryId The category being moved
      * @param newParentId The new parent ID (can be null for root)
      */

@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -64,7 +65,7 @@ class CategoryDomainServiceImplTest {
 
             assertThatThrownBy(() -> categoryDomainService.validateParentCategory(parentId))
                     .isInstanceOf(CategoryDomainException.class)
-                    .hasMessageContaining("only be created under an 'ACTIVE' parent");
+                    .hasMessageContaining("only be created/moved under an 'ACTIVE' parent");
 
             verify(categoryRepository).findById(parentId);
         }
@@ -98,32 +99,58 @@ class CategoryDomainServiceImplTest {
         }
 
         @Test
-        @DisplayName("새 부모가 존재하지 않으면 예외")
+        @DisplayName("새 부모가 존재하지 않으면 예외 (validateParentCategory 경유)")
         void validateParentChangeRules_NewParentNotFound_Throws() {
             CategoryId categoryId = new CategoryId(1L);
             CategoryId newParentId = new CategoryId(2L);
 
-            when(categoryRepository.existsById(newParentId)).thenReturn(false);
+            when(categoryRepository.findById(newParentId)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> categoryDomainService.validateParentChangeRules(categoryId, newParentId))
                     .isInstanceOf(CategoryDomainException.class)
-                    .hasMessageContaining("New parent category with id 2 not found");
+                    .hasMessageContaining("Parent category with id 2 not found");
 
-            verify(categoryRepository).existsById(newParentId);
+            verify(categoryRepository).findById(newParentId);
+            verify(categoryRepository, never()).findSubTreeByIdAndStatusIn(any(), anyList());
+            verify(categoryRepository, never()).getDepth(any());
+            verify(categoryRepository, never()).getMaxSubtreeDepthByIdAndStatusIn(any(), anyList());
         }
 
         @Test
-        @DisplayName("자기 자신을 부모로 설정하면 예외")
+        @DisplayName("새 부모가 ACTIVE가 아니면 예외")
+        void validateParentChangeRules_NewParentNotActive_Throws() {
+            CategoryId categoryId = new CategoryId(1L);
+            CategoryId newParentId = new CategoryId(2L);
+
+            Category inactiveParent = Category.reconstitute(newParentId, "부모", null, CategoryStatus.INACTIVE);
+            when(categoryRepository.findById(newParentId)).thenReturn(Optional.of(inactiveParent));
+
+            assertThatThrownBy(() -> categoryDomainService.validateParentChangeRules(categoryId, newParentId))
+                    .isInstanceOf(CategoryDomainException.class)
+                    .hasMessageContaining("only be created/moved under an 'ACTIVE' parent");
+
+            verify(categoryRepository).findById(newParentId);
+            verify(categoryRepository, never()).findSubTreeByIdAndStatusIn(any(), anyList());
+            verify(categoryRepository, never()).getDepth(any());
+            verify(categoryRepository, never()).getMaxSubtreeDepthByIdAndStatusIn(any(), anyList());
+        }
+
+        @Test
+        @DisplayName("자기 자신을 부모로 설정하면 예외 (부모 ACTIVE 검증은 먼저 수행됨)")
         void validateParentChangeRules_SelfParent_Throws() {
             CategoryId categoryId = new CategoryId(1L);
 
-            when(categoryRepository.existsById(categoryId)).thenReturn(true);
+            Category activeSelfAsParent = Category.reconstitute(categoryId, "self", null, CategoryStatus.ACTIVE);
+            when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(activeSelfAsParent));
 
             assertThatThrownBy(() -> categoryDomainService.validateParentChangeRules(categoryId, categoryId))
                     .isInstanceOf(CategoryDomainException.class)
                     .hasMessageContaining("own parent");
 
-            verify(categoryRepository).existsById(categoryId);
+            verify(categoryRepository).findById(categoryId);
+            verify(categoryRepository, never()).findSubTreeByIdAndStatusIn(any(), anyList());
+            verify(categoryRepository, never()).getDepth(any());
+            verify(categoryRepository, never()).getMaxSubtreeDepthByIdAndStatusIn(any(), anyList());
         }
 
         @Test
@@ -132,7 +159,8 @@ class CategoryDomainServiceImplTest {
             CategoryId categoryId = new CategoryId(1L);
             CategoryId newParentId = new CategoryId(3L);
 
-            when(categoryRepository.existsById(newParentId)).thenReturn(true);
+            Category activeParent = Category.reconstitute(newParentId, "parent", null, CategoryStatus.ACTIVE);
+            when(categoryRepository.findById(newParentId)).thenReturn(Optional.of(activeParent));
 
             Category descendant = Category.reconstitute(newParentId, "desc", categoryId, CategoryStatus.ACTIVE);
             when(categoryRepository.findSubTreeByIdAndStatusIn(eq(categoryId), anyList()))
@@ -142,58 +170,66 @@ class CategoryDomainServiceImplTest {
                     .isInstanceOf(CategoryDomainException.class)
                     .hasMessageContaining("Circular reference detected");
 
-            verify(categoryRepository).existsById(newParentId);
+            verify(categoryRepository).findById(newParentId);
             verify(categoryRepository).findSubTreeByIdAndStatusIn(eq(categoryId), anyList());
+            verify(categoryRepository, never()).getDepth(any());
+            verify(categoryRepository, never()).getMaxSubtreeDepthByIdAndStatusIn(any(), anyList());
         }
 
         @Test
-        @DisplayName("깊이 제한을 넘으면 예외")
+        @DisplayName("깊이 제한을 넘으면 예외 (parentDepth + subtreeHeight)")
         void validateParentChangeRules_DepthLimitExceeded_Throws() {
-            CategoryId categoryId = new CategoryId(1L);
-            CategoryId newParentId = new CategoryId(2L);
+            CategoryId categoryId = new CategoryId(10L);
+            CategoryId newParentId = new CategoryId(20L);
 
-            when(categoryRepository.existsById(newParentId)).thenReturn(true);
+            Category activeParent = Category.reconstitute(newParentId, "parent", null, CategoryStatus.ACTIVE);
+            when(categoryRepository.findById(newParentId)).thenReturn(Optional.of(activeParent));
+
             when(categoryRepository.findSubTreeByIdAndStatusIn(eq(categoryId), anyList()))
                     .thenReturn(Collections.emptyList());
-            when(categoryRepository.getDepth(newParentId)).thenReturn(5); // parentDepth < 5 이어야 통과
+
+            when(categoryRepository.getDepth(newParentId)).thenReturn(4);
+            when(categoryRepository.getMaxSubtreeDepthByIdAndStatusIn(eq(categoryId), anyList()))
+                    .thenReturn(2); // 4 + 2 = 6 > MAX(5)
 
             assertThatThrownBy(() -> categoryDomainService.validateParentChangeRules(categoryId, newParentId))
                     .isInstanceOf(CategoryDomainException.class)
                     .hasMessageContaining("depth limit exceeded");
 
+            verify(categoryRepository).findById(newParentId);
+            verify(categoryRepository).findSubTreeByIdAndStatusIn(eq(categoryId), anyList());
             verify(categoryRepository).getDepth(newParentId);
+            verify(categoryRepository).getMaxSubtreeDepthByIdAndStatusIn(eq(categoryId), anyList());
         }
 
         @Test
         @DisplayName("정상 케이스면 통과")
         void validateParentChangeRules_Success() {
-            CategoryId categoryId = new CategoryId(1L);
-            CategoryId newParentId = new CategoryId(2L);
+            CategoryId categoryId = new CategoryId(10L);
+            CategoryId newParentId = new CategoryId(20L);
 
-            when(categoryRepository.existsById(newParentId)).thenReturn(true);
+            Category activeParent = Category.reconstitute(newParentId, "parent", null, CategoryStatus.ACTIVE);
+            when(categoryRepository.findById(newParentId)).thenReturn(Optional.of(activeParent));
+
             when(categoryRepository.findSubTreeByIdAndStatusIn(eq(categoryId), anyList()))
                     .thenReturn(Collections.emptyList());
+
             when(categoryRepository.getDepth(newParentId)).thenReturn(0);
+            when(categoryRepository.getMaxSubtreeDepthByIdAndStatusIn(eq(categoryId), anyList()))
+                    .thenReturn(1); // 0 + 1 = 1 <= MAX(5)
 
             categoryDomainService.validateParentChangeRules(categoryId, newParentId);
 
-            verify(categoryRepository).existsById(newParentId);
+            verify(categoryRepository).findById(newParentId);
             verify(categoryRepository).findSubTreeByIdAndStatusIn(eq(categoryId), anyList());
             verify(categoryRepository).getDepth(newParentId);
+            verify(categoryRepository).getMaxSubtreeDepthByIdAndStatusIn(eq(categoryId), anyList());
         }
     }
 
     @Nested
     @DisplayName("validateStatusChangeRules")
     class ValidateStatusChangeRulesTests {
-
-        @Test
-        @DisplayName("newStatus가 null이면 아무것도 하지 않음")
-        void validateStatusChangeRules_NullNewStatus_NoOp() {
-            categoryDomainService.validateStatusChangeRules(List.of(
-                    Category.reconstitute(new CategoryId(1L), "A", null, CategoryStatus.ACTIVE)
-            ), null);
-        }
 
         @Test
         @DisplayName("삭제된 카테고리가 포함되면 예외")

@@ -90,10 +90,6 @@ public class CategoryDomainServiceImpl implements CategoryDomainService {
 
     @Override
     public void validateStatusChangeRules(List<Category> categories, CategoryStatus newStatus) {
-        if (newStatus == null) {
-            return;
-        }
-
         for (Category category : categories) {
             if (category.isDeleted()) {
                 throw new CategoryDomainException("Cannot change status of a deleted category: " + category.getId().getValue());

@@ -1,10 +1,7 @@
 package com.project.young.productservice.application.dto;
 
 import com.project.young.productservice.domain.valueobject.CategoryStatus;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -23,5 +20,6 @@ public class UpdateCategoryCommand {
     @Positive(message = "Parent category id must be a positive number.")
     private Long parentId;
 
+    @NotNull(message = "Category status must not be null.")
     private CategoryStatus status;
 }
