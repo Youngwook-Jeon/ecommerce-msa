@@ -1,6 +1,6 @@
 package com.project.young.productservice.dataaccess.enums;
 
-public enum ConditionType {
+public enum ConditionTypeEntity {
     NEW,
     USED,
     REFURBISHED,

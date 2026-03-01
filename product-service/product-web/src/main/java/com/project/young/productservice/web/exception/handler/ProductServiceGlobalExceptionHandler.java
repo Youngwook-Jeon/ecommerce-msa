@@ -17,16 +17,16 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @ControllerAdvice
 public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler {
 
-//    @ResponseBody
-//    @ExceptionHandler(value = {ProductDomainException.class})
-//    @ResponseStatus(HttpStatus.BAD_REQUEST)
-//    public ErrorDTO handleException(ProductDomainException productDomainException) {
-//        log.warn(productDomainException.getMessage(), productDomainException);
-//        return ErrorDTO.builder()
-//                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
-//                .message(productDomainException.getMessage())
-//                .build();
-//    }
+    @ResponseBody
+    @ExceptionHandler(value = {ProductDomainException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorDTO handleException(ProductDomainException productDomainException) {
+        log.warn(productDomainException.getMessage(), productDomainException);
+        return ErrorDTO.builder()
+                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(productDomainException.getMessage())
+                .build();
+    }
 //
 //    @ResponseBody
 //    @ExceptionHandler(value = {ProductAlreadyExistsException.class})

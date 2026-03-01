@@ -15,10 +15,6 @@ public class Category extends AggregateRoot<CategoryId> {
     private CategoryId parentId;
     private CategoryStatus status;
 
-    public static final String STATUS_ACTIVE = "ACTIVE";
-    public static final String STATUS_INACTIVE = "INACTIVE";
-    public static final String STATUS_DELETED = "DELETED";
-
     public static Builder builder() {
         return new Builder();
     }

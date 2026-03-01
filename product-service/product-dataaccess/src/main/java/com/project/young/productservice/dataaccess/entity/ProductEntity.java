@@ -2,7 +2,7 @@ package com.project.young.productservice.dataaccess.entity;
 
 import com.fasterxml.uuid.Generators;
 import com.fasterxml.uuid.impl.TimeBasedEpochGenerator;
-import com.project.young.productservice.dataaccess.enums.ConditionType;
+import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -58,7 +58,7 @@ public class ProductEntity {
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(name = "condition_type", nullable = false, length = 20)
-    private ConditionType conditionType;
+    private ConditionTypeEntity conditionType;
 
     @Column(length = 100)
     private String brand;

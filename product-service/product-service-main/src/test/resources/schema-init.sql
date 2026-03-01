@@ -6,7 +6,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ENUM 타입 정의
 -- ============================================================================
 CREATE TYPE category_status AS ENUM ('ACTIVE', 'INACTIVE', 'DELETED');
-CREATE TYPE product_status AS ENUM ('ACTIVE', 'INACTIVE', 'DISCONTINUED', 'OUT_OF_STOCK');
+CREATE TYPE product_status AS ENUM ('ACTIVE', 'INACTIVE', 'DISCONTINUED', 'OUT_OF_STOCK', 'DELETED');
 CREATE TYPE condition_type_enum AS ENUM ('NEW', 'USED', 'REFURBISHED', 'OPEN_BOX');
 
 -- ============================================================================
