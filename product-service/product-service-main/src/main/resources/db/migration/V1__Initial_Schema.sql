@@ -1,7 +1,5 @@
 -- Version 1: Schema for product development
 
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- ============================================================================
 -- ENUM 타입 정의
 -- ============================================================================
@@ -35,7 +33,7 @@ CREATE TABLE categories
 -- 제품 테이블
 CREATE TABLE products
 (
-    id             UUID PRIMARY KEY             DEFAULT uuid_generate_v4(),
+    id             UUID PRIMARY KEY             DEFAULT uuidv7(),
     category_id    BIGINT REFERENCES categories (id) ON DELETE SET NULL,
     name           VARCHAR(255)        NOT NULL,
     description    TEXT,

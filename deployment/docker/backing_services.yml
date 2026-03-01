@@ -3,7 +3,7 @@ version: '3.7'
 services:
   # Backing services
   eco-postgres:
-    image: "postgres:17.0"
+    image: "postgres:18.3"
     container_name: "eco-postgres"
     ports:
       - "5432:5432"
@@ -12,7 +12,7 @@ services:
       - POSTGRES_PASSWORD=password
     volumes:
       - ./volumes/postgresql/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - ./volumes/postgresql/data:/var/lib/postgresql/data
+      - ./volumes/postgresql/data:/var/lib/postgresql
     networks:
       - ${GLOBAL_NETWORK:-postgres}
 
