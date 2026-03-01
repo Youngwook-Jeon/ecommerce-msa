@@ -29,6 +29,7 @@
         <kafka-avro-serializer.version>7.8.0</kafka-avro-serializer.version>
         <avro.version>1.12.0</avro.version>
         <flyway.version>11.10.2</flyway.version>
+        <uuid-generator.version>5.2.0</uuid-generator.version>
     </properties>
 
     <dependencies>
@@ -111,6 +112,11 @@
                 <groupId>org.flywaydb</groupId>
                 <artifactId>flyway-database-postgresql</artifactId>
                 <version>${flyway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.uuid</groupId>
+                <artifactId>java-uuid-generator</artifactId>
+                <version>${uuid-generator.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

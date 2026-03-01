@@ -1,5 +1,7 @@
 package com.project.young.productservice.dataaccess.entity;
 
+import com.fasterxml.uuid.Generators;
+import com.fasterxml.uuid.impl.TimeBasedEpochGenerator;
 import com.project.young.productservice.dataaccess.enums.ConditionType;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import jakarta.persistence.*;
@@ -8,6 +10,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -27,8 +31,9 @@ import java.util.UUID;
 @AllArgsConstructor
 public class ProductEntity {
 
+    private static final TimeBasedEpochGenerator UUID_GENERATOR = Generators.timeBasedEpochGenerator();
+
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", columnDefinition = "UUID")
     private UUID id;
 
@@ -45,12 +50,14 @@ public class ProductEntity {
     @Column(name = "base_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal basePrice;
 
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ProductStatusEntity status;
 
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
-    @Column(name = "condition_type", length = 20)
+    @Column(name = "condition_type", nullable = false, length = 20)
     private ConditionType conditionType;
 
     @Column(length = 100)
@@ -63,6 +70,13 @@ public class ProductEntity {
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    @PrePersist
+    private void prePersist() {
+        if (this.id == null) {
+            this.id = UUID_GENERATOR.generate();
+        }
+    }
 
     public void setCategory(CategoryEntity category) {
         if (this.category != null) {
@@ -97,4 +111,5 @@ public class ProductEntity {
                 ", status='" + status + '\'' +
                 '}';
     }
+
 }
