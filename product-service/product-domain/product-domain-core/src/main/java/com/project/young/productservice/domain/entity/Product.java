@@ -21,6 +21,7 @@ public class Product extends AggregateRoot<ProductId> {
     private ProductStatus status;
     private final ConditionType conditionType;
     private String brand;
+    private String mainImageUrl;
 
     public static Builder builder() {
         return new Builder();
@@ -35,10 +36,11 @@ public class Product extends AggregateRoot<ProductId> {
         this.status = builder.status;
         this.conditionType = builder.conditionType;
         this.brand = builder.brand;
+        this.mainImageUrl = builder.mainImageUrl;
     }
 
     private Product(ProductId productId, CategoryId categoryId, String name, String description,
-                    Money basePrice, ProductStatus status, ConditionType conditionType, String brand) {
+                    Money basePrice, ProductStatus status, ConditionType conditionType, String brand,  String mainImageUrl) {
         super.setId(productId);
         this.categoryId = categoryId;
         this.name = name;
@@ -47,6 +49,7 @@ public class Product extends AggregateRoot<ProductId> {
         this.status = status;
         this.conditionType = conditionType;
         this.brand = brand;
+        this.mainImageUrl = mainImageUrl;
     }
 
     public Optional<CategoryId> getCategoryId() {
@@ -105,6 +108,14 @@ public class Product extends AggregateRoot<ProductId> {
         this.brand = newBrand;
     }
 
+    public void changeMainImageUrl(String newUrl) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot change the main image of a deleted product.");
+        }
+        validateMainImageUrl(newUrl);
+        this.mainImageUrl = newUrl;
+    }
+
     public boolean isDeleted() {
         return this.status.isDeleted();
     }
@@ -152,6 +163,15 @@ public class Product extends AggregateRoot<ProductId> {
         }
     }
 
+    private static void validateMainImageUrl(String url) {
+        if (url == null || url.isBlank()) {
+            throw new ProductDomainException("Main image URL cannot be null or blank.");
+        }
+        if (url.length() > 500) {
+            throw new ProductDomainException("Main image URL is too long.");
+        }
+    }
+
     /**
      * !!! FOR PERSISTENCE MAPPING ONLY !!!
      * Reconstitutes a Product object from a persistent state (e.g., database).
@@ -169,8 +189,8 @@ public class Product extends AggregateRoot<ProductId> {
      * @return A reconstituted Product object.
      */
     public static Product reconstitute(ProductId productId, CategoryId categoryId, String name, String description,
-                                      Money basePrice, ProductStatus status, ConditionType conditionType, String brand) {
-        return new Product(productId, categoryId, name, description, basePrice, status, conditionType, brand);
+                                      Money basePrice, ProductStatus status, ConditionType conditionType, String brand, String mainImageUrl) {
+        return new Product(productId, categoryId, name, description, basePrice, status, conditionType, brand, mainImageUrl);
     }
 
     public static class Builder {
@@ -182,6 +202,7 @@ public class Product extends AggregateRoot<ProductId> {
         private ProductStatus status = ProductStatus.ACTIVE;
         private ConditionType conditionType;
         private String brand;
+        private String mainImageUrl;
 
         public Builder productId(ProductId productId) {
             this.productId = productId;
@@ -223,6 +244,11 @@ public class Product extends AggregateRoot<ProductId> {
             return this;
         }
 
+        public Builder mainImageUrl(String mainImageUrl) {
+            this.mainImageUrl = mainImageUrl;
+            return this;
+        }
+
         public Product build() {
             validate();
             return new Product(this);
@@ -233,6 +259,7 @@ public class Product extends AggregateRoot<ProductId> {
             validateDescription(this.description);
             validateBasePrice(this.basePrice);
             validateBrand(this.brand);
+            validateMainImageUrl(this.mainImageUrl);
             if (status == null) {
                 throw new ProductDomainException("Product status cannot be null.");
             }

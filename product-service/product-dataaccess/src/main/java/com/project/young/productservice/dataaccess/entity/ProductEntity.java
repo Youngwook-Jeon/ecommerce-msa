@@ -63,6 +63,9 @@ public class ProductEntity {
     @Column(length = 100)
     private String brand;
 
+    @Column(name = "main_image_url", length = 500, nullable = false)
+    private String mainImageUrl;;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

@@ -27,6 +27,17 @@ public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler
                 .message(productDomainException.getMessage())
                 .build();
     }
+
+    @ResponseBody
+    @ExceptionHandler(value = {ProductNotFoundException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorDTO handleException(ProductNotFoundException productNotFoundException) {
+        log.warn(productNotFoundException.getMessage(), productNotFoundException);
+        return ErrorDTO.builder()
+                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(productNotFoundException.getMessage())
+                .build();
+    }
 //
 //    @ResponseBody
 //    @ExceptionHandler(value = {ProductAlreadyExistsException.class})

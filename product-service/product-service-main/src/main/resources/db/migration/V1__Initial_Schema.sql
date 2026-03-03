@@ -41,6 +41,7 @@ CREATE TABLE products
     status         product_status      NOT NULL DEFAULT 'ACTIVE',
     condition_type condition_type_enum          DEFAULT 'NEW',
     brand          VARCHAR(100),
+    main_image_url VARCHAR(500)        NOT NULL,
     created_at     TIMESTAMP                    DEFAULT CURRENT_TIMESTAMP,
     updated_at     TIMESTAMP                    DEFAULT CURRENT_TIMESTAMP
 );
