@@ -57,7 +57,7 @@ public class ProductEntity {
 
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
-    @Column(name = "condition_type", nullable = false, length = 20)
+    @Column(name = "condition_type", nullable = false, length = 20, columnDefinition = "condition_type_enum")
     private ConditionTypeEntity conditionType;
 
     @Column(length = 100)

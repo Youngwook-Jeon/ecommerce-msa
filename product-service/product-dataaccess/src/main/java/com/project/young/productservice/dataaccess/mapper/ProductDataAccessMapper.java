@@ -60,6 +60,22 @@ public class ProductDataAccessMapper {
                 .build();
     }
 
+    public void updateEntityFromDomain(Product domainProduct, ProductEntity productEntity, CategoryEntity categoryEntity) {
+        Objects.requireNonNull(domainProduct, "domainProduct must not be null.");
+        Objects.requireNonNull(productEntity, "productEntity must not be null.");
+
+        productEntity.setCategory(categoryEntity);
+        productEntity.setName(domainProduct.getName());
+        productEntity.setDescription(domainProduct.getDescription());
+        if (domainProduct.getBasePrice() != null) {
+            productEntity.setBasePrice(domainProduct.getBasePrice().getAmount());
+        }
+        productEntity.setStatus(toEntityStatus(domainProduct.getStatus()));
+        productEntity.setConditionType(toEntityConditionType(domainProduct.getConditionType()));
+        productEntity.setBrand(domainProduct.getBrand());
+        productEntity.setMainImageUrl(domainProduct.getMainImageUrl());
+    }
+
     public ProductStatusEntity toEntityStatus(ProductStatus domainStatus) {
         Objects.requireNonNull(domainStatus, "domainStatus must not be null.");
         return ProductStatusEntity.valueOf(domainStatus.name());

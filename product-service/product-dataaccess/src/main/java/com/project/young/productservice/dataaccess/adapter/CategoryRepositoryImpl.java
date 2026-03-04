@@ -227,7 +227,10 @@ public class CategoryRepositoryImpl implements CategoryRepository {
         }
 
         Integer depth = categoryJpaRepository.getDepthByIdNative(categoryId.getValue());
-        return (depth != null) ? depth : 0;
+        if (depth == null) {
+            throw new CategoryNotFoundException("Category with id " + categoryId.getValue() + " not found.");
+        }
+        return depth;
     }
 
     @Override

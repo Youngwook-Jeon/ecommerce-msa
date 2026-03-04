@@ -70,7 +70,7 @@ public interface CategoryJpaRepository extends JpaRepository<CategoryEntity, Lon
             "    INNER JOIN category_depth cd ON c.id = cd.parent_id " +
             "    WHERE cd.depth < 100 " +
             ") " +
-            "SELECT COALESCE(MAX(depth), 0) FROM category_depth",
+            "SELECT MAX(depth) FROM category_depth",
             nativeQuery = true
     )
     Integer getDepthByIdNative(@Param("categoryId") Long categoryId);

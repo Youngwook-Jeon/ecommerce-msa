@@ -37,9 +37,7 @@ public class ProductDomainServiceImpl implements ProductDomainService {
 
         CategoryStatus status = category.getStatus();
         if (status != null && status.isDeleted()) {
-            throw new ProductDomainException(
-                    "Product cannot be assigned to a DELETED category. Category status is: " + status
-            );
+            throw new ProductDomainException("Product cannot be assigned to a DELETED category.");
         }
     }
 
