@@ -9,6 +9,8 @@ import java.util.Optional;
 
 public interface ProductReadRepository {
 
+    List<ReadProductView> findAllVisibleProducts();
+
     List<ReadProductView> findVisibleByCategoryId(CategoryId categoryId);
 
     Optional<ReadProductView> findVisibleById(ProductId productId);

@@ -68,6 +68,69 @@ class ProductJpaRepositoryTest {
     }
 
     @Nested
+    @DisplayName("findAllVisible 테스트")
+    class FindAllVisibleTests {
+
+        @Test
+        @DisplayName("ACTIVE 상품 + ACTIVE 카테고리만 전체 조회된다")
+        void findAllVisible_ReturnsOnlyActiveProductsInActiveCategories() {
+            // Given
+            CategoryEntity activeCategory = createCategory("의류", CategoryStatusEntity.ACTIVE);
+            CategoryEntity inactiveCategory = createCategory("전자제품", CategoryStatusEntity.INACTIVE);
+
+            CategoryEntity savedActiveCategory = testEntityManager.persistAndFlush(activeCategory);
+            CategoryEntity savedInactiveCategory = testEntityManager.persistAndFlush(inactiveCategory);
+
+            // ACTIVE product in ACTIVE category
+            ProductEntity activeInActiveCategory = createProduct(
+                    "와이드핏 데님",
+                    savedActiveCategory,
+                    ProductStatusEntity.ACTIVE
+            );
+
+            // INACTIVE product in ACTIVE category
+            ProductEntity inactiveInActiveCategory = createProduct(
+                    "스트레이트핏 데님",
+                    savedActiveCategory,
+                    ProductStatusEntity.INACTIVE
+            );
+
+            // ACTIVE product in INACTIVE category
+            ProductEntity activeInInactiveCategory = createProduct(
+                    "게이밍 노트북",
+                    savedInactiveCategory,
+                    ProductStatusEntity.ACTIVE
+            );
+
+            // ACTIVE product without category (JOIN 이므로 제외 대상)
+            ProductEntity activeWithoutCategory = createProduct(
+                    "카테고리없음상품",
+                    null,
+                    ProductStatusEntity.ACTIVE
+            );
+
+            testEntityManager.persist(activeInActiveCategory);
+            testEntityManager.persist(inactiveInActiveCategory);
+            testEntityManager.persist(activeInInactiveCategory);
+            testEntityManager.persist(activeWithoutCategory);
+            testEntityManager.flush();
+
+            // When
+            List<ProductEntity> result = productJpaRepository.findAllVisible(
+                    ProductStatusEntity.ACTIVE,
+                    CategoryStatusEntity.ACTIVE
+            );
+
+            // Then
+            assertThat(result)
+                    .hasSize(1)
+                    .first()
+                    .extracting(ProductEntity::getName)
+                    .isEqualTo("와이드핏 데님");
+        }
+    }
+
+    @Nested
     @DisplayName("findVisibleByCategoryId 테스트")
     class FindVisibleByCategoryIdTests {
 

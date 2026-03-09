@@ -1,5 +1,7 @@
 package com.project.young.productservice.dataaccess.repository;
 
+import com.project.young.common.domain.valueobject.CategoryId;
+import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
@@ -12,6 +14,16 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ProductJpaRepository extends JpaRepository<ProductEntity, UUID> {
+    @Query("""
+           SELECT p
+           FROM ProductEntity p
+           JOIN p.category c
+           WHERE p.status = :productStatus
+            AND c.status = :categoryStatus
+           """)
+    List<ProductEntity> findAllVisible(@Param("productStatus") ProductStatusEntity productStatus,
+                                         @Param("categoryStatus") CategoryStatusEntity categoryStatus);
+
     @Query("""
            SELECT p
            FROM ProductEntity p

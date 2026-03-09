@@ -42,6 +42,73 @@ class ProductReadRepositoryImplTest {
     private ProductReadRepositoryImpl productReadRepository;
 
     @Nested
+    @DisplayName("findAllVisibleProducts 테스트")
+    class FindAllVisibleProductsTests {
+
+        @Test
+        @DisplayName("전체 보이는 상품 목록 조회 성공")
+        void findAllVisibleProducts_Success() {
+            // Given
+            Instant now = Instant.now();
+
+            CategoryEntity category = CategoryEntity.builder()
+                    .id(1L)
+                    .name("의류")
+                    .status(CategoryStatusEntity.ACTIVE)
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            ProductEntity product1 = ProductEntity.builder()
+                    .id(UUID.randomUUID())
+                    .category(category)
+                    .name("와이드핏 데님")
+                    .description("와이드핏 데님 상세 설명입니다.")
+                    .basePrice(new BigDecimal("99000"))
+                    .status(ProductStatusEntity.ACTIVE)
+                    .conditionType(ConditionTypeEntity.NEW)
+                    .brand("브랜드A")
+                    .mainImageUrl("https://example.com/image1.jpg")
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            ProductEntity product2 = ProductEntity.builder()
+                    .id(UUID.randomUUID())
+                    .category(category)
+                    .name("스트레이트핏 데님")
+                    .description("스트레이트핏 데님 상세 설명입니다.")
+                    .basePrice(new BigDecimal("89000"))
+                    .status(ProductStatusEntity.ACTIVE)
+                    .conditionType(ConditionTypeEntity.NEW)
+                    .brand("브랜드B")
+                    .mainImageUrl("https://example.com/image2.jpg")
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+
+            when(productJpaRepository.findAllVisible(ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE))
+                    .thenReturn(List.of(product1, product2));
+
+            when(productDataAccessMapper.toDomainStatus(ProductStatusEntity.ACTIVE))
+                    .thenReturn(ProductStatus.ACTIVE);
+            when(productDataAccessMapper.toDomainConditionType(ConditionTypeEntity.NEW))
+                    .thenReturn(ConditionType.NEW);
+
+            // When
+            List<ReadProductView> result = productReadRepository.findAllVisibleProducts();
+
+            // Then
+            assertThat(result).hasSize(2);
+            assertThat(result)
+                    .extracting(ReadProductView::name)
+                    .containsExactlyInAnyOrder("와이드핏 데님", "스트레이트핏 데님");
+
+            verify(productJpaRepository).findAllVisible(ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE);
+        }
+    }
+
+    @Nested
     @DisplayName("findVisibleByCategoryId 테스트")
     class FindVisibleByCategoryIdTests {
 

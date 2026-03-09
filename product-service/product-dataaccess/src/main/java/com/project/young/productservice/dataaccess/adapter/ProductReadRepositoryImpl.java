@@ -32,6 +32,14 @@ public class ProductReadRepositoryImpl implements ProductReadRepository {
     }
 
     @Override
+    public List<ReadProductView> findAllVisibleProducts() {
+        return productJpaRepository.findAllVisible(ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE)
+                .stream()
+                .map(this::toReadProductView)
+                .toList();
+    }
+
+    @Override
     public List<ReadProductView> findVisibleByCategoryId(CategoryId categoryId) {
         if (categoryId == null) {
             throw new IllegalArgumentException("categoryId must not be null.");

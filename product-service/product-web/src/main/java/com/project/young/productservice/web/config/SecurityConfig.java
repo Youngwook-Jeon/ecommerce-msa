@@ -40,7 +40,11 @@ public class SecurityConfig {
 
         http.authorizeHttpRequests(requests -> requests
                 .requestMatchers(HttpMethod.GET,
-                        "/products/**", "/categories/**", "/queries/categories/hierarchy").permitAll()
+                        "/products/**",
+                        "/categories/**",
+                        "/queries/categories/hierarchy",
+                        "/queries/products/**"
+                ).permitAll()
                 .anyRequest().authenticated());
 
         return http.build();

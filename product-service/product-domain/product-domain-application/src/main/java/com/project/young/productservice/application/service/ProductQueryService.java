@@ -29,4 +29,8 @@ public class ProductQueryService {
         return productReadRepository.findVisibleById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found or not visible: " + productId));
     }
+
+    public List<ReadProductView> getAllVisibleProducts() {
+        return productReadRepository.findAllVisibleProducts();
+    }
 }

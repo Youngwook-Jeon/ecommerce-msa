@@ -38,17 +38,6 @@ public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler
                 .message(productNotFoundException.getMessage())
                 .build();
     }
-//
-//    @ResponseBody
-//    @ExceptionHandler(value = {ProductAlreadyExistsException.class})
-//    @ResponseStatus(HttpStatus.BAD_REQUEST)
-//    public ErrorDTO handleException(ProductAlreadyExistsException productAlreadyExistsException) {
-//        log.warn(productAlreadyExistsException.getMessage(), productAlreadyExistsException);
-//        return ErrorDTO.builder()
-//                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
-//                .message(productAlreadyExistsException.getMessage())
-//                .build();
-//    }
 
     @ResponseBody
     @ExceptionHandler(value = {DuplicateCategoryNameException.class})
