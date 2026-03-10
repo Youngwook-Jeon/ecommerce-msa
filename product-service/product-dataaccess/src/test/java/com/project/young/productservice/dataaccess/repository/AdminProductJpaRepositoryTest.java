@@ -73,19 +73,15 @@ class AdminProductJpaRepositoryTest {
         activeCategory = testEntityManager.persistAndFlush(createCategory("의류", CategoryStatusEntity.ACTIVE));
         inactiveCategory = testEntityManager.persistAndFlush(createCategory("전자제품", CategoryStatusEntity.INACTIVE));
 
-        // ACTIVE product in ACTIVE category
         testEntityManager.persist(createProduct("와이드핏 데님", "와이드핏 데님 상세 설명입니다.", "브랜드A",
                 activeCategory, ProductStatusEntity.ACTIVE));
 
-        // INACTIVE product in ACTIVE category
         testEntityManager.persist(createProduct("스트레이트핏 데님", "스트레이트핏 데님 상세 설명입니다.", "브랜드A",
                 activeCategory, ProductStatusEntity.INACTIVE));
 
-        // ACTIVE product in INACTIVE category
         testEntityManager.persist(createProduct("게이밍 노트북", "게이밍 노트북 상세 설명입니다.", "브랜드B",
                 inactiveCategory, ProductStatusEntity.ACTIVE));
 
-        // ACTIVE product without category
         testEntityManager.persist(createProduct("카테고리없음상품", "카테고리없음상품 설명입니다.", "브랜드C",
                 null, ProductStatusEntity.ACTIVE));
 
@@ -102,15 +98,19 @@ class AdminProductJpaRepositoryTest {
             Pageable pageable = PageRequest.of(0, 10);
 
             Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
+                    false,
                     null,
                     true,
+                    true,
                     ProductStatusEntity.ACTIVE,
+                    false,
                     null,
+                    false,
                     null,
                     pageable
             );
 
-            assertThat(page.getTotalElements()).isEqualTo(3); // ACTIVE in ACTIVE, ACTIVE in INACTIVE, ACTIVE without category
+            assertThat(page.getTotalElements()).isEqualTo(3);
             assertThat(page.getContent())
                     .extracting(ProductEntity::getStatus)
                     .allMatch(status -> status == ProductStatusEntity.ACTIVE);
@@ -122,15 +122,19 @@ class AdminProductJpaRepositoryTest {
             Pageable pageable = PageRequest.of(0, 10);
 
             Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
+                    true,
                     activeCategory.getId(),
                     true,
+                    false,
                     null,
+                    false,
                     null,
+                    false,
                     null,
                     pageable
             );
 
-            assertThat(page.getTotalElements()).isEqualTo(2); // 두 데님 상품
+            assertThat(page.getTotalElements()).isEqualTo(2);
             assertThat(page.getContent())
                     .extracting(ProductEntity::getName)
                     .containsExactlyInAnyOrder("와이드핏 데님", "스트레이트핏 데님");
@@ -147,10 +151,14 @@ class AdminProductJpaRepositoryTest {
             Pageable pageable = PageRequest.of(0, 10);
 
             Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
+                    false,
                     null,
                     true,
+                    false,
                     null,
+                    false,
                     null,
+                    false,
                     null,
                     pageable
             );
@@ -167,10 +175,14 @@ class AdminProductJpaRepositoryTest {
             Pageable pageable = PageRequest.of(0, 10);
 
             Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
+                    false,
+                    null,
+                    false,
+                    false,
                     null,
                     false,
                     null,
-                    null,
+                    false,
                     null,
                     pageable
             );
@@ -192,10 +204,14 @@ class AdminProductJpaRepositoryTest {
             Pageable pageable = PageRequest.of(0, 10);
 
             Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
+                    false,
                     null,
                     true,
+                    false,
                     null,
+                    true,
                     "브랜드A",
+                    false,
                     null,
                     pageable
             );
@@ -212,10 +228,14 @@ class AdminProductJpaRepositoryTest {
             Pageable pageable = PageRequest.of(0, 10);
 
             Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
+                    false,
                     null,
                     true,
+                    false,
                     null,
+                    false,
                     null,
+                    true,
                     "데님",
                     pageable
             );
@@ -263,4 +283,3 @@ class AdminProductJpaRepositoryTest {
     static class Config {
     }
 }
-

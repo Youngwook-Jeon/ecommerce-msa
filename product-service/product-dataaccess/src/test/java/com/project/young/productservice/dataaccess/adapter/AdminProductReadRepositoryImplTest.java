@@ -28,7 +28,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,11 +88,16 @@ class AdminProductReadRepositoryImplTest {
 
         when(productDataAccessMapper.toEntityStatus(ProductStatus.ACTIVE))
                 .thenReturn(ProductStatusEntity.ACTIVE);
+
         when(adminProductJpaRepository.searchAdminProducts(
+                eq(true),
                 eq(1L),
                 eq(true),
+                eq(true),
                 eq(ProductStatusEntity.ACTIVE),
+                eq(true),
                 eq("브랜드A"),
+                eq(true),
                 eq("데님"),
                 any()))
                 .thenReturn(entityPage);
@@ -123,13 +129,16 @@ class AdminProductReadRepositoryImplTest {
         assertThat(view.conditionType()).isEqualTo(ConditionType.NEW);
 
         verify(adminProductJpaRepository).searchAdminProducts(
+                eq(true),
                 eq(1L),
                 eq(true),
+                eq(true),
                 eq(ProductStatusEntity.ACTIVE),
+                eq(true),
                 eq("브랜드A"),
+                eq(true),
                 eq("데님"),
                 any()
         );
     }
 }
-

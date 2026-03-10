@@ -4,8 +4,10 @@ import com.project.young.productservice.application.dto.AdminProductSearchCondit
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.AdminProductJpaRepository;
+import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -34,6 +36,9 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                                            int size,
                                            String sortProperty,
                                            boolean ascending) {
+        if (condition == null) {
+            throw new IllegalArgumentException("AdminProductSearchCondition cannot be null");
+        }
 
         Pageable pageable = PageRequest.of(
                 Math.max(page, 0),
@@ -42,12 +47,31 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                         sortProperty != null && !sortProperty.isBlank() ? sortProperty : "createdAt")
         );
 
+        Long categoryId = condition.categoryId();
+        boolean includeOrphans = condition.includeOrphansOrDefault();
+
+        ProductStatus status = condition.status();
+        ProductStatusEntity statusEntity = (status != null)
+                ? productDataAccessMapper.toEntityStatus(status) : null;
+
+        String brand = condition.normalizedBrand();
+        String keyword = condition.normalizedKeyword();
+
+        boolean hasCategoryId = categoryId != null;
+        boolean hasStatus = statusEntity != null;
+        boolean hasBrand = brand != null;
+        boolean hasKeyword = keyword != null;
+
         Page<ProductEntity> entityPage = adminProductJpaRepository.searchAdminProducts(
-                condition.categoryId(),
-                condition.includeOrphansOrDefault(),
-                condition.status() != null ? productDataAccessMapper.toEntityStatus(condition.status()) : null,
-                condition.normalizedBrand(),
-                condition.normalizedKeyword(),
+                hasCategoryId,
+                categoryId,
+                includeOrphans,
+                hasStatus,
+                statusEntity,
+                hasBrand,
+                brand,
+                hasKeyword,
+                keyword,
                 pageable
         );
 

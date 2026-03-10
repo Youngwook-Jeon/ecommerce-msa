@@ -16,27 +16,30 @@ public interface AdminProductJpaRepository extends JpaRepository<ProductEntity, 
        SELECT p
        FROM ProductEntity p
        LEFT JOIN p.category c
-       WHERE COALESCE(:status, p.status) = p.status
-         AND COALESCE(:brand, p.brand) = p.brand
+       WHERE (:hasStatus = FALSE OR p.status = :status)
+         AND (:hasBrand = FALSE OR p.brand = :brand)
          AND (
-                COALESCE(:keyword, '') = ''
+                :hasKeyword = FALSE
                 OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
-                OR LOWER(p.description) LIKE LOWER(CONCAT('%', :keyword, '%'))
+                OR LOWER(COALESCE(p.description, '')) LIKE LOWER(CONCAT('%', :keyword, '%'))
              )
          AND (
-                :categoryId IS NULL
+                :hasCategoryId = FALSE
                 OR c.id = :categoryId
              )
          AND (
-                (:includeOrphans = TRUE AND (c IS NULL OR c.status IS NOT NULL))
-                OR (:includeOrphans = FALSE AND c IS NOT NULL)
+                :includeOrphans = TRUE
+                OR c IS NOT NULL
              )
        """)
-    Page<ProductEntity> searchAdminProducts(@Param("categoryId") Long categoryId,
+    Page<ProductEntity> searchAdminProducts(@Param("hasCategoryId") boolean hasCategoryId,
+                                            @Param("categoryId") Long categoryId,
                                             @Param("includeOrphans") boolean includeOrphans,
+                                            @Param("hasStatus") boolean hasStatus,
                                             @Param("status") ProductStatusEntity status,
+                                            @Param("hasBrand") boolean hasBrand,
                                             @Param("brand") String brand,
+                                            @Param("hasKeyword") boolean hasKeyword,
                                             @Param("keyword") String keyword,
                                             Pageable pageable);
 }
-
