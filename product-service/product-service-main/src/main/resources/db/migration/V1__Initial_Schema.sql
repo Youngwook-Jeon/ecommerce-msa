@@ -18,11 +18,11 @@ CREATE CAST (smallint AS category_status) WITH INOUT AS IMPLICIT;
 CREATE TABLE categories
 (
     id         BIGSERIAL PRIMARY KEY,
-    name       VARCHAR(50)    NOT NULL,
+    name       VARCHAR(50)     NOT NULL,
     parent_id  BIGINT,
     status     category_status NOT NULL DEFAULT 'ACTIVE',
-    created_at TIMESTAMP               DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP               DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMPTZ              DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ              DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_category_parent
         FOREIGN KEY (parent_id)
             REFERENCES categories (id)
@@ -33,17 +33,17 @@ CREATE TABLE categories
 -- 제품 테이블
 CREATE TABLE products
 (
-    id             UUID PRIMARY KEY             DEFAULT uuidv7(),
-    category_id    BIGINT REFERENCES categories (id) ON DELETE SET NULL,
-    name           VARCHAR(255)        NOT NULL,
+    id             UUID PRIMARY KEY        DEFAULT uuidv7(),
+    category_id    BIGINT         REFERENCES categories (id) ON DELETE SET NULL,
+    name           VARCHAR(255)   NOT NULL,
     description    TEXT,
-    base_price     DECIMAL(12, 2)      NOT NULL CHECK (base_price >= 0),
-    status         product_status      NOT NULL DEFAULT 'ACTIVE',
-    condition_type condition_type_enum          DEFAULT 'NEW',
+    base_price     DECIMAL(12, 2) NOT NULL CHECK (base_price >= 0),
+    status         product_status NOT NULL DEFAULT 'ACTIVE',
+    condition_type condition_type_enum     DEFAULT 'NEW',
     brand          VARCHAR(100),
-    main_image_url VARCHAR(500)        NOT NULL,
-    created_at     TIMESTAMP                    DEFAULT CURRENT_TIMESTAMP,
-    updated_at     TIMESTAMP                    DEFAULT CURRENT_TIMESTAMP
+    main_image_url VARCHAR(500)   NOT NULL,
+    created_at     TIMESTAMPTZ             DEFAULT CURRENT_TIMESTAMP,
+    updated_at     TIMESTAMPTZ             DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ============================================================================
