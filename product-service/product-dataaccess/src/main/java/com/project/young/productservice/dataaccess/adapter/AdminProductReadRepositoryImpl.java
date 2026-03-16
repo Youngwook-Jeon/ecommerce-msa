@@ -59,6 +59,7 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 Math.max(size, 1),
                 Sort.by(ascending ? Sort.Direction.ASC : Sort.Direction.DESC,
                         sortProperty != null && !sortProperty.isBlank() ? sortProperty : "createdAt")
+                        .and(Sort.by(Sort.Direction.DESC, "id"))
         );
 
         Long categoryId = condition.categoryId();

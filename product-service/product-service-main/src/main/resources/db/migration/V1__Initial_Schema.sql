@@ -57,6 +57,7 @@ CREATE INDEX idx_category_status ON categories (status) WHERE status = 'ACTIVE';
 
 -- 제품 인덱스
 CREATE INDEX idx_products_category_status ON products (category_id, status);
+CREATE INDEX idx_products_created_at_id ON products (created_at DESC, id DESC);
 CREATE INDEX idx_products_brand ON products (brand) WHERE brand IS NOT NULL;
 CREATE INDEX idx_products_status ON products (status) WHERE status = 'ACTIVE';
 CREATE INDEX idx_products_price ON products (base_price) WHERE status = 'ACTIVE';
