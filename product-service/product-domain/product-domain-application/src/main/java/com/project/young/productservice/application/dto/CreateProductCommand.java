@@ -47,5 +47,5 @@ public class CreateProductCommand {
     private ConditionType conditionType;
 
     @NotNull(message = "Product status must not be null.")
-    private ProductStatus productStatus;
+    private ProductStatus status;
 }

@@ -68,7 +68,7 @@ public class ProductDataMapper {
                 .brand(command.getBrand())
                 .mainImageUrl(command.getMainImageUrl())
                 .conditionType(command.getConditionType())
-                .status(command.getProductStatus())
+                .status(command.getStatus())
                 .build();
     }
 }

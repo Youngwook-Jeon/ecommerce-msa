@@ -134,7 +134,7 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .productStatus(ProductStatus.ACTIVE)
+                    .status(ProductStatus.ACTIVE)
                     .build();
 
             // When & Then
@@ -164,7 +164,7 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .productStatus(ProductStatus.ACTIVE)
+                    .status(ProductStatus.ACTIVE)
                     .build();
 
             String createResponse = mockMvc.perform(post("/products")
@@ -216,7 +216,7 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .productStatus(ProductStatus.ACTIVE)
+                    .status(ProductStatus.ACTIVE)
                     .build();
 
             String createResponse = mockMvc.perform(post("/products")
@@ -260,7 +260,7 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .productStatus(ProductStatus.ACTIVE)
+                    .status(ProductStatus.ACTIVE)
                     .build();
 
             mockMvc.perform(post("/products")
@@ -293,7 +293,7 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .productStatus(ProductStatus.ACTIVE)
+                    .status(ProductStatus.ACTIVE)
                     .build();
 
             String createResponse = mockMvc.perform(post("/products")
@@ -331,7 +331,7 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .productStatus(ProductStatus.ACTIVE)
+                    .status(ProductStatus.ACTIVE)
                     .build();
 
             mockMvc.perform(post("/products")
@@ -369,7 +369,7 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .productStatus(ProductStatus.ACTIVE)
+                    .status(ProductStatus.ACTIVE)
                     .build();
             String createResponse = mockMvc.perform(post("/products")
                             .with(csrf())
@@ -407,7 +407,7 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .productStatus(ProductStatus.ACTIVE)
+                    .status(ProductStatus.ACTIVE)
                     .build();
 
             mockMvc.perform(post("/products")

@@ -207,7 +207,7 @@ class ProductDataMapperTest {
                 .mainImageUrl("https://example.com/image.jpg")
                 .categoryId(1L)
                 .conditionType(ConditionType.NEW)
-                .productStatus(ProductStatus.ACTIVE)
+                .status(ProductStatus.ACTIVE)
                 .build();
 
         CategoryId categoryId = new CategoryId(1L);
@@ -234,7 +234,7 @@ class ProductDataMapperTest {
                 .mainImageUrl("https://example.com/image2.jpg")
                 .categoryId(null)
                 .conditionType(ConditionType.REFURBISHED)
-                .productStatus(ProductStatus.INACTIVE)
+                .status(ProductStatus.INACTIVE)
                 .build();
 
         Product product = productDataMapper.toProduct(command, null);
