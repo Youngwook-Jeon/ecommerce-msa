@@ -1,6 +1,9 @@
 package com.project.young.productservice.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.project.young.productservice.application.service.CategoryApplicationService;
 import com.project.young.productservice.application.service.CategoryQueryService;
 import jakarta.validation.Validation;
@@ -22,7 +25,10 @@ public class TestConfig {
     // 필요한 빈 설정들
     @Bean
     public ObjectMapper objectMapper() {
-        return new ObjectMapper();
+        return JsonMapper.builder()
+                .addModule(new JavaTimeModule())
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .build();
     }
 
     // ValidationFactory 설정 (Bean Validation을 위해)

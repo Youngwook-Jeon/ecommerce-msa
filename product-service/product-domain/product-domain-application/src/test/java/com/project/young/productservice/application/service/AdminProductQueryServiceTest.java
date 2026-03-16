@@ -1,5 +1,7 @@
 package com.project.young.productservice.application.service;
 
+import com.project.young.productservice.application.dto.AdminProductDetailQuery;
+import com.project.young.productservice.application.dto.AdminProductDetailResult;
 import com.project.young.productservice.application.dto.AdminProductSearchCondition;
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
@@ -13,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -29,6 +32,36 @@ class AdminProductQueryServiceTest {
 
     @InjectMocks
     private AdminProductQueryService adminProductQueryService;
+
+    @Test
+    @DisplayName("getProductDetail: 쿼리를 그대로 리포지토리에 위임하고 결과를 반환한다")
+    void getProductDetail_DelegatesToRepositoryAndReturnsResult() {
+        // Given
+        UUID productId = UUID.randomUUID();
+        AdminProductDetailQuery query = AdminProductDetailQuery.builder()
+                .id(productId)
+                .build();
+        AdminProductDetailResult repositoryResult = AdminProductDetailResult.builder()
+                .id(productId)
+                .categoryId(1L)
+                .name("와이드핏 데님")
+                .description("와이드핏 데님 상세 설명입니다.")
+                .brand("브랜드A")
+                .mainImageUrl("https://example.com/image.jpg")
+                .basePrice(new BigDecimal("99000"))
+                .status(ProductStatus.ACTIVE)
+                .conditionType(ConditionType.NEW)
+                .createdAt(Instant.now())
+                .updatedAt(Instant.now())
+                .build();
+        when(adminProductReadRepository.getProductDetail(query))
+                .thenReturn(repositoryResult);
+        // When
+        AdminProductDetailResult result = adminProductQueryService.getProductDetail(query);
+        // Then
+        assertThat(result).isSameAs(repositoryResult);
+        verify(adminProductReadRepository).getProductDetail(query);
+    }
 
     @Test
     @DisplayName("search: 조건과 페이징 정보를 그대로 리포지토리에 위임하고 결과를 반환한다")

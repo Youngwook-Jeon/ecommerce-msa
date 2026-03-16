@@ -39,9 +39,6 @@ public class UpdateProductCommand {
     @Positive(message = "Category id must be a positive number.")
     private Long categoryId;
 
-    @NotNull(message = "Condition type must not be null.")
-    private ConditionType conditionType;
-
     @NotNull(message = "Product status must not be null.")
     private ProductStatus status;
 }

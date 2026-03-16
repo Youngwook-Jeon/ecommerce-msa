@@ -191,7 +191,6 @@ class ProductApplicationServiceTest {
                     .basePrice(new BigDecimal("1000"))
                     .brand("브랜드")
                     .mainImageUrl("url")
-                    .conditionType(ConditionType.NEW)
                     .status(ProductStatus.ACTIVE)
                     .build();
 
@@ -219,7 +218,6 @@ class ProductApplicationServiceTest {
                     .basePrice(new BigDecimal("1000"))
                     .brand("브랜드")
                     .mainImageUrl("url")
-                    .conditionType(ConditionType.NEW)
                     .status(ProductStatus.ACTIVE)
                     .build();
 
@@ -274,7 +272,6 @@ class ProductApplicationServiceTest {
                     .basePrice(new BigDecimal("1000"))
                     .brand("브랜드")
                     .mainImageUrl("url")
-                    .conditionType(ConditionType.NEW)
                     .status(ProductStatus.INACTIVE)
                     .build();
 

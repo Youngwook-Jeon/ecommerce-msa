@@ -30,11 +30,11 @@ public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler
 
     @ResponseBody
     @ExceptionHandler(value = {ProductNotFoundException.class})
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorDTO handleException(ProductNotFoundException productNotFoundException) {
         log.warn(productNotFoundException.getMessage(), productNotFoundException);
         return ErrorDTO.builder()
-                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .code(HttpStatus.NOT_FOUND.getReasonPhrase())
                 .message(productNotFoundException.getMessage())
                 .build();
     }

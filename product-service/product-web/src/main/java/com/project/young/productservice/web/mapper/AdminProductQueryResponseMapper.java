@@ -1,8 +1,10 @@
 package com.project.young.productservice.web.mapper;
 
+import com.project.young.productservice.application.dto.AdminProductDetailResult;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
+import com.project.young.productservice.web.dto.AdminProductDetailResponse;
 import com.project.young.productservice.web.dto.AdminProductListItemResponse;
 import com.project.young.productservice.web.dto.AdminProductPageResponse;
 import org.springframework.stereotype.Component;
@@ -19,6 +21,22 @@ public class AdminProductQueryResponseMapper {
                                            ConditionTypeWebConverter conditionTypeWebConverter) {
         this.productStatusWebConverter = productStatusWebConverter;
         this.conditionTypeWebConverter = conditionTypeWebConverter;
+    }
+
+    public AdminProductDetailResponse toAdminProductDetailResponse(AdminProductDetailResult result) {
+        return AdminProductDetailResponse.builder()
+                .id(result.id())
+                .categoryId(result.categoryId())
+                .name(result.name())
+                .description(result.description())
+                .brand(result.brand())
+                .mainImageUrl(result.mainImageUrl())
+                .basePrice(result.basePrice())
+                .status(productStatusWebConverter.toStringValue(result.status()))
+                .conditionType(conditionTypeWebConverter.toStringValue(result.conditionType()))
+                .createdAt(result.createdAt())
+                .updatedAt(result.updatedAt())
+                .build();
     }
 
     public AdminProductPageResponse toAdminProductPageResponse(

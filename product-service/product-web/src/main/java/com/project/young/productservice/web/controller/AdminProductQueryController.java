@@ -1,18 +1,20 @@
 package com.project.young.productservice.web.controller;
 
+import com.project.young.productservice.application.dto.AdminProductDetailResult;
+import com.project.young.productservice.application.dto.AdminProductDetailQuery;
 import com.project.young.productservice.application.dto.AdminProductSearchCondition;
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
 import com.project.young.productservice.application.service.AdminProductQueryService;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
+import com.project.young.productservice.web.dto.AdminProductDetailResponse;
 import com.project.young.productservice.web.dto.AdminProductPageResponse;
 import com.project.young.productservice.web.mapper.AdminProductQueryResponseMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("admin/queries/products")
@@ -27,6 +29,14 @@ public class AdminProductQueryController {
                                        AdminProductQueryResponseMapper adminProductQueryResponseMapper) {
         this.adminProductQueryService = adminProductQueryService;
         this.adminProductQueryResponseMapper = adminProductQueryResponseMapper;
+    }
+
+    @GetMapping("/{productId}")
+    public ResponseEntity<AdminProductDetailResponse> getProductDetail(@PathVariable("productId") UUID productId) {
+        log.info("REST request to get product detail for productId={}", productId);
+        AdminProductDetailResult result = adminProductQueryService.getProductDetail(new AdminProductDetailQuery(productId));
+
+        return ResponseEntity.ok(adminProductQueryResponseMapper.toAdminProductDetailResponse(result));
     }
 
     @GetMapping

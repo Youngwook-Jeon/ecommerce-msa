@@ -1,5 +1,6 @@
 package com.project.young.productservice.web.controller;
 
+import com.project.young.productservice.application.dto.AdminProductDetailResult;
 import com.project.young.productservice.application.dto.AdminProductSearchCondition;
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
@@ -7,6 +8,7 @@ import com.project.young.productservice.application.service.AdminProductQuerySer
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import com.project.young.productservice.web.config.SecurityConfig;
+import com.project.young.productservice.web.dto.AdminProductDetailResponse;
 import com.project.young.productservice.web.dto.AdminProductListItemResponse;
 import com.project.young.productservice.web.dto.AdminProductPageResponse;
 import com.project.young.productservice.web.mapper.AdminProductQueryResponseMapper;
@@ -21,6 +23,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -42,6 +45,70 @@ class AdminProductQueryControllerTest {
 
     @MockitoBean
     private AdminProductQueryResponseMapper adminProductQueryResponseMapper;
+
+    @Nested
+    @DisplayName("GET /admin/queries/products/{productId}")
+    class GetDetailTests {
+        @Test
+        @DisplayName("ADMIN 권한으로 상세 조회 시 200 OK와 AdminProductDetailResponse 반환")
+        @WithMockUser(authorities = "ADMIN")
+        void getDetail_WithAdmin_Returns200AndResponse() throws Exception {
+            // Given
+            UUID productId = UUID.randomUUID();
+            Instant now = Instant.now();
+            AdminProductDetailResult serviceResult = AdminProductDetailResult.builder()
+                    .id(productId)
+                    .categoryId(1L)
+                    .name("와이드핏 데님")
+                    .description("와이드핏 데님 상세 설명입니다.")
+                    .brand("브랜드A")
+                    .mainImageUrl("https://example.com/image.jpg")
+                    .basePrice(new BigDecimal("99000"))
+                    .status(ProductStatus.ACTIVE)
+                    .conditionType(ConditionType.NEW)
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+            AdminProductDetailResponse response = AdminProductDetailResponse.builder()
+                    .id(productId)
+                    .categoryId(1L)
+                    .name("와이드핏 데님")
+                    .description("와이드핏 데님 상세 설명입니다.")
+                    .brand("브랜드A")
+                    .mainImageUrl("https://example.com/image.jpg")
+                    .basePrice(new BigDecimal("99000"))
+                    .status("ACTIVE")
+                    .conditionType("NEW")
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+            when(adminProductQueryService.getProductDetail(any()))
+                    .thenReturn(serviceResult);
+            when(adminProductQueryResponseMapper.toAdminProductDetailResponse(serviceResult))
+                    .thenReturn(response);
+            // When & Then
+            mockMvc.perform(get("/admin/queries/products/{productId}", productId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(productId.toString()))
+                    .andExpect(jsonPath("$.name").value("와이드핏 데님"))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.conditionType").value("NEW"));
+            verify(adminProductQueryService).getProductDetail(any());
+            verify(adminProductQueryResponseMapper).toAdminProductDetailResponse(serviceResult);
+        }
+
+        @Test
+        @DisplayName("ADMIN 권한 없으면 403 Forbidden")
+        @WithMockUser(authorities = "CUSTOMER")
+        void getDetail_WithoutAdmin_Returns403() throws Exception {
+            UUID productId = UUID.randomUUID();
+            mockMvc.perform(get("/admin/queries/products/{productId}", productId))
+                    .andExpect(status().isForbidden());
+            verify(adminProductQueryService, never()).getProductDetail(any());
+            verify(adminProductQueryResponseMapper, never()).toAdminProductDetailResponse(any());
+        }
+    }
+
 
     @Nested
     @DisplayName("GET /admin/queries/products")

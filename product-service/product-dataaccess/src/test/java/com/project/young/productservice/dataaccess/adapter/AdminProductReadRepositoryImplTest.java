@@ -1,5 +1,7 @@
 package com.project.young.productservice.dataaccess.adapter;
 
+import com.project.young.productservice.application.dto.AdminProductDetailResult;
+import com.project.young.productservice.application.dto.AdminProductDetailQuery;
 import com.project.young.productservice.application.dto.AdminProductSearchCondition;
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
@@ -44,6 +46,56 @@ class AdminProductReadRepositoryImplTest {
 
     @InjectMocks
     private AdminProductReadRepositoryImpl adminProductReadRepository;
+
+    @Test
+    @DisplayName("getProductDetail: ProductEntity를 AdminProductDetailResult로 매핑한다")
+    void getProductDetail_MapsEntityToDetailResult() {
+        // Given
+        UUID productId = UUID.randomUUID();
+        Instant now = Instant.now();
+        CategoryEntity category = CategoryEntity.builder()
+                .id(1L)
+                .name("의류")
+                .status(CategoryStatusEntity.ACTIVE)
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        ProductEntity productEntity = ProductEntity.builder()
+                .id(productId)
+                .category(category)
+                .name("와이드핏 데님")
+                .description("와이드핏 데님 상세 설명입니다.")
+                .basePrice(new BigDecimal("99000"))
+                .status(ProductStatusEntity.ACTIVE)
+                .conditionType(ConditionTypeEntity.NEW)
+                .brand("브랜드A")
+                .mainImageUrl("https://example.com/image.jpg")
+                .createdAt(now)
+                .updatedAt(now)
+                .build();
+        when(adminProductJpaRepository.findById(productId))
+                .thenReturn(java.util.Optional.of(productEntity));
+        when(productDataAccessMapper.toDomainStatus(ProductStatusEntity.ACTIVE))
+                .thenReturn(ProductStatus.ACTIVE);
+        when(productDataAccessMapper.toDomainConditionType(ConditionTypeEntity.NEW))
+                .thenReturn(ConditionType.NEW);
+        AdminProductDetailQuery query = AdminProductDetailQuery.builder()
+                .id(productId)
+                .build();
+        // When
+        AdminProductDetailResult result = adminProductReadRepository.getProductDetail(query);
+        // Then
+        assertThat(result.id()).isEqualTo(productId);
+        assertThat(result.categoryId()).isEqualTo(1L);
+        assertThat(result.name()).isEqualTo("와이드핏 데님");
+        assertThat(result.description()).isEqualTo("와이드핏 데님 상세 설명입니다.");
+        assertThat(result.brand()).isEqualTo("브랜드A");
+        assertThat(result.mainImageUrl()).isEqualTo("https://example.com/image.jpg");
+        assertThat(result.basePrice()).isEqualByComparingTo(new BigDecimal("99000"));
+        assertThat(result.status()).isEqualTo(ProductStatus.ACTIVE);
+        assertThat(result.conditionType()).isEqualTo(ConditionType.NEW);
+        verify(adminProductJpaRepository).findById(productId);
+    }
 
     @Test
     @DisplayName("search: 검색 조건과 페이지 정보에 맞게 ReadProductView 목록과 메타데이터를 반환한다")

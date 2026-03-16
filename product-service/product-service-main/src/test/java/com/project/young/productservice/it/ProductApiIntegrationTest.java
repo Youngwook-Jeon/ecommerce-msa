@@ -185,7 +185,6 @@ class ProductApiIntegrationTest {
                     .brand("브랜드B")
                     .mainImageUrl("https://example.com/updated.jpg")
                     .categoryId(categoryId)
-                    .conditionType(ConditionType.USED)
                     .status(ProductStatus.INACTIVE)
                     .build();
 
@@ -355,6 +354,43 @@ class ProductApiIntegrationTest {
     @Nested
     @DisplayName("제품 조회 API (관리자)")
     class AdminProductQueryTests {
+
+        @Test
+        @DisplayName("GET /admin/queries/products/{productId} - 어드민 상세 조회 성공")
+        @WithMockUser(authorities = "ADMIN")
+        void adminGetProductDetail_Success() throws Exception {
+            // Given: 카테고리 + 상품 생성
+            Long categoryId = createCategory("의류");
+            CreateProductCommand createCommand = CreateProductCommand.builder()
+                    .name("와이드핏 데님")
+                    .description("와이드핏 데님 상세 설명입니다. 20자 이상.")
+                    .basePrice(new BigDecimal("99000"))
+                    .brand("브랜드A")
+                    .mainImageUrl("https://example.com/image.jpg")
+                    .categoryId(categoryId)
+                    .conditionType(ConditionType.NEW)
+                    .productStatus(ProductStatus.ACTIVE)
+                    .build();
+            String createResponse = mockMvc.perform(post("/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createCommand)))
+                    .andExpect(status().isCreated())
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
+
+            // When & Then
+            mockMvc.perform(get("/admin/queries/products/{productId}", productId))
+                    .andDo(print())
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(productId.toString()))
+                    .andExpect(jsonPath("$.name").value("와이드핏 데님"))
+                    .andExpect(jsonPath("$.description").value("와이드핏 데님 상세 설명입니다. 20자 이상."))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.conditionType").value("NEW"));
+        }
 
         @Test
         @DisplayName("GET /admin/queries/products - ADMIN 권한으로 검색 성공")

@@ -1,5 +1,7 @@
 package com.project.young.productservice.dataaccess.adapter;
 
+import com.project.young.productservice.application.dto.AdminProductDetailQuery;
+import com.project.young.productservice.application.dto.AdminProductDetailResult;
 import com.project.young.productservice.application.dto.AdminProductSearchCondition;
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
@@ -7,6 +9,7 @@ import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.AdminProductJpaRepository;
+import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,6 +31,17 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                                           ProductDataAccessMapper productDataAccessMapper) {
         this.adminProductJpaRepository = adminProductJpaRepository;
         this.productDataAccessMapper = productDataAccessMapper;
+    }
+
+    @Override
+    public AdminProductDetailResult getProductDetail(AdminProductDetailQuery query) {
+        if (query == null) {
+            throw new IllegalArgumentException("AdminProductDetailQuery cannot be null");
+        }
+        ProductEntity product = adminProductJpaRepository.findById(query.id())
+                .orElseThrow(() -> new ProductNotFoundException("Product not found: " + query.id()));
+
+        return toAdminReadProductDetailView(product);
     }
 
     @Override
@@ -100,6 +114,23 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 .basePrice(entity.getBasePrice())
                 .status(productDataAccessMapper.toDomainStatus(entity.getStatus()))
                 .conditionType(productDataAccessMapper.toDomainConditionType(entity.getConditionType()))
+                .build();
+    }
+
+    private AdminProductDetailResult toAdminReadProductDetailView(ProductEntity entity) {
+        Long categoryId = entity.getCategory() != null ? entity.getCategory().getId() : null;
+        return AdminProductDetailResult.builder()
+                .id(entity.getId())
+                .categoryId(categoryId)
+                .name(entity.getName())
+                .description(entity.getDescription())
+                .brand(entity.getBrand())
+                .mainImageUrl(entity.getMainImageUrl())
+                .basePrice(entity.getBasePrice())
+                .status(productDataAccessMapper.toDomainStatus(entity.getStatus()))
+                .conditionType(productDataAccessMapper.toDomainConditionType(entity.getConditionType()))
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
                 .build();
     }
 }

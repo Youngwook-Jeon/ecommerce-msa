@@ -139,7 +139,6 @@ class ProductControllerTest {
                     .brand("브랜드B")
                     .mainImageUrl("https://example.com/updated.jpg")
                     .categoryId(2L)
-                    .conditionType(ConditionType.USED)
                     .status(ProductStatus.INACTIVE)
                     .build();
 
@@ -200,7 +199,6 @@ class ProductControllerTest {
                     .brand("브랜드A")
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(1L)
-                    .conditionType(ConditionType.NEW)
                     .status(ProductStatus.ACTIVE)
                     .build();
 
