@@ -46,6 +46,81 @@ CREATE TABLE products
     updated_at     TIMESTAMPTZ             DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 예: "RAM", "Storage", "Color"
+CREATE TABLE option_groups
+(
+    id           UUID PRIMARY KEY      DEFAULT uuidv7(),
+    name         VARCHAR(100) NOT NULL,
+    display_name VARCHAR(100) NOT NULL,
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (name)
+);
+
+-- 예: "8GB", "16GB", "512GB", "1TB", "Silver", "Space Gray"
+CREATE TABLE option_values
+(
+    id              UUID PRIMARY KEY      DEFAULT uuidv7(),
+    option_group_id UUID         NOT NULL REFERENCES option_groups (id) ON DELETE CASCADE,
+    value           VARCHAR(100) NOT NULL,
+    display_name    VARCHAR(100) NOT NULL,
+    sort_order      INTEGER      NOT NULL DEFAULT 0,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (option_group_id, value)
+);
+
+-- 어떤 상품이 어떤 옵션 그룹을 쓰는지 + 순서/필수 여부
+CREATE TABLE product_option_groups
+(
+    id              UUID PRIMARY KEY     DEFAULT uuidv7(),
+    product_id      UUID        NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+    option_group_id UUID        NOT NULL REFERENCES option_groups (id) ON DELETE CASCADE,
+    step_order      INTEGER     NOT NULL CHECK (step_order > 0),
+    is_required     BOOLEAN     NOT NULL DEFAULT true,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_product_group UNIQUE (product_id, option_group_id),
+    CONSTRAINT uq_product_step UNIQUE (product_id, step_order)
+);
+
+-- 해당 상품에서 허용되는 옵션 값 + 가격 차이
+CREATE TABLE product_option_values
+(
+    id                      UUID PRIMARY KEY        DEFAULT uuidv7(),
+    product_option_group_id UUID           NOT NULL REFERENCES product_option_groups (id) ON DELETE CASCADE,
+    option_value_id         UUID           NOT NULL REFERENCES option_values (id) ON DELETE RESTRICT,
+    price_delta             DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    is_default              BOOLEAN        NOT NULL DEFAULT false,
+    is_active               BOOLEAN        NOT NULL DEFAULT true,
+    created_at              TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_pog_value UNIQUE (product_option_group_id, option_value_id)
+);
+
+-- 상품의 변형: 재고/주문 단위
+CREATE TABLE product_variants
+(
+    id               UUID PRIMARY KEY        DEFAULT uuidv7(),
+    product_id       UUID           NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+    sku              VARCHAR(100)   NOT NULL UNIQUE,
+    stock_quantity   INTEGER        NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
+    status           product_status NOT NULL DEFAULT 'ACTIVE',
+    calculated_price DECIMAL(12, 2) NOT NULL DEFAULT 0,
+    created_at       TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 상품 변형의 실제 옵션 조합
+CREATE TABLE variant_option_values
+(
+    id                      UUID PRIMARY KEY     DEFAULT uuidv7(),
+    variant_id              UUID        NOT NULL REFERENCES product_variants (id) ON DELETE CASCADE,
+    product_option_value_id UUID        NOT NULL REFERENCES product_option_values (id) ON DELETE RESTRICT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_variant_pov UNIQUE (variant_id, product_option_value_id)
+);
+
 -- ============================================================================
 -- 인덱스
 -- ============================================================================
@@ -62,3 +137,18 @@ CREATE INDEX idx_products_brand ON products (brand) WHERE brand IS NOT NULL;
 CREATE INDEX idx_products_status ON products (status) WHERE status = 'ACTIVE';
 CREATE INDEX idx_products_price ON products (base_price) WHERE status = 'ACTIVE';
 CREATE INDEX idx_products_name ON products (name);
+
+-- product_option_groups
+CREATE INDEX idx_pog_product_id ON product_option_groups (product_id);
+CREATE INDEX idx_pog_option_group_id ON product_option_groups (option_group_id);
+
+-- product_option_values
+CREATE INDEX idx_pov_pog_id ON product_option_values (product_option_group_id);
+CREATE INDEX idx_pov_option_value_id ON product_option_values (option_value_id);
+
+-- product_variants
+CREATE INDEX idx_variants_product_id ON product_variants (product_id);
+
+-- variant_option_values
+CREATE INDEX idx_vov_variant_id ON variant_option_values (variant_id);
+CREATE INDEX idx_vov_pov_id ON variant_option_values (product_option_value_id);
