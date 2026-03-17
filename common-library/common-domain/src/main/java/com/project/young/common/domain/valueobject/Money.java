@@ -44,6 +44,10 @@ public class Money {
         return amount.compareTo(BigDecimal.ZERO) <= 0;
     }
 
+    public boolean isLessThan(Money money) {
+        return amount.compareTo(money.getAmount()) < 0;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

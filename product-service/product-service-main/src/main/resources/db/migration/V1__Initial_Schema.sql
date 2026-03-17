@@ -6,9 +6,12 @@
 CREATE TYPE category_status AS ENUM ('ACTIVE', 'INACTIVE', 'DELETED');
 CREATE TYPE product_status AS ENUM ('ACTIVE', 'INACTIVE', 'DISCONTINUED', 'OUT_OF_STOCK', 'DELETED');
 CREATE TYPE condition_type_enum AS ENUM ('NEW', 'USED', 'REFURBISHED', 'OPEN_BOX');
+CREATE TYPE option_status AS ENUM ('ACTIVE', 'INACTIVE', 'DELETED');
 
 CREATE CAST (varchar AS category_status) WITH INOUT AS IMPLICIT;
 CREATE CAST (smallint AS category_status) WITH INOUT AS IMPLICIT;
+CREATE CAST (varchar AS option_status) WITH INOUT AS IMPLICIT;
+CREATE CAST (smallint AS option_status) WITH INOUT AS IMPLICIT;
 
 -- ============================================================================
 -- 테이블 정의
@@ -46,27 +49,29 @@ CREATE TABLE products
     updated_at     TIMESTAMPTZ             DEFAULT CURRENT_TIMESTAMP
 );
 
--- 예: "RAM", "Storage", "Color"
+-- 글로벌 옵션 그룹 (예: "RAM", "Storage", "Color")
 CREATE TABLE option_groups
 (
-    id           UUID PRIMARY KEY      DEFAULT uuidv7(),
-    name         VARCHAR(100) NOT NULL,
-    display_name VARCHAR(100) NOT NULL,
-    created_at   TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id           UUID PRIMARY KEY       DEFAULT uuidv7(),
+    name         VARCHAR(100)  NOT NULL,
+    display_name VARCHAR(100)  NOT NULL,
+    status       option_status NOT NULL DEFAULT 'ACTIVE',
+    created_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (name)
 );
 
--- 예: "8GB", "16GB", "512GB", "1TB", "Silver", "Space Gray"
+-- 글로벌 옵션 값 (예: "8GB", "16GB", "Silver")
 CREATE TABLE option_values
 (
-    id              UUID PRIMARY KEY      DEFAULT uuidv7(),
-    option_group_id UUID         NOT NULL REFERENCES option_groups (id) ON DELETE CASCADE,
-    value           VARCHAR(100) NOT NULL,
-    display_name    VARCHAR(100) NOT NULL,
-    sort_order      INTEGER      NOT NULL DEFAULT 0,
-    created_at      TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id              UUID PRIMARY KEY       DEFAULT uuidv7(),
+    option_group_id UUID          NOT NULL REFERENCES option_groups (id) ON DELETE RESTRICT,
+    value           VARCHAR(100)  NOT NULL,
+    display_name    VARCHAR(100)  NOT NULL,
+    sort_order      INTEGER       NOT NULL DEFAULT 0,
+    status          option_status NOT NULL DEFAULT 'ACTIVE',
+    created_at      TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (option_group_id, value)
 );
 
@@ -75,7 +80,7 @@ CREATE TABLE product_option_groups
 (
     id              UUID PRIMARY KEY     DEFAULT uuidv7(),
     product_id      UUID        NOT NULL REFERENCES products (id) ON DELETE CASCADE,
-    option_group_id UUID        NOT NULL REFERENCES option_groups (id) ON DELETE CASCADE,
+    option_group_id UUID        NOT NULL REFERENCES option_groups (id) ON DELETE RESTRICT,
     step_order      INTEGER     NOT NULL CHECK (step_order > 0),
     is_required     BOOLEAN     NOT NULL DEFAULT true,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -138,17 +143,16 @@ CREATE INDEX idx_products_status ON products (status) WHERE status = 'ACTIVE';
 CREATE INDEX idx_products_price ON products (base_price) WHERE status = 'ACTIVE';
 CREATE INDEX idx_products_name ON products (name);
 
--- product_option_groups
+-- 옵션 사전 인덱스 (조회 최적화)
+CREATE INDEX idx_option_groups_status ON option_groups (status) WHERE status = 'ACTIVE';
+CREATE INDEX idx_option_values_status ON option_values (status) WHERE status = 'ACTIVE';
+CREATE INDEX idx_option_values_group_id ON option_values (option_group_id);
+
+-- 연관 테이블 인덱스 (JOIN 최적화)
 CREATE INDEX idx_pog_product_id ON product_option_groups (product_id);
 CREATE INDEX idx_pog_option_group_id ON product_option_groups (option_group_id);
-
--- product_option_values
 CREATE INDEX idx_pov_pog_id ON product_option_values (product_option_group_id);
 CREATE INDEX idx_pov_option_value_id ON product_option_values (option_value_id);
-
--- product_variants
 CREATE INDEX idx_variants_product_id ON product_variants (product_id);
-
--- variant_option_values
 CREATE INDEX idx_vov_variant_id ON variant_option_values (variant_id);
 CREATE INDEX idx_vov_pov_id ON variant_option_values (product_option_value_id);

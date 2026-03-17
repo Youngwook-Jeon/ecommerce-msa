@@ -4,12 +4,13 @@ import com.project.young.common.domain.entity.AggregateRoot;
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
+import com.project.young.common.domain.valueobject.ProductOptionValueId;
 import com.project.young.productservice.domain.exception.ProductDomainException;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import lombok.Getter;
 
-import java.util.Optional;
+import java.util.*;
 
 @Getter
 public class Product extends AggregateRoot<ProductId> {
@@ -22,6 +23,9 @@ public class Product extends AggregateRoot<ProductId> {
     private final ConditionType conditionType;
     private String brand;
     private String mainImageUrl;
+
+    private final List<ProductOptionGroup> optionGroups;
+    private final List<ProductVariant> variants;
 
     public static Builder builder() {
         return new Builder();
@@ -37,10 +41,14 @@ public class Product extends AggregateRoot<ProductId> {
         this.conditionType = builder.conditionType;
         this.brand = builder.brand;
         this.mainImageUrl = builder.mainImageUrl;
+
+        this.optionGroups = builder.optionGroups != null ? builder.optionGroups : new ArrayList<>();
+        this.variants = builder.variants != null ? builder.variants : new ArrayList<>();
     }
 
     private Product(ProductId productId, CategoryId categoryId, String name, String description,
-                    Money basePrice, ProductStatus status, ConditionType conditionType, String brand,  String mainImageUrl) {
+                    Money basePrice, ProductStatus status, ConditionType conditionType, String brand,  String mainImageUrl,
+                    List<ProductOptionGroup> optionGroups, List<ProductVariant> variants) {
         super.setId(productId);
         this.categoryId = categoryId;
         this.name = name;
@@ -50,10 +58,27 @@ public class Product extends AggregateRoot<ProductId> {
         this.conditionType = conditionType;
         this.brand = brand;
         this.mainImageUrl = mainImageUrl;
+
+        this.optionGroups = optionGroups != null ? new ArrayList<>(optionGroups) : new ArrayList<>();
+        this.variants = variants != null ? new ArrayList<>(variants) : new ArrayList<>();
     }
 
     public Optional<CategoryId> getCategoryId() {
         return Optional.ofNullable(categoryId);
+    }
+
+    public List<ProductOptionGroup> getOptionGroups() {
+        if (this.optionGroups == null || this.optionGroups.isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(this.optionGroups);
+    }
+
+    public List<ProductVariant> getVariants() {
+        if (this.variants == null || this.variants.isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(this.variants);
     }
 
     /**
@@ -88,6 +113,9 @@ public class Product extends AggregateRoot<ProductId> {
         }
         validateBasePrice(newBasePrice);
         this.basePrice = newBasePrice;
+
+        // 기본 가격이 변경되면 하위 Variant 들의 계산된 가격도 함께 갱신되어야 함
+        recalculateVariantPrices();
     }
 
     public void changeStatus(ProductStatus newStatus) {
@@ -125,8 +153,85 @@ public class Product extends AggregateRoot<ProductId> {
             return;
         }
         this.status = ProductStatus.DELETED;
+        // 제품이 삭제되면 하위 변형들도 논리적 삭제 처리
+        // 타 도메인에서 단독 조회가 발생할 수 있는 변형에만 명시적으로 삭제 전파
+        if (this.variants != null) {
+            this.variants.forEach(ProductVariant::markAsDeleted);
+        }
     }
 
+    // ========================================================================
+    // Aggregate Root 비즈니스 로직 (옵션 & 변형 관리)
+    // ========================================================================
+
+    public void addOptionGroup(ProductOptionGroup group) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot add option group to a deleted product.");
+        }
+        boolean exists = this.optionGroups.stream()
+                .anyMatch(g -> g.getOptionGroupId().equals(group.getOptionGroupId()));
+        if (exists) {
+            throw new ProductDomainException("Option group already exists in this product.");
+        }
+        this.optionGroups.add(group);
+    }
+
+    public void addVariant(ProductVariant variant) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot add variant to a deleted product.");
+        }
+        boolean skuExists = this.variants.stream()
+                .anyMatch(v -> v.getSku().equals(variant.getSku()));
+        if (skuExists) {
+            throw new ProductDomainException("Variant with SKU " + variant.getSku() + " already exists.");
+        }
+
+        // 데이터 정합성 검증: 선택된 옵션이 이 상품에 존재하는 옵션인지 확인
+        validateVariantOptions(variant.getSelectedOptionValues());
+
+        // 초기 가격 세팅
+        Money totalDelta = calculateTotalOptionPriceDelta(variant.getSelectedOptionValues());
+        variant.updateCalculatedPrice(this.basePrice.add(totalDelta));
+
+        this.variants.add(variant);
+    }
+
+    private void validateVariantOptions(Set<ProductOptionValueId> selectedOptions) {
+        List<ProductOptionValueId> validOptionIds = this.optionGroups.stream()
+                .flatMap(group -> group.getOptionValues().stream())
+                .filter(ProductOptionValue::isActive)
+                .map(ProductOptionValue::getId)
+                .toList();
+
+        for (ProductOptionValueId selectedId : selectedOptions) {
+            if (!validOptionIds.contains(selectedId)) {
+                throw new ProductDomainException("Invalid or inactive option value ID for this product: " + selectedId.getValue());
+            }
+        }
+    }
+
+    private void recalculateVariantPrices() {
+        for (ProductVariant variant : this.variants) {
+            Money totalDelta = calculateTotalOptionPriceDelta(variant.getSelectedOptionValues());
+            variant.updateCalculatedPrice(this.basePrice.add(totalDelta));
+        }
+    }
+
+    private Money calculateTotalOptionPriceDelta(Set<ProductOptionValueId> selectedOptionValueIds) {
+        Money totalDelta = Money.ZERO;
+        for (ProductOptionGroup group : this.optionGroups) {
+            for (ProductOptionValue optionValue : group.getOptionValues()) {
+                if (selectedOptionValueIds.contains(optionValue.getId())) {
+                    totalDelta = totalDelta.add(optionValue.getPriceDelta());
+                }
+            }
+        }
+        return totalDelta;
+    }
+
+    // ========================================================================
+    // 검증 로직 (Validation)
+    // ========================================================================
     private static void validateName(String newName) {
         if (newName == null || newName.isBlank()) {
             throw new ProductDomainException("Product name cannot be null or blank.");
@@ -189,8 +294,9 @@ public class Product extends AggregateRoot<ProductId> {
      * @return A reconstituted Product object.
      */
     public static Product reconstitute(ProductId productId, CategoryId categoryId, String name, String description,
-                                      Money basePrice, ProductStatus status, ConditionType conditionType, String brand, String mainImageUrl) {
-        return new Product(productId, categoryId, name, description, basePrice, status, conditionType, brand, mainImageUrl);
+                                      Money basePrice, ProductStatus status, ConditionType conditionType, String brand, String mainImageUrl,
+                                       List<ProductOptionGroup> optionGroups, List<ProductVariant> variants) {
+        return new Product(productId, categoryId, name, description, basePrice, status, conditionType, brand, mainImageUrl, optionGroups, variants);
     }
 
     public static class Builder {
@@ -203,6 +309,8 @@ public class Product extends AggregateRoot<ProductId> {
         private ConditionType conditionType;
         private String brand;
         private String mainImageUrl;
+        private List<ProductOptionGroup> optionGroups = new ArrayList<>();
+        private List<ProductVariant> variants = new ArrayList<>();
 
         public Builder productId(ProductId productId) {
             this.productId = productId;
@@ -246,6 +354,16 @@ public class Product extends AggregateRoot<ProductId> {
 
         public Builder mainImageUrl(String mainImageUrl) {
             this.mainImageUrl = mainImageUrl;
+            return this;
+        }
+
+        public Builder optionGroups(List<ProductOptionGroup> optionGroups) {
+            this.optionGroups = optionGroups;
+            return this;
+        }
+
+        public Builder variants(List<ProductVariant> variants) {
+            this.variants = variants;
             return this;
         }
 
