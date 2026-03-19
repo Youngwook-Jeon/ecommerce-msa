@@ -14,7 +14,4 @@ public interface ProductReadRepository {
     List<ReadProductView> findVisibleByCategoryId(CategoryId categoryId);
 
     Optional<ReadProductView> findVisibleById(ProductId productId);
-
-    // TODO: Implement admin product search functionality
-//    List<ReadProductView> findAdminProducts(ProductSearchCondition condition);
 }

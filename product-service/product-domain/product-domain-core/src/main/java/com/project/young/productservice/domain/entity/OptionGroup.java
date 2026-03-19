@@ -14,10 +14,10 @@ import java.util.List;
 @Getter
 public class OptionGroup extends AggregateRoot<OptionGroupId> {
 
-    // 내부 관리용 고유 이름 (예: "COLOR", "STORAGE"). 변경 불가.
-    private final String name;
+    // 내부 관리용 고유 이름 (예: "COLOR", "STORAGE").
+    private String name;
 
-    // 사용자 노출용 이름 (예: "색상", "저장용량"). 수정 가능.
+    // 사용자 노출용 이름 (예: "색상", "저장용량").
     private String displayName;
 
     private OptionStatus status;
@@ -49,9 +49,23 @@ public class OptionGroup extends AggregateRoot<OptionGroupId> {
         return List.copyOf(this.optionValues);
     }
 
+    public OptionValue getOptionValue(OptionValueId optionValueId) {
+        return this.optionValues.stream()
+                .filter(v -> v.getId().equals(optionValueId))
+                .findFirst()
+                .orElseThrow(() -> new OptionDomainException("Option value not found in this group."));
+    }
+
     // ========================================================================
     // Aggregate Root 비즈니스 로직
     // ========================================================================
+    public void changeName(String newName) {
+        if (isDeleted()) {
+            throw new OptionDomainException("Cannot change the name of a deleted option group.");
+        }
+        validateName(newName);
+        this.name = newName;
+    }
 
     public void changeDisplayName(String newDisplayName) {
         if (isDeleted()) {
@@ -86,6 +100,51 @@ public class OptionGroup extends AggregateRoot<OptionGroupId> {
         }
 
         this.optionValues.add(newValue);
+    }
+
+    public void updateOptionValueDetails(OptionValueId optionValueId,
+                                         String newValue,
+                                         String newDisplayName,
+                                         Integer newSortOrder,
+                                         OptionStatus newStatus) {
+        if (isDeleted()) {
+            throw new OptionDomainException("Cannot update option value in a deleted option group.");
+        }
+
+        OptionValue targetValue = this.optionValues.stream()
+                .filter(v -> v.getId().equals(optionValueId))
+                .findFirst()
+                .orElseThrow(() -> new OptionDomainException("Option value not found in this group."));
+
+        // 1. 내부 식별용 값 (value) 변경 및 중복 검사
+        if (newValue != null && !newValue.equals(targetValue.getValue())) {
+            // 이 그룹 내에 변경하려는 value와 똑같은 값을 가진 다른 OptionValue가 있는지 확인
+            boolean valueExists = this.optionValues.stream()
+                    .filter(v -> !v.getId().equals(optionValueId)) // 자기 자신은 제외
+                    .anyMatch(v -> v.getValue().equalsIgnoreCase(newValue));
+
+            if (valueExists) {
+                throw new OptionDomainException(
+                        String.format("Option value '%s' already exists in group '%s'", newValue, this.name)
+                );
+            }
+            targetValue.changeValue(newValue);
+        }
+
+        // 2. 사용자 노출용 이름 (displayName) 변경
+        if (newDisplayName != null && !newDisplayName.equals(targetValue.getDisplayName())) {
+            targetValue.changeDisplayName(newDisplayName);
+        }
+
+        // 3. 정렬 순서 (sortOrder) 변경
+        if (newSortOrder != null && newSortOrder != targetValue.getSortOrder()) {
+            targetValue.changeSortOrder(newSortOrder);
+        }
+
+        // 4. 상태 (status) 변경
+        if (newStatus != null && newStatus != targetValue.getStatus()) {
+            targetValue.changeStatus(newStatus);
+        }
     }
 
     public void deleteOptionValue(OptionValueId optionValueIdToDelete) {

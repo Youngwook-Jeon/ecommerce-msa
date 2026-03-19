@@ -73,6 +73,39 @@ public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler
     }
 
     @ResponseBody
+    @ExceptionHandler(value = {OptionDomainException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorDTO handleException(OptionDomainException optionDomainException) {
+        log.warn(optionDomainException.getMessage(), optionDomainException);
+        return ErrorDTO.builder()
+                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(optionDomainException.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(value = {OptionGroupNotFoundException.class})
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorDTO handleException(OptionGroupNotFoundException optionGroupNotFoundException) {
+        log.warn(optionGroupNotFoundException.getMessage(), optionGroupNotFoundException);
+        return ErrorDTO.builder()
+                .code(HttpStatus.NOT_FOUND.getReasonPhrase())
+                .message(optionGroupNotFoundException.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(value = {DuplicateOptionGroupNameException.class})
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDTO handleException(DuplicateOptionGroupNameException duplicateOptionGroupNameException) {
+        log.warn(duplicateOptionGroupNameException.getMessage(), duplicateOptionGroupNameException);
+        return ErrorDTO.builder()
+                .code(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(duplicateOptionGroupNameException.getMessage())
+                .build();
+    }
+
+    @ResponseBody
     @ExceptionHandler(value = {AccessDeniedException.class})
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ErrorDTO handleAccessDeniedException(AccessDeniedException accessDeniedException) {

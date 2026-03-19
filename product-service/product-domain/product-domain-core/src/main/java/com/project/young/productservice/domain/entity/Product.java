@@ -282,16 +282,6 @@ public class Product extends AggregateRoot<ProductId> {
      * Reconstitutes a Product object from a persistent state (e.g., database).
      * This method bypasses initial creation validations and should NOT be used
      * for creating new business objects. Use the builder for new instances.
-     *
-     * @param productId    The existing product ID from the database.
-     * @param categoryId   The existing category ID from the database (may be null).
-     * @param name         The existing name from the database.
-     * @param description  The existing description from the database.
-     * @param basePrice    The existing base price from the database.
-     * @param status       The existing status from the database.
-     * @param conditionType The existing condition type from the database.
-     * @param brand        The existing brand from the database.
-     * @return A reconstituted Product object.
      */
     public static Product reconstitute(ProductId productId, CategoryId categoryId, String name, String description,
                                       Money basePrice, ProductStatus status, ConditionType conditionType, String brand, String mainImageUrl,

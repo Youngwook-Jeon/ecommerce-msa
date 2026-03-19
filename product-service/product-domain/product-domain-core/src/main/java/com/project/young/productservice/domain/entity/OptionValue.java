@@ -10,10 +10,10 @@ import lombok.Getter;
 @Getter
 public class OptionValue extends BaseEntity<OptionValueId> {
 
-    // 내부 식별용 고유 값 (예: "RED", "16GB"). 생성 후 변경 불가.
-    private final String value;
+    // 내부 식별용 고유 값 (예: "RED", "16GB").
+    private String value;
 
-    // 사용자 노출용 이름 (예: "빨강", "16기가바이트"). 수정 가능.
+    // 사용자 노출용 이름 (예: "빨강", "16기가바이트").
     private String displayName;
 
     private int sortOrder;
@@ -46,6 +46,14 @@ public class OptionValue extends BaseEntity<OptionValueId> {
 
     public boolean isDeleted() {
         return this.status.isDeleted();
+    }
+
+    void changeValue(String newValue) {
+        if (isDeleted()) {
+            throw new OptionDomainException("Cannot change the value of a deleted option value.");
+        }
+        validateValue(newValue);
+        this.value = newValue;
     }
 
     void changeDisplayName(String newDisplayName) {
