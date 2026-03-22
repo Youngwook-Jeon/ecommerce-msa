@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -78,7 +79,9 @@ class ProductDataAccessMapperTest {
                 ProductStatus.ACTIVE,
                 ConditionType.NEW,
                 "브랜드A",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         CategoryEntity categoryEntity = CategoryEntity.builder()
@@ -116,7 +119,9 @@ class ProductDataAccessMapperTest {
                 ProductStatus.INACTIVE,
                 ConditionType.USED,
                 "브랜드B",
-                "https://example.com/updated.jpg"
+                "https://example.com/updated.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         CategoryEntity categoryEntity = CategoryEntity.builder()

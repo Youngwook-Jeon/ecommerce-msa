@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -82,7 +83,9 @@ class ProductRepositoryImplTest {
                     ProductStatus.ACTIVE,
                     ConditionType.NEW,
                     "브랜드A",
-                    "https://example.com/image.jpg"
+                    "https://example.com/image.jpg",
+                    new ArrayList<>(),
+                    new ArrayList<>()
             );
 
             when(productDataAccessMapper.productToProductEntity(eq(product), isNull()))
@@ -118,7 +121,9 @@ class ProductRepositoryImplTest {
                     ProductStatus.ACTIVE,
                     ConditionType.USED,
                     "브랜드B",
-                    "https://example.com/updated.jpg"
+                    "https://example.com/updated.jpg",
+                    new ArrayList<>(),
+                    new ArrayList<>()
             );
 
             ProductEntity existingEntity = mock(ProductEntity.class);
@@ -161,7 +166,9 @@ class ProductRepositoryImplTest {
                     ProductStatus.ACTIVE,
                     ConditionType.NEW,
                     "브랜드",
-                    "https://example.com/image.jpg"
+                    "https://example.com/image.jpg",
+                    new ArrayList<>(),
+                    new ArrayList<>()
             );
 
             when(productJpaRepository.findById(rawId)).thenReturn(Optional.empty());
@@ -197,7 +204,9 @@ class ProductRepositoryImplTest {
                     ProductStatus.ACTIVE,
                     ConditionType.NEW,
                     "브랜드",
-                    "https://example.com/image.jpg"
+                    "https://example.com/image.jpg",
+                    new ArrayList<>(),
+                    new ArrayList<>()
             );
 
             when(productJpaRepository.findById(rawId)).thenReturn(Optional.of(entity));

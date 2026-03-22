@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -68,7 +69,9 @@ class ProductDataMapperTest {
                 ProductStatus.ACTIVE,
                 ConditionType.NEW,
                 "브랜드",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         CreateProductResult result = productDataMapper.toCreateProductResult(product);
@@ -118,7 +121,9 @@ class ProductDataMapperTest {
                 ProductStatus.ACTIVE,
                 ConditionType.NEW,
                 "브랜드",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         UpdateProductResult result = productDataMapper.toUpdateProductResult(product);
@@ -148,7 +153,9 @@ class ProductDataMapperTest {
                 ProductStatus.INACTIVE,
                 ConditionType.USED,
                 "브랜드",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         UpdateProductResult result = productDataMapper.toUpdateProductResult(product);
@@ -179,7 +186,9 @@ class ProductDataMapperTest {
                 ProductStatus.DELETED,
                 ConditionType.NEW,
                 "브랜드",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         DeleteProductResult result = productDataMapper.toDeleteProductResult(product);

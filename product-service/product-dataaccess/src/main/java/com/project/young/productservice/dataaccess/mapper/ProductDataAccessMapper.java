@@ -12,6 +12,7 @@ import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -38,7 +39,9 @@ public class ProductDataAccessMapper {
                 status,
                 conditionType,
                 productEntity.getBrand(),
-                productEntity.getMainImageUrl()
+                productEntity.getMainImageUrl(),
+                new ArrayList<>(),
+                new ArrayList<>()
         );
     }
 

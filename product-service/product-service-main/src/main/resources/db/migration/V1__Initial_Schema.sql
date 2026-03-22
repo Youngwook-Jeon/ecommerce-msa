@@ -58,7 +58,7 @@ CREATE TABLE option_groups
     status       option_status NOT NULL DEFAULT 'ACTIVE',
     created_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at   TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (name)
+    CONSTRAINT uk_option_groups_name UNIQUE (name)
 );
 
 -- 글로벌 옵션 값 (예: "8GB", "16GB", "Silver")
@@ -72,7 +72,7 @@ CREATE TABLE option_values
     status          option_status NOT NULL DEFAULT 'ACTIVE',
     created_at      TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (option_group_id, value)
+    CONSTRAINT uk_option_values_group_value UNIQUE (option_group_id, value)
 );
 
 -- 어떤 상품이 어떤 옵션 그룹을 쓰는지 + 순서/필수 여부
