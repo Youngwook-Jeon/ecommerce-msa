@@ -21,6 +21,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -216,7 +217,9 @@ class ProductDomainServiceImplTest {
                 status,
                 ConditionType.NEW,
                 "브랜드",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
     }
 }

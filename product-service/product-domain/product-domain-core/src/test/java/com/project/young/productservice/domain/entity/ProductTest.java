@@ -10,6 +10,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -148,7 +149,9 @@ class ProductTest {
                 ProductStatus.DELETED,
                 ConditionType.NEW,
                 "브랜드",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         assertThatThrownBy(() -> product.changeName("새이름"))
@@ -168,7 +171,9 @@ class ProductTest {
                 ProductStatus.ACTIVE,
                 ConditionType.NEW,
                 "브랜드",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         product.changeName("새이름");
@@ -187,7 +192,9 @@ class ProductTest {
                 ProductStatus.DELETED,
                 ConditionType.NEW,
                 "브랜드",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         assertThatThrownBy(() -> product.changeStatus(ProductStatus.ACTIVE))
@@ -207,7 +214,9 @@ class ProductTest {
                 ProductStatus.ACTIVE,
                 ConditionType.NEW,
                 "브랜드",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         product.markAsDeleted();
@@ -229,7 +238,9 @@ class ProductTest {
                 ProductStatus.DELETED,
                 ConditionType.NEW,
                 "브랜드",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         assertThatThrownBy(() -> product.changeCategoryId(new CategoryId(2L)))
@@ -249,7 +260,9 @@ class ProductTest {
                 ProductStatus.ACTIVE,
                 ConditionType.NEW,
                 "브랜드",
-                "https://example.com/image.jpg"
+                "https://example.com/image.jpg",
+                new ArrayList<>(),
+                new ArrayList<>()
         );
 
         product.changeCategoryId(null);
