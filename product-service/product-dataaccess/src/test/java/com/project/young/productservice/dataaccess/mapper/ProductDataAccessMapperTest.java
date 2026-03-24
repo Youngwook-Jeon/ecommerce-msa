@@ -2,20 +2,33 @@ package com.project.young.productservice.dataaccess.mapper;
 
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.Money;
+import com.project.young.common.domain.valueobject.OptionGroupId;
+import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.common.domain.valueobject.ProductId;
+import com.project.young.common.domain.valueobject.ProductOptionGroupId;
+import com.project.young.common.domain.valueobject.ProductOptionValueId;
+import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
+import com.project.young.productservice.dataaccess.entity.ProductOptionValueEntity;
+import com.project.young.productservice.dataaccess.entity.ProductVariantEntity;
+import com.project.young.productservice.dataaccess.entity.VariantOptionValueEntity;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.domain.entity.Product;
+import com.project.young.productservice.domain.entity.ProductOptionGroup;
+import com.project.young.productservice.domain.entity.ProductOptionValue;
+import com.project.young.productservice.domain.entity.ProductVariant;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
-import java.time.Instant;
-import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -24,134 +37,286 @@ class ProductDataAccessMapperTest {
 
     private final ProductDataAccessMapper mapper = new ProductDataAccessMapper();
 
-    @Test
-    @DisplayName("productEntityToProduct: 엔티티를 도메인 객체로 올바르게 매핑한다")
-    void productEntityToProduct_Success() {
-        // Given
-        UUID id = UUID.randomUUID();
-        Instant now = Instant.now();
+    @Nested
+    @DisplayName("Entity -> Domain")
+    class EntityToDomain {
+        @Test
+        @DisplayName("하위 aggregate(Set)까지 도메인으로 매핑한다")
+        void productEntityToProduct_withChildren_success() {
+            UUID productId = UUID.randomUUID();
+            UUID pogId = UUID.randomUUID();
+            UUID povId = UUID.randomUUID();
+            UUID variantId = UUID.randomUUID();
+            UUID selectedPovId = UUID.randomUUID();
 
-        CategoryEntity categoryEntity = CategoryEntity.builder()
-                .id(1L)
-                .name("의류")
-                .build();
+            CategoryEntity categoryEntity = category(1L, "의류");
 
-        ProductEntity entity = ProductEntity.builder()
-                .id(id)
-                .category(categoryEntity)
-                .name("와이드핏 데님")
-                .description("와이드핏 데님 상세 설명입니다.")
-                .basePrice(new BigDecimal("99000"))
-                .status(ProductStatusEntity.ACTIVE)
-                .conditionType(ConditionTypeEntity.NEW)
-                .brand("브랜드A")
-                .mainImageUrl("https://example.com/image.jpg")
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
+            ProductOptionValueEntity povEntity = ProductOptionValueEntity.builder()
+                    .id(povId)
+                    .optionValueId(UUID.randomUUID())
+                    .priceDelta(new BigDecimal("5000"))
+                    .isDefault(true)
+                    .isActive(true)
+                    .build();
 
-        // When
-        Product product = mapper.productEntityToProduct(entity);
+            ProductOptionGroupEntity pogEntity = ProductOptionGroupEntity.builder()
+                    .id(pogId)
+                    .optionGroupId(UUID.randomUUID())
+                    .stepOrder(1)
+                    .isRequired(true)
+                    .optionValues(Set.of(povEntity))
+                    .build();
+            povEntity.setProductOptionGroup(pogEntity);
 
-        // Then
-        assertThat(product.getId()).isEqualTo(new ProductId(id));
-        assertThat(product.getCategoryId()).contains(new CategoryId(1L));
-        assertThat(product.getName()).isEqualTo("와이드핏 데님");
-        assertThat(product.getDescription()).isEqualTo("와이드핏 데님 상세 설명입니다.");
-        assertThat(product.getBasePrice()).isEqualTo(new Money(new BigDecimal("99000")));
-        assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
-        assertThat(product.getConditionType()).isEqualTo(ConditionType.NEW);
-        assertThat(product.getBrand()).isEqualTo("브랜드A");
-        assertThat(product.getMainImageUrl()).isEqualTo("https://example.com/image.jpg");
+            VariantOptionValueEntity selectedEntity = VariantOptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .productOptionValueId(selectedPovId)
+                    .build();
+
+            ProductVariantEntity variantEntity = ProductVariantEntity.builder()
+                    .id(variantId)
+                    .sku("SKU-001")
+                    .stockQuantity(10)
+                    .status(ProductStatusEntity.ACTIVE)
+                    .calculatedPrice(new BigDecimal("105000"))
+                    .selectedOptionValues(Set.of(selectedEntity))
+                    .build();
+            selectedEntity.setVariant(variantEntity);
+
+            ProductEntity productEntity = ProductEntity.builder()
+                    .id(productId)
+                    .category(categoryEntity)
+                    .name("와이드핏 데님")
+                    .description("desc")
+                    .basePrice(new BigDecimal("100000"))
+                    .status(ProductStatusEntity.ACTIVE)
+                    .conditionType(ConditionTypeEntity.NEW)
+                    .brand("브랜드A")
+                    .mainImageUrl("https://example.com/image.jpg")
+                    .optionGroups(Set.of(pogEntity))
+                    .variants(Set.of(variantEntity))
+                    .build();
+            pogEntity.setProduct(productEntity);
+            variantEntity.setProduct(productEntity);
+
+            Product product = mapper.productEntityToProduct(productEntity);
+
+            assertThat(product.getId()).isEqualTo(new ProductId(productId));
+            assertThat(product.getCategoryId()).contains(new CategoryId(1L));
+            assertThat(product.getOptionGroups()).hasSize(1);
+            assertThat(product.getVariants()).hasSize(1);
+
+            ProductOptionGroup mappedGroup = product.getOptionGroups().get(0);
+            assertThat(mappedGroup.getId()).isEqualTo(new ProductOptionGroupId(pogId));
+            assertThat(mappedGroup.getOptionValues()).hasSize(1);
+
+            ProductVariant mappedVariant = product.getVariants().get(0);
+            assertThat(mappedVariant.getId()).isEqualTo(new ProductVariantId(variantId));
+            assertThat(mappedVariant.getSelectedOptionValues())
+                    .containsExactlyInAnyOrder(new ProductOptionValueId(selectedPovId));
+        }
     }
 
-    @Test
-    @DisplayName("productToProductEntity: 도메인 객체를 엔티티로 올바르게 매핑한다")
-    void productToProductEntity_Success() {
-        // Given
-        UUID id = UUID.randomUUID();
-        Product domain = Product.reconstitute(
-                new ProductId(id),
-                new CategoryId(1L),
-                "와이드핏 데님",
-                "와이드핏 데님 상세 설명입니다.",
-                new Money(new BigDecimal("99000")),
-                ProductStatus.ACTIVE,
-                ConditionType.NEW,
-                "브랜드A",
-                "https://example.com/image.jpg",
-                new ArrayList<>(),
-                new ArrayList<>()
-        );
+    @Nested
+    @DisplayName("Domain -> Entity")
+    class DomainToEntity {
+        @Test
+        @DisplayName("하위 aggregate를 포함해 엔티티로 매핑한다")
+        void productToProductEntity_withChildren_success() {
+            UUID productId = UUID.randomUUID();
+            UUID optionGroupId = UUID.randomUUID();
+            UUID optionValueRefId = UUID.randomUUID();
+            UUID productOptionGroupId = UUID.randomUUID();
+            UUID productOptionValueId = UUID.randomUUID();
+            UUID variantId = UUID.randomUUID();
 
-        CategoryEntity categoryEntity = CategoryEntity.builder()
-                .id(1L)
-                .name("의류")
-                .build();
+            ProductOptionValue optionValue = ProductOptionValue.reconstitute(
+                    new ProductOptionValueId(productOptionValueId),
+                    new OptionValueId(optionValueRefId),
+                    new Money(new BigDecimal("3000")),
+                    true,
+                    true
+            );
+            ProductOptionGroup optionGroup = ProductOptionGroup.reconstitute(
+                    new ProductOptionGroupId(productOptionGroupId),
+                    new OptionGroupId(optionGroupId),
+                    1,
+                    true,
+                    List.of(optionValue)
+            );
+            ProductVariant variant = ProductVariant.reconstitute(
+                    new ProductVariantId(variantId),
+                    "SKU-NEW-001",
+                    5,
+                    ProductStatus.ACTIVE,
+                    new Money(new BigDecimal("103000")),
+                    Set.of(new ProductOptionValueId(productOptionValueId))
+            );
 
-        // When
-        ProductEntity entity = mapper.productToProductEntity(domain, categoryEntity);
+            Product domain = Product.reconstitute(
+                    new ProductId(productId),
+                    new CategoryId(1L),
+                    "와이드핏 데님",
+                    "desc",
+                    new Money(new BigDecimal("100000")),
+                    ProductStatus.ACTIVE,
+                    ConditionType.NEW,
+                    "브랜드A",
+                    "https://example.com/image.jpg",
+                    List.of(optionGroup),
+                    List.of(variant)
+            );
 
-        // Then
-        assertThat(entity.getId()).isEqualTo(id);
-        assertThat(entity.getCategory()).isEqualTo(categoryEntity);
-        assertThat(entity.getName()).isEqualTo("와이드핏 데님");
-        assertThat(entity.getDescription()).isEqualTo("와이드핏 데님 상세 설명입니다.");
-        assertThat(entity.getBasePrice()).isEqualByComparingTo(new BigDecimal("99000"));
-        assertThat(entity.getStatus()).isEqualTo(ProductStatusEntity.ACTIVE);
-        assertThat(entity.getConditionType()).isEqualTo(ConditionTypeEntity.NEW);
-        assertThat(entity.getBrand()).isEqualTo("브랜드A");
-        assertThat(entity.getMainImageUrl()).isEqualTo("https://example.com/image.jpg");
+            ProductEntity entity = mapper.productToProductEntity(domain, category(1L, "의류"));
+
+            assertThat(entity.getId()).isEqualTo(productId);
+            assertThat(entity.getOptionGroups()).hasSize(1);
+            assertThat(entity.getVariants()).hasSize(1);
+
+            ProductOptionGroupEntity mappedGroup = entity.getOptionGroups().iterator().next();
+            assertThat(mappedGroup.getProduct()).isSameAs(entity);
+            assertThat(mappedGroup.getOptionValues()).hasSize(1);
+
+            ProductVariantEntity mappedVariant = entity.getVariants().iterator().next();
+            assertThat(mappedVariant.getProduct()).isSameAs(entity);
+            assertThat(mappedVariant.getSelectedOptionValues()).hasSize(1);
+            assertThat(mappedVariant.getSelectedOptionValues().iterator().next().getVariant()).isSameAs(mappedVariant);
+        }
     }
 
-    @Test
-    @DisplayName("updateEntityFromDomain: 기존 엔티티를 도메인 값으로 업데이트한다")
-    void updateEntityFromDomain_Success() {
-        // Given
-        UUID id = UUID.randomUUID();
+    @Nested
+    @DisplayName("Merge Update")
+    class MergeUpdate {
+        @Test
+        @DisplayName("기존 자식 엔티티를 재사용하면서 값만 갱신하고 선택옵션은 remove/add 동기화한다")
+        void updateEntityFromDomain_mergeChildren_success() {
+            UUID productId = UUID.randomUUID();
+            UUID keepGroupId = UUID.randomUUID();
+            UUID keepValueId = UUID.randomUUID();
+            UUID keepVariantId = UUID.randomUUID();
+            UUID selectedKeep = UUID.randomUUID();
+            UUID selectedRemove = UUID.randomUUID();
+            UUID selectedAdd = UUID.randomUUID();
 
-        Product domain = Product.reconstitute(
-                new ProductId(id),
-                new CategoryId(2L),
-                "업데이트된 이름",
-                "업데이트된 설명입니다.",
-                new Money(new BigDecimal("150000")),
-                ProductStatus.INACTIVE,
-                ConditionType.USED,
-                "브랜드B",
-                "https://example.com/updated.jpg",
-                new ArrayList<>(),
-                new ArrayList<>()
-        );
+            ProductOptionValueEntity existingValue = ProductOptionValueEntity.builder()
+                    .id(keepValueId)
+                    .optionValueId(UUID.randomUUID())
+                    .priceDelta(new BigDecimal("1000"))
+                    .isDefault(false)
+                    .isActive(true)
+                    .build();
 
-        CategoryEntity categoryEntity = CategoryEntity.builder()
-                .id(2L)
-                .name("하의")
-                .build();
+            ProductOptionGroupEntity existingGroup = ProductOptionGroupEntity.builder()
+                    .id(keepGroupId)
+                    .optionGroupId(UUID.randomUUID())
+                    .stepOrder(9)
+                    .isRequired(false)
+                    .optionValues(new java.util.HashSet<>(Set.of(existingValue)))
+                    .build();
+            existingGroup.addOptionValue(existingValue);
 
-        ProductEntity entity = ProductEntity.builder()
-                .id(id)
-                .name("이전 이름")
-                .description("이전 설명")
-                .basePrice(new BigDecimal("50000"))
-                .status(ProductStatusEntity.ACTIVE)
-                .conditionType(ConditionTypeEntity.NEW)
-                .brand("브랜드A")
-                .mainImageUrl("https://example.com/old.jpg")
-                .build();
+            VariantOptionValueEntity keepSelection = VariantOptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .productOptionValueId(selectedKeep)
+                    .build();
+            VariantOptionValueEntity removeSelection = VariantOptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .productOptionValueId(selectedRemove)
+                    .build();
 
-        // When
-        mapper.updateEntityFromDomain(domain, entity, categoryEntity);
+            ProductVariantEntity existingVariant = ProductVariantEntity.builder()
+                    .id(keepVariantId)
+                    .sku("OLD-SKU")
+                    .stockQuantity(1)
+                    .status(ProductStatusEntity.ACTIVE)
+                    .calculatedPrice(new BigDecimal("101000"))
+                    .selectedOptionValues(new java.util.HashSet<>(Set.of(keepSelection, removeSelection)))
+                    .build();
+            existingVariant.addSelectedOptionValue(keepSelection);
+            existingVariant.addSelectedOptionValue(removeSelection);
 
-        // Then
-        assertThat(entity.getCategory()).isEqualTo(categoryEntity);
-        assertThat(entity.getName()).isEqualTo("업데이트된 이름");
-        assertThat(entity.getDescription()).isEqualTo("업데이트된 설명입니다.");
-        assertThat(entity.getBasePrice()).isEqualByComparingTo(new BigDecimal("150000"));
-        assertThat(entity.getStatus()).isEqualTo(ProductStatusEntity.INACTIVE);
-        assertThat(entity.getConditionType()).isEqualTo(ConditionTypeEntity.USED);
-        assertThat(entity.getBrand()).isEqualTo("브랜드B");
-        assertThat(entity.getMainImageUrl()).isEqualTo("https://example.com/updated.jpg");
+            ProductEntity targetEntity = ProductEntity.builder()
+                    .id(productId)
+                    .name("old-name")
+                    .description("old-desc")
+                    .basePrice(new BigDecimal("100000"))
+                    .status(ProductStatusEntity.ACTIVE)
+                    .conditionType(ConditionTypeEntity.NEW)
+                    .brand("old-brand")
+                    .mainImageUrl("old-url")
+                    .optionGroups(new java.util.HashSet<>(Set.of(existingGroup)))
+                    .variants(new java.util.HashSet<>(Set.of(existingVariant)))
+                    .build();
+            targetEntity.addOptionGroup(existingGroup);
+            targetEntity.addVariant(existingVariant);
+
+            ProductOptionValue domainValue = ProductOptionValue.reconstitute(
+                    new ProductOptionValueId(keepValueId),
+                    new OptionValueId(UUID.randomUUID()),
+                    new Money(new BigDecimal("7000")),
+                    true,
+                    true
+            );
+            ProductOptionGroup domainGroup = ProductOptionGroup.reconstitute(
+                    new ProductOptionGroupId(keepGroupId),
+                    new OptionGroupId(UUID.randomUUID()),
+                    1,
+                    true,
+                    List.of(domainValue)
+            );
+            ProductVariant domainVariant = ProductVariant.reconstitute(
+                    new ProductVariantId(keepVariantId),
+                    "NEW-SKU",
+                    20,
+                    ProductStatus.INACTIVE,
+                    new Money(new BigDecimal("107000")),
+                    Set.of(new ProductOptionValueId(selectedKeep), new ProductOptionValueId(selectedAdd))
+            );
+            Product domain = Product.reconstitute(
+                    new ProductId(productId),
+                    new CategoryId(2L),
+                    "new-name",
+                    "new-desc",
+                    new Money(new BigDecimal("110000")),
+                    ProductStatus.INACTIVE,
+                    ConditionType.USED,
+                    "new-brand",
+                    "new-url",
+                    List.of(domainGroup),
+                    List.of(domainVariant)
+            );
+
+            mapper.updateEntityFromDomain(domain, targetEntity, category(2L, "하의"));
+
+            assertThat(targetEntity.getName()).isEqualTo("new-name");
+            assertThat(targetEntity.getStatus()).isEqualTo(ProductStatusEntity.INACTIVE);
+            assertThat(targetEntity.getConditionType()).isEqualTo(ConditionTypeEntity.USED);
+
+            ProductOptionGroupEntity mergedGroup = targetEntity.getOptionGroups().stream()
+                    .filter(g -> g.getId().equals(keepGroupId))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(mergedGroup.getStepOrder()).isEqualTo(1);
+            assertThat(mergedGroup.isRequired()).isTrue();
+
+            ProductOptionValueEntity mergedValue = mergedGroup.getOptionValues().stream()
+                    .filter(v -> v.getId().equals(keepValueId))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(mergedValue.getPriceDelta()).isEqualByComparingTo(new BigDecimal("7000"));
+            assertThat(mergedValue.isDefault()).isTrue();
+
+            ProductVariantEntity mergedVariant = targetEntity.getVariants().stream()
+                    .filter(v -> v.getId().equals(keepVariantId))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(mergedVariant.getSku()).isEqualTo("NEW-SKU");
+            assertThat(mergedVariant.getStockQuantity()).isEqualTo(20);
+            assertThat(mergedVariant.getStatus()).isEqualTo(ProductStatusEntity.INACTIVE);
+            assertThat(mergedVariant.getSelectedOptionValues().stream()
+                    .map(VariantOptionValueEntity::getProductOptionValueId))
+                    .containsExactlyInAnyOrder(selectedKeep, selectedAdd);
+        }
     }
 
     @Test
@@ -164,6 +329,45 @@ class ProductDataAccessMapperTest {
         // ConditionType
         assertThat(mapper.toEntityConditionType(ConditionType.REFURBISHED)).isEqualTo(ConditionTypeEntity.REFURBISHED);
         assertThat(mapper.toDomainConditionType(ConditionTypeEntity.OPEN_BOX)).isEqualTo(ConditionType.OPEN_BOX);
+    }
+
+    @Test
+    @DisplayName("null 입력 검증: productEntityToProduct/productToProductEntity/updateEntityFromDomain")
+    void nullGuards() {
+        assertThatThrownBy(() -> mapper.productEntityToProduct(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("productEntity");
+        assertThatThrownBy(() -> mapper.productToProductEntity(null, category(1L, "x")))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("product");
+        assertThatThrownBy(() -> mapper.updateEntityFromDomain(null, ProductEntity.builder().build(), category(1L, "x")))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("domainProduct");
+        assertThatThrownBy(() -> mapper.updateEntityFromDomain(
+                Product.reconstitute(
+                        new ProductId(UUID.randomUUID()),
+                        new CategoryId(1L),
+                        "n",
+                        "d",
+                        new Money(BigDecimal.ONE),
+                        ProductStatus.ACTIVE,
+                        ConditionType.NEW,
+                        "b",
+                        "u",
+                        List.of(),
+                        List.of()
+                ),
+                null,
+                category(1L, "x")
+        )).isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("productEntity");
+    }
+
+    private CategoryEntity category(Long id, String name) {
+        return CategoryEntity.builder()
+                .id(id)
+                .name(name)
+                .build();
     }
 }
 

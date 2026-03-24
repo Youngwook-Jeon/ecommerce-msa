@@ -18,8 +18,7 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
 @Entity
 @Table(name = "products")
@@ -64,7 +63,15 @@ public class ProductEntity {
     private String brand;
 
     @Column(name = "main_image_url", length = 500, nullable = false)
-    private String mainImageUrl;;
+    private String mainImageUrl;
+
+    @Builder.Default
+    @OneToMany(mappedBy = "product", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    private Set<ProductOptionGroupEntity> optionGroups = new HashSet<>();
+
+    @Builder.Default
+    @OneToMany(mappedBy = "product", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    private Set<ProductVariantEntity> variants = new HashSet<>();
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -91,6 +98,22 @@ public class ProductEntity {
         if (category != null && !category.getProducts().contains(this)) {
             category.getProducts().add(this);
         }
+    }
+
+    public void addOptionGroup(ProductOptionGroupEntity optionGroup) {
+        if (this.optionGroups == null) {
+            this.optionGroups = new HashSet<>();
+        }
+        this.optionGroups.add(optionGroup);
+        optionGroup.setProduct(this);
+    }
+
+    public void addVariant(ProductVariantEntity variant) {
+        if (this.variants == null) {
+            this.variants = new HashSet<>();
+        }
+        this.variants.add(variant);
+        variant.setProduct(this);
     }
 
     @Override

@@ -131,7 +131,7 @@ class ProductRepositoryImplTest {
             CategoryEntity categoryRef = mock(CategoryEntity.class);
             Product savedDomain = domainProduct; // 단순히 동일 객체를 반환한다고 가정
 
-            when(productJpaRepository.findById(rawId)).thenReturn(Optional.of(existingEntity));
+            when(productJpaRepository.findAggregateById(rawId)).thenReturn(Optional.of(existingEntity));
             when(categoryJpaRepository.getReferenceById(10L)).thenReturn(categoryRef);
             when(productJpaRepository.save(existingEntity)).thenReturn(savedEntity);
             when(productDataAccessMapper.productEntityToProduct(savedEntity)).thenReturn(savedDomain);
@@ -143,7 +143,7 @@ class ProductRepositoryImplTest {
             assertThat(result).isNotNull();
             assertThat(result.getName()).isEqualTo("업데이트된 이름");
 
-            verify(productJpaRepository).findById(rawId);
+            verify(productJpaRepository).findAggregateById(rawId);
             verify(categoryJpaRepository).getReferenceById(10L);
             verify(productDataAccessMapper).updateEntityFromDomain(domainProduct, existingEntity, categoryRef);
             verify(productJpaRepository).save(existingEntity);
@@ -171,14 +171,14 @@ class ProductRepositoryImplTest {
                     new ArrayList<>()
             );
 
-            when(productJpaRepository.findById(rawId)).thenReturn(Optional.empty());
+            when(productJpaRepository.findAggregateById(rawId)).thenReturn(Optional.empty());
 
             // When & Then
             assertThatThrownBy(() -> productRepository.save(domainProduct))
                     .isInstanceOf(ProductNotFoundException.class)
                     .hasMessageContaining("Product not found");
 
-            verify(productJpaRepository).findById(rawId);
+            verify(productJpaRepository).findAggregateById(rawId);
             verify(productJpaRepository, never()).save(any());
         }
     }
@@ -209,7 +209,7 @@ class ProductRepositoryImplTest {
                     new ArrayList<>()
             );
 
-            when(productJpaRepository.findById(rawId)).thenReturn(Optional.of(entity));
+            when(productJpaRepository.findAggregateById(rawId)).thenReturn(Optional.of(entity));
             when(productDataAccessMapper.productEntityToProduct(entity)).thenReturn(domainProduct);
 
             // When
@@ -218,7 +218,7 @@ class ProductRepositoryImplTest {
             // Then
             assertThat(result).isPresent();
             assertThat(result.get().getName()).isEqualTo("이름");
-            verify(productJpaRepository).findById(rawId);
+            verify(productJpaRepository).findAggregateById(rawId);
             verify(productDataAccessMapper).productEntityToProduct(entity);
         }
 
@@ -229,14 +229,14 @@ class ProductRepositoryImplTest {
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
 
-            when(productJpaRepository.findById(rawId)).thenReturn(Optional.empty());
+            when(productJpaRepository.findAggregateById(rawId)).thenReturn(Optional.empty());
 
             // When
             Optional<Product> result = productRepository.findById(productId);
 
             // Then
             assertThat(result).isEmpty();
-            verify(productJpaRepository).findById(rawId);
+            verify(productJpaRepository).findAggregateById(rawId);
         }
 
         @Test

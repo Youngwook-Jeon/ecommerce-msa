@@ -45,7 +45,7 @@ public class ProductRepositoryImpl implements ProductRepository {
         ProductEntity toSave;
         if (product.getId() != null) {
             UUID id = product.getId().getValue();
-            ProductEntity current = productJpaRepository.findById(id)
+            ProductEntity current = productJpaRepository.findAggregateById(id)
                     .orElseThrow(() -> new ProductNotFoundException("Product not found: " + id));
             productDataAccessMapper.updateEntityFromDomain(product, current, categoryRef);
             toSave = current;
@@ -64,7 +64,7 @@ public class ProductRepositoryImpl implements ProductRepository {
             throw new IllegalArgumentException("productId must not be null.");
         }
 
-        return productJpaRepository.findById(productId.getValue())
+        return productJpaRepository.findAggregateById(productId.getValue())
                 .map(productDataAccessMapper::productEntityToProduct);
     }
 
@@ -74,7 +74,6 @@ public class ProductRepositoryImpl implements ProductRepository {
             throw new IllegalArgumentException("sku must not be null.");
         }
 
-        // TODO: Implement existsBySku logic
-        return false;
+        return productJpaRepository.existsVariantSku(sku);
     }
 }

@@ -85,8 +85,8 @@ CREATE TABLE product_option_groups
     is_required     BOOLEAN     NOT NULL DEFAULT true,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_product_group UNIQUE (product_id, option_group_id),
-    CONSTRAINT uq_product_step UNIQUE (product_id, step_order)
+    CONSTRAINT uk_product_group UNIQUE (product_id, option_group_id),
+    CONSTRAINT uk_product_step UNIQUE (product_id, step_order)
 );
 
 -- 해당 상품에서 허용되는 옵션 값 + 가격 차이
@@ -100,7 +100,7 @@ CREATE TABLE product_option_values
     is_active               BOOLEAN        NOT NULL DEFAULT true,
     created_at              TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at              TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_pog_value UNIQUE (product_option_group_id, option_value_id)
+    CONSTRAINT uk_pog_value UNIQUE (product_option_group_id, option_value_id)
 );
 
 -- 상품의 변형: 재고/주문 단위
@@ -113,7 +113,8 @@ CREATE TABLE product_variants
     status           product_status NOT NULL DEFAULT 'ACTIVE',
     calculated_price DECIMAL(12, 2) NOT NULL DEFAULT 0,
     created_at       TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at       TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    updated_at       TIMESTAMPTZ    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_product_variants_sku UNIQUE (sku)
 );
 
 -- 상품 변형의 실제 옵션 조합
@@ -123,7 +124,7 @@ CREATE TABLE variant_option_values
     variant_id              UUID        NOT NULL REFERENCES product_variants (id) ON DELETE CASCADE,
     product_option_value_id UUID        NOT NULL REFERENCES product_option_values (id) ON DELETE RESTRICT,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_variant_pov UNIQUE (variant_id, product_option_value_id)
+    CONSTRAINT uk_variant_pov UNIQUE (variant_id, product_option_value_id)
 );
 
 -- ============================================================================
