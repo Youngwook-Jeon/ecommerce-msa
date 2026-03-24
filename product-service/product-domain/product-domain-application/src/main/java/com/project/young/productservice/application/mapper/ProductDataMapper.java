@@ -2,14 +2,33 @@ package com.project.young.productservice.application.mapper;
 
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.Money;
+import com.project.young.common.domain.valueobject.OptionGroupId;
+import com.project.young.common.domain.valueobject.OptionValueId;
+import com.project.young.common.domain.valueobject.ProductOptionGroupId;
+import com.project.young.common.domain.valueobject.ProductOptionValueId;
+import com.project.young.common.domain.valueobject.ProductVariantId;
+import com.project.young.productservice.application.dto.AddProductOptionGroupCommand;
+import com.project.young.productservice.application.dto.AddProductOptionGroupResult;
+import com.project.young.productservice.application.dto.AddProductOptionValueCommand;
+import com.project.young.productservice.application.dto.AddProductVariantCommand;
+import com.project.young.productservice.application.dto.AddProductVariantResult;
+import com.project.young.productservice.application.dto.ChangeProductOptionValuePriceDeltaResult;
 import com.project.young.productservice.application.dto.CreateProductCommand;
 import com.project.young.productservice.application.dto.CreateProductResult;
+import com.project.young.productservice.application.dto.DeactivateProductOptionValueResult;
 import com.project.young.productservice.application.dto.DeleteProductResult;
+import com.project.young.productservice.application.dto.DeleteProductVariantResult;
+import com.project.young.productservice.application.dto.UpdateProductVariantResult;
 import com.project.young.productservice.application.dto.UpdateProductResult;
 import com.project.young.productservice.domain.entity.Product;
+import com.project.young.productservice.domain.entity.ProductOptionGroup;
+import com.project.young.productservice.domain.entity.ProductOptionValue;
+import com.project.young.productservice.domain.entity.ProductVariant;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 @Component
 public class ProductDataMapper {
@@ -69,6 +88,135 @@ public class ProductDataMapper {
                 .mainImageUrl(command.getMainImageUrl())
                 .conditionType(command.getConditionType())
                 .status(command.getStatus())
+                .build();
+    }
+
+    public ProductOptionValue toProductOptionValue(AddProductOptionValueCommand command, ProductOptionValueId id) {
+        Objects.requireNonNull(command, "AddProductOptionValueCommand cannot be null");
+        Objects.requireNonNull(id, "ProductOptionValueId cannot be null");
+
+        return ProductOptionValue.builder()
+                .id(id)
+                .optionValueId(new OptionValueId(command.getOptionValueId()))
+                .priceDelta(new Money(command.getPriceDelta()))
+                .isDefault(command.isDefault())
+                .isActive(command.isActive())
+                .build();
+    }
+
+    public ProductOptionGroup toProductOptionGroup(
+            AddProductOptionGroupCommand command,
+            ProductOptionGroupId id,
+            List<ProductOptionValue> optionValues
+    ) {
+        Objects.requireNonNull(command, "AddProductOptionGroupCommand cannot be null");
+        Objects.requireNonNull(id, "ProductOptionGroupId cannot be null");
+
+        return ProductOptionGroup.builder()
+                .id(id)
+                .optionGroupId(new OptionGroupId(command.getOptionGroupId()))
+                .stepOrder(command.getStepOrder())
+                .isRequired(command.isRequired())
+                .optionValues(optionValues)
+                .build();
+    }
+
+    public AddProductOptionGroupResult toAddProductOptionGroupResult(Product product, ProductOptionGroup optionGroup) {
+        Objects.requireNonNull(product, "Product cannot be null");
+        Objects.requireNonNull(optionGroup, "ProductOptionGroup cannot be null");
+
+        return AddProductOptionGroupResult.builder()
+                .productId(product.getId().getValue())
+                .productOptionGroupId(optionGroup.getId().getValue())
+                .optionGroupId(optionGroup.getOptionGroupId().getValue())
+                .stepOrder(optionGroup.getStepOrder())
+                .required(optionGroup.isRequired())
+                .optionValueCount(optionGroup.getOptionValues().size())
+                .build();
+    }
+
+    public ProductVariant toProductVariant(
+            AddProductVariantCommand command,
+            ProductVariantId id,
+            String generatedSku,
+            Set<ProductOptionValueId> selectedOptionValueIds
+    ) {
+        Objects.requireNonNull(command, "AddProductVariantCommand cannot be null");
+        Objects.requireNonNull(id, "ProductVariantId cannot be null");
+
+        return ProductVariant.builder()
+                .id(id)
+                .sku(generatedSku)
+                .stockQuantity(command.getStockQuantity())
+                .selectedOptionValues(selectedOptionValueIds)
+                .build();
+    }
+
+    public AddProductVariantResult toAddProductVariantResult(Product product, ProductVariant variant) {
+        Objects.requireNonNull(product, "Product cannot be null");
+        Objects.requireNonNull(variant, "ProductVariant cannot be null");
+
+        return AddProductVariantResult.builder()
+                .productId(product.getId().getValue())
+                .productVariantId(variant.getId().getValue())
+                .sku(variant.getSku())
+                .stockQuantity(variant.getStockQuantity())
+                .status(variant.getStatus())
+                .calculatedPrice(variant.getCalculatedPrice().getAmount())
+                .build();
+    }
+
+    public ChangeProductOptionValuePriceDeltaResult toChangeProductOptionValuePriceDeltaResult(
+            Product product,
+            ProductOptionValueId optionValueId,
+            Money priceDelta
+    ) {
+        Objects.requireNonNull(product, "Product cannot be null");
+        Objects.requireNonNull(optionValueId, "ProductOptionValueId cannot be null");
+        Objects.requireNonNull(priceDelta, "PriceDelta cannot be null");
+
+        return ChangeProductOptionValuePriceDeltaResult.builder()
+                .productId(product.getId().getValue())
+                .productOptionValueId(optionValueId.getValue())
+                .priceDelta(priceDelta.getAmount())
+                .build();
+    }
+
+    public UpdateProductVariantResult toUpdateProductVariantResult(Product product, ProductVariant variant) {
+        Objects.requireNonNull(product, "Product cannot be null");
+        Objects.requireNonNull(variant, "ProductVariant cannot be null");
+
+        return UpdateProductVariantResult.builder()
+                .productId(product.getId().getValue())
+                .productVariantId(variant.getId().getValue())
+                .sku(variant.getSku())
+                .stockQuantity(variant.getStockQuantity())
+                .status(variant.getStatus())
+                .calculatedPrice(variant.getCalculatedPrice().getAmount())
+                .build();
+    }
+
+    public DeleteProductVariantResult toDeleteProductVariantResult(Product product, ProductVariant variant) {
+        Objects.requireNonNull(product, "Product cannot be null");
+        Objects.requireNonNull(variant, "ProductVariant cannot be null");
+
+        return DeleteProductVariantResult.builder()
+                .productId(product.getId().getValue())
+                .productVariantId(variant.getId().getValue())
+                .sku(variant.getSku())
+                .status(variant.getStatus())
+                .build();
+    }
+
+    public DeactivateProductOptionValueResult toDeactivateProductOptionValueResult(Product product, ProductOptionValue optionValue) {
+        Objects.requireNonNull(product, "Product cannot be null");
+        Objects.requireNonNull(optionValue, "ProductOptionValue cannot be null");
+
+        return DeactivateProductOptionValueResult.builder()
+                .productId(product.getId().getValue())
+                .productOptionValueId(optionValue.getId().getValue())
+                .active(optionValue.isActive())
+                .priceDelta(optionValue.getPriceDelta().getAmount())
                 .build();
     }
 }

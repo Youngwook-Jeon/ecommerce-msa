@@ -70,6 +70,18 @@ public class ProductDomainServiceImpl implements ProductDomainService {
     }
 
     @Override
+    public void validateGlobalSkuUniqueness(String sku) {
+        if (sku == null || sku.isBlank()) {
+            throw new ProductDomainException("SKU cannot be empty.");
+        }
+
+        boolean exists = productRepository.existsBySku(sku);
+        if (exists) {
+            throw new ProductDomainException("Global SKU uniqueness violation. SKU already exists: " + sku);
+        }
+    }
+
+    @Override
     public Product prepareForDeletion(ProductId productId) {
         if (productId == null) {
             throw new ProductDomainException("Product id must not be null.");

@@ -5,6 +5,7 @@ import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.common.domain.valueobject.ProductOptionValueId;
+import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.productservice.domain.exception.ProductDomainException;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
@@ -219,6 +220,51 @@ public class Product extends AggregateRoot<ProductId> {
 
         // 2. 가격이 변경되었으니 전체 Variant 가격 재계산
         recalculateVariantPrices();
+    }
+
+    public ProductVariant updateVariantDetails(ProductVariantId variantId, Integer newStockQuantity, ProductStatus newStatus) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot update variant in a deleted product.");
+        }
+        ProductVariant target = this.variants.stream()
+                .filter(v -> v.getId().equals(variantId))
+                .findFirst()
+                .orElseThrow(() -> new ProductDomainException("Variant not found in this product."));
+
+        if (newStockQuantity != null && target.getStockQuantity() != newStockQuantity) {
+            target.setStockQuantity(newStockQuantity);
+        }
+        if (newStatus != null && target.getStatus() != newStatus) {
+            target.changeStatus(newStatus);
+        }
+        return target;
+    }
+
+    public ProductVariant deleteVariant(ProductVariantId variantId) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot delete variant in a deleted product.");
+        }
+        ProductVariant target = this.variants.stream()
+                .filter(v -> v.getId().equals(variantId))
+                .findFirst()
+                .orElseThrow(() -> new ProductDomainException("Variant not found in this product."));
+        target.markAsDeleted();
+        return target;
+    }
+
+    public ProductOptionValue deactivateProductOptionValue(ProductOptionValueId productOptionValueId) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot deactivate option value in a deleted product.");
+        }
+        for (ProductOptionGroup group : this.optionGroups) {
+            for (ProductOptionValue value : group.getOptionValues()) {
+                if (value.getId().equals(productOptionValueId)) {
+                    value.deactivateLocalOption();
+                    return value;
+                }
+            }
+        }
+        throw new ProductDomainException("Product option value not found in this product.");
     }
 
     private void validateVariantOptions(Set<ProductOptionValueId> selectedOptions) {

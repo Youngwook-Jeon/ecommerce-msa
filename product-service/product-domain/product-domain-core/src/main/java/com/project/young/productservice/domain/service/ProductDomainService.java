@@ -28,6 +28,15 @@ public interface ProductDomainService {
     void validateStatusChangeRules(Product product, ProductStatus newStatus);
 
     /**
+     * Validates the global uniqueness for a SKU.
+     * Ensures that the SKU is not already in use by another product.
+     * Throws a domain exception if the SKU is not unique.
+     *
+     * @param sku the SKU to validate
+     */
+    void validateGlobalSkuUniqueness(String sku);
+
+    /**
      * Prepares a product for deletion by validating business rules
      * and marking it as DELETED (soft delete).
      * Throws a domain exception if the product cannot be deleted

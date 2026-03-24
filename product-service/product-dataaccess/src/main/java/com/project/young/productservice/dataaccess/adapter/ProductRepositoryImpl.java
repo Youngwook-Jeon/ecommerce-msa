@@ -67,4 +67,14 @@ public class ProductRepositoryImpl implements ProductRepository {
         return productJpaRepository.findById(productId.getValue())
                 .map(productDataAccessMapper::productEntityToProduct);
     }
+
+    @Override
+    public boolean existsBySku(String sku) {
+        if(sku == null || sku.isBlank()) {
+            throw new IllegalArgumentException("sku must not be null.");
+        }
+
+        // TODO: Implement existsBySku logic
+        return false;
+    }
 }
