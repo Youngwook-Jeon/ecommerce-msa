@@ -196,6 +196,31 @@ public class Product extends AggregateRoot<ProductId> {
         this.variants.add(variant);
     }
 
+    public void changeOptionValuePriceDelta(ProductOptionValueId targetValueId, Money newPriceDelta) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot change option price on a deleted product.");
+        }
+
+        // 1. 대상 옵션 찾아서 가격 변경
+        boolean optionFound = false;
+        for (ProductOptionGroup group : this.optionGroups) {
+            for (ProductOptionValue value : group.getOptionValues()) {
+                if (value.getId().equals(targetValueId)) {
+                    value.changePriceDelta(newPriceDelta);
+                    optionFound = true;
+                    break;
+                }
+            }
+        }
+
+        if (!optionFound) {
+            throw new ProductDomainException("Option value not found in this product.");
+        }
+
+        // 2. 가격이 변경되었으니 전체 Variant 가격 재계산
+        recalculateVariantPrices();
+    }
+
     private void validateVariantOptions(Set<ProductOptionValueId> selectedOptions) {
         List<ProductOptionValueId> validOptionIds = this.optionGroups.stream()
                 .flatMap(group -> group.getOptionValues().stream())
@@ -206,6 +231,19 @@ public class Product extends AggregateRoot<ProductId> {
         for (ProductOptionValueId selectedId : selectedOptions) {
             if (!validOptionIds.contains(selectedId)) {
                 throw new ProductDomainException("Invalid or inactive option value ID for this product: " + selectedId.getValue());
+            }
+        }
+
+        // 모든 필수(Required) 옵션 그룹에서 최소(혹은 정확히) 1개의 옵션이 선택되었는지 확인
+        for (ProductOptionGroup group : this.optionGroups) {
+            if (group.isRequired()) {
+                boolean hasSelectedOptionInGroup = group.getOptionValues().stream()
+                        .filter(ProductOptionValue::isActive)
+                        .anyMatch(val -> selectedOptions.contains(val.getId()));
+
+                if (!hasSelectedOptionInGroup) {
+                    throw new ProductDomainException("Missing required option from group: " + group.getOptionGroupId().getValue());
+                }
             }
         }
     }

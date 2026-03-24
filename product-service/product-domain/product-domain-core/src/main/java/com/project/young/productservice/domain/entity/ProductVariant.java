@@ -28,7 +28,7 @@ public class ProductVariant extends BaseEntity<ProductVariantId> {
     }
 
     private ProductVariant(Builder builder) {
-        super.setId(builder.variantId);
+        super.setId(builder.id);
         this.sku = builder.sku;
         this.stockQuantity = builder.stockQuantity;
         this.status = builder.status;
@@ -173,15 +173,15 @@ public class ProductVariant extends BaseEntity<ProductVariantId> {
     }
 
     public static class Builder {
-        private ProductVariantId variantId;
+        private ProductVariantId id;
         private String sku;
         private int stockQuantity = 0;
         private ProductStatus status = ProductStatus.ACTIVE;
         private Money calculatedPrice = Money.ZERO;
         private Set<ProductOptionValueId> selectedOptionValues = new HashSet<>();
 
-        public Builder variantId(ProductVariantId variantId) {
-            this.variantId = variantId;
+        public Builder id(ProductVariantId id) {
+            this.id = id;
             return this;
         }
 
