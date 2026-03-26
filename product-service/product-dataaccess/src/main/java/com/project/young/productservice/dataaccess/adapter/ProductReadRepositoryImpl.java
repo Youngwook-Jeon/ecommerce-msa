@@ -71,12 +71,24 @@ public class ProductReadRepositoryImpl implements ProductReadRepository {
             throw new IllegalArgumentException("productId must not be null.");
         }
 
-        return productJpaRepository.findVisibleDetailById(
-                        productId.getValue(),
-                        ProductStatusEntity.ACTIVE,
-                        CategoryStatusEntity.ACTIVE
-                )
-                .map(this::toReadProductDetailView);
+        Optional<ProductEntity> optionLoaded = productJpaRepository.findVisibleDetailWithOptionsById(
+                productId.getValue(),
+                ProductStatusEntity.ACTIVE,
+                CategoryStatusEntity.ACTIVE
+        );
+
+        if (optionLoaded.isEmpty()) {
+            return Optional.empty();
+        }
+
+        // Two-step fetch to avoid large cartesian explosion when loading both bag-like trees.
+        productJpaRepository.findVisibleDetailWithVariantsById(
+                productId.getValue(),
+                ProductStatusEntity.ACTIVE,
+                CategoryStatusEntity.ACTIVE
+        );
+
+        return optionLoaded.map(this::toReadProductDetailView);
     }
 
     private ReadProductView toReadProductView(ProductEntity entity) {

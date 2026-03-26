@@ -241,7 +241,10 @@ class ProductReadRepositoryImplTest {
             variant.addSelectedOptionValue(selected);
             productEntity.addVariant(variant);
 
-            when(productJpaRepository.findVisibleDetailById(
+            when(productJpaRepository.findVisibleDetailWithOptionsById(
+                    rawId, ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE))
+                    .thenReturn(Optional.of(productEntity));
+            when(productJpaRepository.findVisibleDetailWithVariantsById(
                     rawId, ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE))
                     .thenReturn(Optional.of(productEntity));
 
@@ -265,7 +268,9 @@ class ProductReadRepositoryImplTest {
             assertThat(view.variants()).hasSize(1);
             assertThat(view.variants().getFirst().selectedProductOptionValueIds()).containsExactlyInAnyOrder(optionValue.getId());
 
-            verify(productJpaRepository).findVisibleDetailById(
+            verify(productJpaRepository).findVisibleDetailWithOptionsById(
+                    rawId, ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE);
+            verify(productJpaRepository).findVisibleDetailWithVariantsById(
                     rawId, ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE);
         }
 
@@ -276,7 +281,7 @@ class ProductReadRepositoryImplTest {
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
 
-            when(productJpaRepository.findVisibleDetailById(
+            when(productJpaRepository.findVisibleDetailWithOptionsById(
                     rawId, ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE))
                     .thenReturn(Optional.empty());
 

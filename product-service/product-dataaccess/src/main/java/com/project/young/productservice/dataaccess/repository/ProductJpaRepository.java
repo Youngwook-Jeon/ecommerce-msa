@@ -84,4 +84,32 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, UUID>
     Optional<ProductEntity> findVisibleDetailById(@Param("productId") UUID productId,
                                                   @Param("productStatus") ProductStatusEntity productStatus,
                                                   @Param("categoryStatus") CategoryStatusEntity categoryStatus);
+
+    @Query("""
+           SELECT DISTINCT p
+           FROM ProductEntity p
+           LEFT JOIN p.category c
+           LEFT JOIN FETCH p.optionGroups og
+           LEFT JOIN FETCH og.optionValues
+           WHERE p.id = :productId
+            AND p.status = :productStatus
+            AND (c IS NULL OR c.status = :categoryStatus)
+           """)
+    Optional<ProductEntity> findVisibleDetailWithOptionsById(@Param("productId") UUID productId,
+                                                             @Param("productStatus") ProductStatusEntity productStatus,
+                                                             @Param("categoryStatus") CategoryStatusEntity categoryStatus);
+
+    @Query("""
+           SELECT DISTINCT p
+           FROM ProductEntity p
+           LEFT JOIN p.category c
+           LEFT JOIN FETCH p.variants v
+           LEFT JOIN FETCH v.selectedOptionValues
+           WHERE p.id = :productId
+            AND p.status = :productStatus
+            AND (c IS NULL OR c.status = :categoryStatus)
+           """)
+    Optional<ProductEntity> findVisibleDetailWithVariantsById(@Param("productId") UUID productId,
+                                                              @Param("productStatus") ProductStatusEntity productStatus,
+                                                              @Param("categoryStatus") CategoryStatusEntity categoryStatus);
 }

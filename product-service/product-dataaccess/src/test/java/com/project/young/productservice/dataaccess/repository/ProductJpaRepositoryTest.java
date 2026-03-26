@@ -476,6 +476,121 @@ class ProductJpaRepositoryTest {
         }
     }
 
+    @Nested
+    @DisplayName("상세 조회 성능 비교 테스트")
+    class VisibleDetailQueryComparisonTests {
+
+        @Test
+        @DisplayName("단일 조회 방식과 분할 조회 방식의 소요 시간을 비교 출력한다")
+        void compareSingleJoinAndSplitQueries() {
+            CategoryEntity category = testEntityManager.persistAndFlush(
+                    createCategory("의류", CategoryStatusEntity.ACTIVE)
+            );
+
+            ProductEntity product = createProduct("성능비교용 상품", category, ProductStatusEntity.ACTIVE);
+
+            for (int groupIndex = 0; groupIndex < 4; groupIndex++) {
+                OptionGroupEntity globalOptionGroup = OptionGroupEntity.builder()
+                        .id(UUID.randomUUID())
+                        .name("opt-group-" + groupIndex)
+                        .displayName("옵션그룹-" + groupIndex)
+                        .status(OptionStatusEntity.ACTIVE)
+                        .build();
+                testEntityManager.persist(globalOptionGroup);
+
+                ProductOptionGroupEntity pog = ProductOptionGroupEntity.builder()
+                        .id(UUID.randomUUID())
+                        .optionGroupId(globalOptionGroup.getId())
+                        .stepOrder(groupIndex + 1)
+                        .isRequired(true)
+                        .build();
+
+                for (int valueIndex = 0; valueIndex < 4; valueIndex++) {
+                    OptionValueEntity globalValue = OptionValueEntity.builder()
+                            .id(UUID.randomUUID())
+                            .optionGroup(globalOptionGroup)
+                            .value("VAL-" + groupIndex + "-" + valueIndex)
+                            .displayName("값-" + groupIndex + "-" + valueIndex)
+                            .sortOrder(valueIndex + 1)
+                            .status(OptionStatusEntity.ACTIVE)
+                            .build();
+                    testEntityManager.persist(globalValue);
+
+                    ProductOptionValueEntity pov = ProductOptionValueEntity.builder()
+                            .id(UUID.randomUUID())
+                            .optionValueId(globalValue.getId())
+                            .priceDelta(new BigDecimal("500"))
+                            .isDefault(valueIndex == 0)
+                            .isActive(true)
+                            .build();
+                    pog.addOptionValue(pov);
+                }
+                product.addOptionGroup(pog);
+            }
+
+            UUID firstProductOptionValueId = product.getOptionGroups().iterator().next()
+                    .getOptionValues().iterator().next().getId();
+
+            for (int variantIndex = 0; variantIndex < 30; variantIndex++) {
+                ProductVariantEntity variant = ProductVariantEntity.builder()
+                        .id(UUID.randomUUID())
+                        .sku("SKU-BENCH-" + variantIndex)
+                        .stockQuantity(10 + variantIndex)
+                        .status(ProductStatusEntity.ACTIVE)
+                        .calculatedPrice(new BigDecimal("15000"))
+                        .build();
+                variant.addSelectedOptionValue(VariantOptionValueEntity.builder()
+                        .id(UUID.randomUUID())
+                        .productOptionValueId(firstProductOptionValueId)
+                        .build());
+                product.addVariant(variant);
+            }
+
+            ProductEntity saved = testEntityManager.persistAndFlush(product);
+            testEntityManager.clear();
+
+            final int rounds = 20;
+            long singleTotalNanos = 0L;
+            long splitTotalNanos = 0L;
+
+            for (int i = 0; i < rounds; i++) {
+                testEntityManager.clear();
+                long start = System.nanoTime();
+                ProductEntity loaded = productJpaRepository.findVisibleDetailById(
+                        saved.getId(), ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE
+                ).orElseThrow();
+                loaded.getOptionGroups().size();
+                loaded.getVariants().size();
+                singleTotalNanos += (System.nanoTime() - start);
+            }
+
+            for (int i = 0; i < rounds; i++) {
+                testEntityManager.clear();
+                long start = System.nanoTime();
+                ProductEntity loaded = productJpaRepository.findVisibleDetailWithOptionsById(
+                        saved.getId(), ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE
+                ).orElseThrow();
+                productJpaRepository.findVisibleDetailWithVariantsById(
+                        saved.getId(), ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE
+                ).orElseThrow();
+                loaded.getOptionGroups().size();
+                loaded.getVariants().size();
+                splitTotalNanos += (System.nanoTime() - start);
+            }
+
+            double singleAvgMs = singleTotalNanos / 1_000_000.0 / rounds;
+            double splitAvgMs = splitTotalNanos / 1_000_000.0 / rounds;
+            // Visible detail query benchmark (rounds=20): single=9.309ms, split=4.800ms (in M3 Max processor)
+            System.out.printf(
+                    "Visible detail query benchmark (rounds=%d): single=%.3fms, split=%.3fms%n",
+                    rounds, singleAvgMs, splitAvgMs
+            );
+
+            assertThat(singleAvgMs).isGreaterThan(0.0);
+            assertThat(splitAvgMs).isGreaterThan(0.0);
+        }
+    }
+
     private CategoryEntity createCategory(String name, CategoryStatusEntity status) {
         Instant now = Instant.now();
         return CategoryEntity.builder()
