@@ -24,6 +24,7 @@ import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.entity.ProductOptionGroup;
 import com.project.young.productservice.domain.entity.ProductOptionValue;
 import com.project.young.productservice.domain.entity.ProductVariant;
+import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -88,6 +89,23 @@ public class ProductDataMapper {
                 .mainImageUrl(command.getMainImageUrl())
                 .conditionType(command.getConditionType())
                 .status(command.getStatus())
+                .build();
+    }
+
+    public Product toDraftProduct(CreateProductCommand command, CategoryId categoryId) {
+        Objects.requireNonNull(command, "CreateProductCommand cannot be null");
+
+        Money basePrice = new Money(command.getBasePrice());
+
+        return Product.builder()
+                .categoryId(categoryId)
+                .name(command.getName())
+                .description(command.getDescription())
+                .basePrice(basePrice)
+                .brand(command.getBrand())
+                .mainImageUrl(command.getMainImageUrl())
+                .conditionType(command.getConditionType())
+                .status(ProductStatus.DRAFT)
                 .build();
     }
 

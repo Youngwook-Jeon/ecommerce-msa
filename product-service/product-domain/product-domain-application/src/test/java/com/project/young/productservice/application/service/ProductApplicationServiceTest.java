@@ -91,7 +91,7 @@ class ProductApplicationServiceTest {
                     .brand("브랜드")
                     .mainImageUrl("url")
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
+                    .status(ProductStatus.DRAFT)
                     .build();
 
             UUID savedId = UUID.randomUUID();
@@ -101,7 +101,7 @@ class ProductApplicationServiceTest {
                     "상품",
                     "상품에 대한 설명입니다. 충분히 깁니다.",
                     new Money(new BigDecimal("10000")),
-                    ProductStatus.ACTIVE,
+                    ProductStatus.DRAFT,
                     ConditionType.NEW,
                     "브랜드",
                     "url",
@@ -114,7 +114,7 @@ class ProductApplicationServiceTest {
                     .name("상품")
                     .build();
 
-            when(productDataMapper.toProduct(command, categoryId)).thenReturn(toSave);
+            when(productDataMapper.toDraftProduct(command, categoryId)).thenReturn(toSave);
             when(productRepository.save(toSave)).thenReturn(saved);
             when(productDataMapper.toCreateProductResult(saved)).thenReturn(expected);
 
@@ -154,7 +154,7 @@ class ProductApplicationServiceTest {
                     .brand("브랜드")
                     .mainImageUrl("url")
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
+                    .status(ProductStatus.DRAFT)
                     .build();
 
             Product savedWithoutId = Product.builder()
@@ -165,10 +165,10 @@ class ProductApplicationServiceTest {
                     .brand("브랜드")
                     .mainImageUrl("url")
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
+                    .status(ProductStatus.DRAFT)
                     .build();
 
-            when(productDataMapper.toProduct(command, null)).thenReturn(toSave);
+            when(productDataMapper.toDraftProduct(command, null)).thenReturn(toSave);
             when(productRepository.save(toSave)).thenReturn(savedWithoutId);
 
             // When & Then
@@ -325,6 +325,44 @@ class ProductApplicationServiceTest {
             assertThat(result.status()).isEqualTo(ProductStatus.INACTIVE);
             verify(productDomainService).validateStatusChangeRules(product, ProductStatus.INACTIVE);
             verify(productRepository).save(product);
+        }
+
+        @Test
+        @DisplayName("DRAFT 상품을 variant 없이 ACTIVE로 변경하면 ProductDomainException")
+        void updateProduct_PublishWithoutVariant_Throws() {
+            UUID rawId = UUID.randomUUID();
+            ProductId productId = new ProductId(rawId);
+
+            UpdateProductCommand command = UpdateProductCommand.builder()
+                    .name("상품")
+                    .description("상품에 대한 설명입니다. 충분히 깁니다.")
+                    .basePrice(new BigDecimal("1000"))
+                    .brand("브랜드")
+                    .mainImageUrl("url")
+                    .status(ProductStatus.ACTIVE)
+                    .build();
+
+            Product draftProduct = Product.reconstitute(
+                    productId,
+                    null,
+                    "상품",
+                    "상품에 대한 설명입니다. 충분히 깁니다.",
+                    new Money(new BigDecimal("1000")),
+                    ProductStatus.DRAFT,
+                    ConditionType.NEW,
+                    "브랜드",
+                    "url",
+                    List.of(),
+                    List.of()
+            );
+
+            when(productRepository.findById(productId)).thenReturn(Optional.of(draftProduct));
+
+            assertThatThrownBy(() -> productApplicationService.updateProduct(rawId, command))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Cannot publish product without at least one variant");
+
+            verify(productRepository, never()).save(any());
         }
     }
 

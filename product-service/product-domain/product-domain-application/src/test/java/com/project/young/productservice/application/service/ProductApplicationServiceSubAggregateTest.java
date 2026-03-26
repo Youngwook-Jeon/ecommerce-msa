@@ -58,7 +58,7 @@ class ProductApplicationServiceSubAggregateTest {
                 "상품",
                 "상품 설명은 20자 이상으로 충분히 길어야 합니다.",
                 new Money(new BigDecimal("10000")),
-                ProductStatus.ACTIVE,
+                ProductStatus.DRAFT,
                 ConditionType.NEW,
                 "브랜드",
                 "https://example.com/image.jpg",
@@ -143,6 +143,47 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(product.getOptionGroups()).hasSize(1);
 
             verify(productRepository).save(product);
+        }
+
+        @Test
+        @DisplayName("ACTIVE 상품에는 옵션 그룹을 추가할 수 없다")
+        void activeProduct_CannotAddOptionGroup() {
+            UUID productId = UUID.randomUUID();
+            Product product = Product.reconstitute(
+                    new ProductId(productId),
+                    null,
+                    "상품",
+                    "상품 설명은 20자 이상으로 충분히 길어야 합니다.",
+                    new Money(new BigDecimal("10000")),
+                    ProductStatus.ACTIVE,
+                    ConditionType.NEW,
+                    "브랜드",
+                    "https://example.com/image.jpg",
+                    List.of(),
+                    List.of()
+            );
+
+            AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(UUID.randomUUID())
+                    .stepOrder(1)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(UUID.randomUUID())
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(false)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+
+            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Cannot add option groups after product is ACTIVE");
+
+            verify(productRepository, never()).save(any());
         }
     }
 

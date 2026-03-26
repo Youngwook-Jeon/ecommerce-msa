@@ -24,6 +24,7 @@ class ProductStatusTest {
     @Test
     @DisplayName("canTransitionTo: DELETED에서 다른 상태로 전이 불가")
     void canTransitionTo_FromDeleted_ToOther_False() {
+        assertThat(ProductStatus.DELETED.canTransitionTo(ProductStatus.DRAFT)).isFalse();
         assertThat(ProductStatus.DELETED.canTransitionTo(ProductStatus.ACTIVE)).isFalse();
         assertThat(ProductStatus.DELETED.canTransitionTo(ProductStatus.INACTIVE)).isFalse();
         assertThat(ProductStatus.DELETED.canTransitionTo(ProductStatus.DISCONTINUED)).isFalse();
@@ -31,20 +32,33 @@ class ProductStatusTest {
     }
 
     @Test
-    @DisplayName("canTransitionTo: DELETED가 아니면 다른 상태로 전이 가능")
+    @DisplayName("canTransitionTo: DRAFT/DELETED 관련 제약 외에는 전이 가능")
     void canTransitionTo_FromNonDeleted_True() {
         assertThat(ProductStatus.ACTIVE.canTransitionTo(ProductStatus.DELETED)).isTrue();
         assertThat(ProductStatus.ACTIVE.canTransitionTo(ProductStatus.OUT_OF_STOCK)).isTrue();
         assertThat(ProductStatus.INACTIVE.canTransitionTo(ProductStatus.ACTIVE)).isTrue();
         assertThat(ProductStatus.DISCONTINUED.canTransitionTo(ProductStatus.DELETED)).isTrue();
+        assertThat(ProductStatus.DRAFT.canTransitionTo(ProductStatus.ACTIVE)).isTrue();
+        assertThat(ProductStatus.DRAFT.canTransitionTo(ProductStatus.INACTIVE)).isTrue();
+        assertThat(ProductStatus.DRAFT.canTransitionTo(ProductStatus.DELETED)).isTrue();
+        assertThat(ProductStatus.DRAFT.canTransitionTo(ProductStatus.DISCONTINUED)).isFalse();
+        assertThat(ProductStatus.ACTIVE.canTransitionTo(ProductStatus.DRAFT)).isFalse();
     }
 
     @Test
     @DisplayName("isDeleted: DELETED만 true")
     void isDeleted_OnlyDeleted_True() {
         assertThat(ProductStatus.DELETED.isDeleted()).isTrue();
+        assertThat(ProductStatus.DRAFT.isDeleted()).isFalse();
         assertThat(ProductStatus.ACTIVE.isDeleted()).isFalse();
         assertThat(ProductStatus.INACTIVE.isDeleted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("isDraft: DRAFT만 true")
+    void isDraft_OnlyDraft_True() {
+        assertThat(ProductStatus.DRAFT.isDraft()).isTrue();
+        assertThat(ProductStatus.ACTIVE.isDraft()).isFalse();
     }
 
     @Test

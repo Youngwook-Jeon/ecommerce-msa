@@ -52,8 +52,12 @@ public class ProductApplicationService {
                 .orElse(null);
 
         productDomainService.validateCategoryForProduct(categoryId);
-        Product newProduct = productDataMapper.toProduct(command, categoryId);
-        Product savedProduct = persistProduct(newProduct);
+        Product newProduct = productDataMapper.toDraftProduct(command, categoryId);
+        Product savedProduct = productRepository.save(newProduct);
+        if (savedProduct.getId() == null) {
+            log.error("Product ID was not assigned after save for name: {}", savedProduct.getName());
+            throw new ProductDomainException("Failed to assign ID to the new product.");
+        }
 
         log.info("Product saved successfully with id: {}", savedProduct.getId().getValue());
 
@@ -110,6 +114,7 @@ public class ProductApplicationService {
 
         Product product = findProductOrThrow(new ProductId(productIdValue));
         validateProductCanBeUpdated(product);
+        validateOptionGroupStructureMutable(product);
 
         ProductOptionGroupId productOptionGroupId = new ProductOptionGroupId(idGenerator.generateId());
         List<ProductOptionValue> optionValues = mapProductOptionValues(command.getOptionValues());
@@ -267,15 +272,6 @@ public class ProductApplicationService {
                 .orElseThrow(() -> new ProductNotFoundException("Product with id " + productId.getValue() + " not found."));
     }
 
-    private Product persistProduct(Product product) {
-        Product savedProduct = productRepository.save(product);
-        if (savedProduct.getId() == null) {
-            log.error("Product ID was not assigned after save for name: {}", savedProduct.getName());
-            throw new ProductDomainException("Failed to assign ID to the new product.");
-        }
-        return savedProduct;
-    }
-
     private boolean applyCategoryChange(Product product, Long newCategoryIdValue) {
         CategoryId currentCategoryId = product.getCategoryId().orElse(null);
         CategoryId newCategoryId = (newCategoryIdValue != null) ? new CategoryId(newCategoryIdValue) : null;
@@ -333,6 +329,9 @@ public class ProductApplicationService {
 
     private boolean applyStatusChange(Product product, ProductStatus newStatus) {
         if (newStatus != null && product.getStatus() != newStatus) {
+            if (newStatus == ProductStatus.ACTIVE) {
+                validateProductPublishable(product);
+            }
             productDomainService.validateStatusChangeRules(product, newStatus);
             product.changeStatus(newStatus);
             return true;
@@ -369,6 +368,19 @@ public class ProductApplicationService {
         return compact.substring(0, 8);
     }
 
+    private void validateProductPublishable(Product product) {
+        if (product.getVariants() == null || product.getVariants().isEmpty()) {
+            throw new ProductDomainException("Cannot publish product without at least one variant.");
+        }
+    }
+
+    private void validateOptionGroupStructureMutable(Product product) {
+        if (product.getStatus() == ProductStatus.ACTIVE) {
+            throw new ProductDomainException("Cannot add option groups after product is ACTIVE.");
+        }
+    }
+
     private record VariantIdentity(ProductVariantId variantId, String sku) {
+
     }
 }

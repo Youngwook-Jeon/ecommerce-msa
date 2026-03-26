@@ -3,6 +3,7 @@ package com.project.young.productservice.domain.valueobject;
 import com.project.young.productservice.domain.exception.ProductDomainException;
 
 public enum ProductStatus {
+    DRAFT("임시저장"),
     ACTIVE("활성"),
     INACTIVE("비활성"),
     DISCONTINUED("단종"),
@@ -23,6 +24,10 @@ public enum ProductStatus {
         return this == ACTIVE;
     }
 
+    public boolean isDraft() {
+        return this == DRAFT;
+    }
+
     public boolean isDeleted() {
         return this == DELETED;
     }
@@ -41,7 +46,14 @@ public enum ProductStatus {
 
         // 삭제된 제품은 상태 변경 불가
         if (this == DELETED) return false;
-
+        // 초안은 활성/비활성/삭제만 허용
+        if (this == DRAFT) {
+            return newStatus == ACTIVE || newStatus == INACTIVE || newStatus == DELETED;
+        }
+        // 공개된 상태에서 초안으로 역전환은 불허
+        if (newStatus == DRAFT) {
+            return false;
+        }
         return true;
     }
 
