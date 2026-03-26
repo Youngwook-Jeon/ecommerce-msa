@@ -2,9 +2,14 @@ package com.project.young.productservice.dataaccess.adapter;
 
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.ProductId;
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
+import com.project.young.productservice.dataaccess.entity.ProductOptionValueEntity;
+import com.project.young.productservice.dataaccess.entity.ProductVariantEntity;
+import com.project.young.productservice.dataaccess.entity.VariantOptionValueEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
@@ -181,12 +186,12 @@ class ProductReadRepositoryImplTest {
     }
 
     @Nested
-    @DisplayName("findVisibleById 테스트")
+    @DisplayName("findVisibleProductDetailById 테스트")
     class FindVisibleByIdTests {
 
         @Test
-        @DisplayName("ID로 보이는 상품 조회 성공")
-        void findVisibleById_Success() {
+        @DisplayName("ID로 보이는 상품 상세 조회 성공")
+        void findVisibleProductDetailById_Success() {
             // Given
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
@@ -206,7 +211,37 @@ class ProductReadRepositoryImplTest {
                     .updatedAt(now)
                     .build();
 
-            when(productJpaRepository.findVisibleById(
+            ProductOptionValueEntity optionValue = ProductOptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .optionValueId(UUID.randomUUID())
+                    .priceDelta(new BigDecimal("1500"))
+                    .isDefault(true)
+                    .isActive(true)
+                    .build();
+            ProductOptionGroupEntity optionGroup = ProductOptionGroupEntity.builder()
+                    .id(UUID.randomUUID())
+                    .optionGroupId(UUID.randomUUID())
+                    .stepOrder(1)
+                    .isRequired(true)
+                    .build();
+            optionGroup.addOptionValue(optionValue);
+            productEntity.addOptionGroup(optionGroup);
+
+            VariantOptionValueEntity selected = VariantOptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .productOptionValueId(optionValue.getId())
+                    .build();
+            ProductVariantEntity variant = ProductVariantEntity.builder()
+                    .id(UUID.randomUUID())
+                    .sku("SKU-001")
+                    .stockQuantity(3)
+                    .status(ProductStatusEntity.ACTIVE)
+                    .calculatedPrice(new BigDecimal("100500"))
+                    .build();
+            variant.addSelectedOptionValue(selected);
+            productEntity.addVariant(variant);
+
+            when(productJpaRepository.findVisibleDetailById(
                     rawId, ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE))
                     .thenReturn(Optional.of(productEntity));
 
@@ -216,33 +251,37 @@ class ProductReadRepositoryImplTest {
                     .thenReturn(ConditionType.NEW);
 
             // When
-            Optional<ReadProductView> result = productReadRepository.findVisibleById(productId);
+            Optional<ReadProductDetailView> result = productReadRepository.findVisibleProductDetailById(productId);
 
             // Then
             assertThat(result).isPresent();
-            ReadProductView view = result.get();
+            ReadProductDetailView view = result.get();
             assertThat(view.id()).isEqualTo(rawId);
             assertThat(view.categoryId()).isNull();
             assertThat(view.status()).isEqualTo(ProductStatus.ACTIVE);
             assertThat(view.conditionType()).isEqualTo(ConditionType.NEW);
+            assertThat(view.optionGroups()).hasSize(1);
+            assertThat(view.optionGroups().getFirst().optionValues()).hasSize(1);
+            assertThat(view.variants()).hasSize(1);
+            assertThat(view.variants().getFirst().selectedProductOptionValueIds()).containsExactlyInAnyOrder(optionValue.getId());
 
-            verify(productJpaRepository).findVisibleById(
+            verify(productJpaRepository).findVisibleDetailById(
                     rawId, ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE);
         }
 
         @Test
         @DisplayName("존재하지 않는 ID로 조회 시 빈 Optional 반환")
-        void findVisibleById_NotFound_ReturnsEmpty() {
+        void findVisibleProductDetailById_NotFound_ReturnsEmpty() {
             // Given
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
 
-            when(productJpaRepository.findVisibleById(
+            when(productJpaRepository.findVisibleDetailById(
                     rawId, ProductStatusEntity.ACTIVE, CategoryStatusEntity.ACTIVE))
                     .thenReturn(Optional.empty());
 
             // When
-            Optional<ReadProductView> result = productReadRepository.findVisibleById(productId);
+            Optional<ReadProductDetailView> result = productReadRepository.findVisibleProductDetailById(productId);
 
             // Then
             assertThat(result).isEmpty();
@@ -250,8 +289,8 @@ class ProductReadRepositoryImplTest {
 
         @Test
         @DisplayName("null ID로 조회 시 예외 발생")
-        void findVisibleById_Null_ThrowsException() {
-            assertThatThrownBy(() -> productReadRepository.findVisibleById(null))
+        void findVisibleProductDetailById_Null_ThrowsException() {
+            assertThatThrownBy(() -> productReadRepository.findVisibleProductDetailById(null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("productId must not be null");
 

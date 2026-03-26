@@ -3,6 +3,7 @@ package com.project.young.productservice.application.service;
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.port.output.ProductReadRepository;
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import com.project.young.productservice.domain.valueobject.ConditionType;
@@ -68,7 +69,7 @@ class ProductQueryServiceTest {
         UUID rawId = UUID.randomUUID();
         ProductId productId = new ProductId(rawId);
 
-        ReadProductView view = ReadProductView.builder()
+        ReadProductDetailView view = ReadProductDetailView.builder()
                 .id(rawId)
                 .categoryId(1L)
                 .name("상품")
@@ -80,14 +81,14 @@ class ProductQueryServiceTest {
                 .conditionType(ConditionType.NEW)
                 .build();
 
-        when(productReadRepository.findVisibleById(productId)).thenReturn(Optional.of(view));
+        when(productReadRepository.findVisibleProductDetailById(productId)).thenReturn(Optional.of(view));
 
         // When
-        ReadProductView result = productQueryService.getVisibleProductDetail(productId);
+        ReadProductDetailView result = productQueryService.getVisibleProductDetail(productId);
 
         // Then
         assertThat(result).isSameAs(view);
-        verify(productReadRepository).findVisibleById(productId);
+        verify(productReadRepository).findVisibleProductDetailById(productId);
     }
 
     @Test
@@ -95,13 +96,13 @@ class ProductQueryServiceTest {
     void getVisibleProductDetail_NotFound_ThrowsException() {
         // Given
         ProductId productId = new ProductId(UUID.randomUUID());
-        when(productReadRepository.findVisibleById(productId)).thenReturn(Optional.empty());
+        when(productReadRepository.findVisibleProductDetailById(productId)).thenReturn(Optional.empty());
 
         // When & Then
         assertThatThrownBy(() -> productQueryService.getVisibleProductDetail(productId))
                 .isInstanceOf(ProductNotFoundException.class)
                 .hasMessageContaining("Product not found or not visible");
 
-        verify(productReadRepository).findVisibleById(productId);
+        verify(productReadRepository).findVisibleProductDetailById(productId);
     }
 }

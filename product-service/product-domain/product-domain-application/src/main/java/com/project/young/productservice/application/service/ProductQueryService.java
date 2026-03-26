@@ -3,6 +3,7 @@ package com.project.young.productservice.application.service;
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.port.output.ProductReadRepository;
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import lombok.NonNull;
@@ -25,8 +26,8 @@ public class ProductQueryService {
         return productReadRepository.findVisibleByCategoryId(categoryId);
     }
 
-    public ReadProductView getVisibleProductDetail(@NonNull ProductId productId) {
-        return productReadRepository.findVisibleById(productId)
+    public ReadProductDetailView getVisibleProductDetail(@NonNull ProductId productId) {
+        return productReadRepository.findVisibleProductDetailById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found or not visible: " + productId));
     }
 

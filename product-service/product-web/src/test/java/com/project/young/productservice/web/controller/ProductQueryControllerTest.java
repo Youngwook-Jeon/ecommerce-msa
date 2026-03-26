@@ -1,5 +1,6 @@
 package com.project.young.productservice.web.controller;
 
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.application.service.ProductQueryService;
 import com.project.young.productservice.domain.valueobject.ConditionType;
@@ -160,7 +161,7 @@ class ProductQueryControllerTest {
             // Given
             UUID productId = UUID.randomUUID();
 
-            ReadProductView view = ReadProductView.builder()
+            ReadProductDetailView view = ReadProductDetailView.builder()
                     .id(productId)
                     .categoryId(1L)
                     .name("와이드핏 데님")
@@ -186,7 +187,7 @@ class ProductQueryControllerTest {
 
             when(productQueryService.getVisibleProductDetail(any()))
                     .thenReturn(view);
-            when(productQueryResponseMapper.toReadProductDetailResponse(any(ReadProductView.class)))
+            when(productQueryResponseMapper.toReadProductDetailResponse(any(ReadProductDetailView.class)))
                     .thenReturn(response);
 
             // When & Then
@@ -197,7 +198,7 @@ class ProductQueryControllerTest {
                     .andExpect(jsonPath("$.status").value("ACTIVE"));
 
             verify(productQueryService).getVisibleProductDetail(any());
-            verify(productQueryResponseMapper).toReadProductDetailResponse(any(ReadProductView.class));
+            verify(productQueryResponseMapper).toReadProductDetailResponse(any(ReadProductDetailView.class));
         }
     }
 }

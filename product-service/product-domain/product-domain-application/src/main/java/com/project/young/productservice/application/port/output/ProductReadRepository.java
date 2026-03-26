@@ -2,6 +2,7 @@ package com.project.young.productservice.application.port.output;
 
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.ProductId;
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 
 import java.util.List;
@@ -13,5 +14,5 @@ public interface ProductReadRepository {
 
     List<ReadProductView> findVisibleByCategoryId(CategoryId categoryId);
 
-    Optional<ReadProductView> findVisibleById(ProductId productId);
+    Optional<ReadProductDetailView> findVisibleProductDetailById(ProductId productId);
 }

@@ -390,6 +390,92 @@ class ProductJpaRepositoryTest {
         }
     }
 
+    @Nested
+    @DisplayName("findVisibleDetailById 테스트")
+    class FindVisibleDetailByIdTests {
+
+        @Test
+        @DisplayName("visible 상품 상세 조회 시 하위 컬렉션까지 로딩된다")
+        void findVisibleDetailById_LoadsSubCollections() {
+            CategoryEntity category = testEntityManager.persistAndFlush(
+                    createCategory("의류", CategoryStatusEntity.ACTIVE)
+            );
+
+            OptionGroupEntity globalOptionGroup = OptionGroupEntity.builder()
+                    .id(UUID.randomUUID())
+                    .name("color")
+                    .displayName("색상")
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            testEntityManager.persist(globalOptionGroup);
+
+            OptionValueEntity globalOptionValue = OptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .optionGroup(globalOptionGroup)
+                    .value("BLACK")
+                    .displayName("블랙")
+                    .sortOrder(1)
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            testEntityManager.persistAndFlush(globalOptionValue);
+
+            ProductEntity product = createProduct("오버핏 티셔츠", category, ProductStatusEntity.ACTIVE);
+
+            ProductOptionGroupEntity optionGroup = ProductOptionGroupEntity.builder()
+                    .id(UUID.randomUUID())
+                    .optionGroupId(globalOptionGroup.getId())
+                    .stepOrder(1)
+                    .isRequired(true)
+                    .build();
+            ProductOptionValueEntity optionValue = ProductOptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .optionValueId(globalOptionValue.getId())
+                    .priceDelta(new BigDecimal("2000"))
+                    .isDefault(true)
+                    .isActive(true)
+                    .build();
+            optionGroup.addOptionValue(optionValue);
+            product.addOptionGroup(optionGroup);
+
+            ProductVariantEntity variant = ProductVariantEntity.builder()
+                    .id(UUID.randomUUID())
+                    .sku("SKU-VISIBLE-DETAIL")
+                    .stockQuantity(7)
+                    .status(ProductStatusEntity.ACTIVE)
+                    .calculatedPrice(new BigDecimal("12000"))
+                    .build();
+            VariantOptionValueEntity selected = VariantOptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .productOptionValueId(optionValue.getId())
+                    .build();
+            variant.addSelectedOptionValue(selected);
+            product.addVariant(variant);
+
+            ProductEntity saved = testEntityManager.persistAndFlush(product);
+            testEntityManager.clear();
+
+            Optional<ProductEntity> found = productJpaRepository.findVisibleDetailById(
+                    saved.getId(),
+                    ProductStatusEntity.ACTIVE,
+                    CategoryStatusEntity.ACTIVE
+            );
+
+            assertThat(found).isPresent();
+            ProductEntity detail = found.get();
+            assertThat(Hibernate.isInitialized(detail.getOptionGroups())).isTrue();
+            assertThat(Hibernate.isInitialized(detail.getVariants())).isTrue();
+            assertThat(detail.getOptionGroups()).hasSize(1);
+            assertThat(detail.getVariants()).hasSize(1);
+
+            ProductOptionGroupEntity loadedGroup = detail.getOptionGroups().iterator().next();
+            ProductVariantEntity loadedVariant = detail.getVariants().iterator().next();
+            assertThat(Hibernate.isInitialized(loadedGroup.getOptionValues())).isTrue();
+            assertThat(Hibernate.isInitialized(loadedVariant.getSelectedOptionValues())).isTrue();
+            assertThat(loadedGroup.getOptionValues()).hasSize(1);
+            assertThat(loadedVariant.getSelectedOptionValues()).hasSize(1);
+        }
+    }
+
     private CategoryEntity createCategory(String name, CategoryStatusEntity status) {
         Instant now = Instant.now();
         return CategoryEntity.builder()

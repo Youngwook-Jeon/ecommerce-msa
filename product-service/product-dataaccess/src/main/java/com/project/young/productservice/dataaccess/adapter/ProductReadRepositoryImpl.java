@@ -3,7 +3,15 @@ package com.project.young.productservice.dataaccess.adapter;
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.port.output.ProductReadRepository;
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
+import com.project.young.productservice.application.port.output.view.ReadProductOptionGroupView;
+import com.project.young.productservice.application.port.output.view.ReadProductOptionValueView;
+import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
+import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
+import com.project.young.productservice.dataaccess.entity.ProductOptionValueEntity;
+import com.project.young.productservice.dataaccess.entity.ProductVariantEntity;
+import com.project.young.productservice.dataaccess.entity.VariantOptionValueEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
@@ -58,17 +66,17 @@ public class ProductReadRepositoryImpl implements ProductReadRepository {
     }
 
     @Override
-    public Optional<ReadProductView> findVisibleById(ProductId productId) {
+    public Optional<ReadProductDetailView> findVisibleProductDetailById(ProductId productId) {
         if (productId == null) {
             throw new IllegalArgumentException("productId must not be null.");
         }
 
-        return productJpaRepository.findVisibleById(
+        return productJpaRepository.findVisibleDetailById(
                         productId.getValue(),
                         ProductStatusEntity.ACTIVE,
                         CategoryStatusEntity.ACTIVE
                 )
-                .map(this::toReadProductView);
+                .map(this::toReadProductDetailView);
     }
 
     private ReadProductView toReadProductView(ProductEntity entity) {
@@ -88,6 +96,83 @@ public class ProductReadRepositoryImpl implements ProductReadRepository {
                 .basePrice(entity.getBasePrice())
                 .status(productDataAccessMapper.toDomainStatus(entity.getStatus()))
                 .conditionType(productDataAccessMapper.toDomainConditionType(entity.getConditionType()))
+                .build();
+    }
+
+    private ReadProductDetailView toReadProductDetailView(ProductEntity entity) {
+        Objects.requireNonNull(entity, "entity must not be null.");
+
+        Long categoryId = (entity.getCategory() != null)
+                ? entity.getCategory().getId()
+                : null;
+
+        List<ReadProductOptionGroupView> optionGroups = entity.getOptionGroups() == null
+                ? List.of()
+                : entity.getOptionGroups().stream()
+                .map(this::toReadProductOptionGroupView)
+                .toList();
+
+        List<ReadProductVariantView> variants = entity.getVariants() == null
+                ? List.of()
+                : entity.getVariants().stream()
+                .map(this::toReadProductVariantView)
+                .toList();
+
+        return ReadProductDetailView.builder()
+                .id(entity.getId())
+                .categoryId(categoryId)
+                .name(entity.getName())
+                .description(entity.getDescription())
+                .brand(entity.getBrand())
+                .mainImageUrl(entity.getMainImageUrl())
+                .basePrice(entity.getBasePrice())
+                .status(productDataAccessMapper.toDomainStatus(entity.getStatus()))
+                .conditionType(productDataAccessMapper.toDomainConditionType(entity.getConditionType()))
+                .optionGroups(optionGroups)
+                .variants(variants)
+                .build();
+    }
+
+    private ReadProductOptionGroupView toReadProductOptionGroupView(ProductOptionGroupEntity entity) {
+        List<ReadProductOptionValueView> optionValues = entity.getOptionValues() == null
+                ? List.of()
+                : entity.getOptionValues().stream()
+                .map(this::toReadProductOptionValueView)
+                .toList();
+
+        return ReadProductOptionGroupView.builder()
+                .productOptionGroupId(entity.getId())
+                .optionGroupId(entity.getOptionGroupId())
+                .stepOrder(entity.getStepOrder())
+                .required(entity.isRequired())
+                .optionValues(optionValues)
+                .build();
+    }
+
+    private ReadProductOptionValueView toReadProductOptionValueView(ProductOptionValueEntity entity) {
+        return ReadProductOptionValueView.builder()
+                .productOptionValueId(entity.getId())
+                .optionValueId(entity.getOptionValueId())
+                .priceDelta(entity.getPriceDelta())
+                .isDefault(entity.isDefault())
+                .isActive(entity.isActive())
+                .build();
+    }
+
+    private ReadProductVariantView toReadProductVariantView(ProductVariantEntity entity) {
+        List<java.util.UUID> selectedOptionIds = entity.getSelectedOptionValues() == null
+                ? List.of()
+                : entity.getSelectedOptionValues().stream()
+                .map(VariantOptionValueEntity::getProductOptionValueId)
+                .toList();
+
+        return ReadProductVariantView.builder()
+                .productVariantId(entity.getId())
+                .sku(entity.getSku())
+                .stockQuantity(entity.getStockQuantity())
+                .status(productDataAccessMapper.toDomainStatus(entity.getStatus()))
+                .calculatedPrice(entity.getCalculatedPrice())
+                .selectedProductOptionValueIds(selectedOptionIds)
                 .build();
     }
 

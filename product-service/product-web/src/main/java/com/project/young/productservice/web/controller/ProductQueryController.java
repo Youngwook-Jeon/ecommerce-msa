@@ -2,6 +2,7 @@ package com.project.young.productservice.web.controller;
 
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.ProductId;
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.application.service.ProductQueryService;
 import com.project.young.productservice.web.dto.ReadProductDetailResponse;
@@ -49,7 +50,7 @@ public class ProductQueryController {
     @GetMapping("/{productId}")
     public ResponseEntity<ReadProductDetailResponse> getVisibleProductDetail(@PathVariable("productId") UUID productId) {
         log.info("REST request to get visible product detail for productId={}", productId);
-        ReadProductView productView = productQueryService.getVisibleProductDetail(new ProductId(productId));
+        ReadProductDetailView productView = productQueryService.getVisibleProductDetail(new ProductId(productId));
         return ResponseEntity.ok(productQueryResponseMapper.toReadProductDetailResponse(productView));
     }
 

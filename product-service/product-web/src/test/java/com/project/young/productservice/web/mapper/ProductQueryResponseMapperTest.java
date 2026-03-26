@@ -1,5 +1,9 @@
 package com.project.young.productservice.web.mapper;
 
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
+import com.project.young.productservice.application.port.output.view.ReadProductOptionGroupView;
+import com.project.young.productservice.application.port.output.view.ReadProductOptionValueView;
+import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
@@ -40,14 +44,15 @@ class ProductQueryResponseMapperTest {
         void nullView_ThrowsNullPointerException() {
             assertThatThrownBy(() -> productQueryResponseMapper.toReadProductDetailResponse(null))
                     .isInstanceOf(NullPointerException.class)
-                    .hasMessageContaining("ReadProductView is null");
+                    .hasMessageContaining("ReadProductDetailView is null");
         }
 
         @Test
         @DisplayName("정상 매핑")
         void success() {
             UUID id = UUID.randomUUID();
-            ReadProductView view = ReadProductView.builder()
+            UUID productOptionValueId = UUID.randomUUID();
+            ReadProductDetailView view = ReadProductDetailView.builder()
                     .id(id)
                     .categoryId(1L)
                     .name("와이드핏 데님")
@@ -57,6 +62,33 @@ class ProductQueryResponseMapperTest {
                     .basePrice(new BigDecimal("99000"))
                     .status(ProductStatus.ACTIVE)
                     .conditionType(ConditionType.NEW)
+                    .optionGroups(List.of(
+                            ReadProductOptionGroupView.builder()
+                                    .productOptionGroupId(UUID.randomUUID())
+                                    .optionGroupId(UUID.randomUUID())
+                                    .stepOrder(1)
+                                    .required(true)
+                                    .optionValues(List.of(
+                                            ReadProductOptionValueView.builder()
+                                                    .productOptionValueId(productOptionValueId)
+                                                    .optionValueId(UUID.randomUUID())
+                                                    .priceDelta(new BigDecimal("1000"))
+                                                    .isDefault(true)
+                                                    .isActive(true)
+                                                    .build()
+                                    ))
+                                    .build()
+                    ))
+                    .variants(List.of(
+                            ReadProductVariantView.builder()
+                                    .productVariantId(UUID.randomUUID())
+                                    .sku("SKU-001")
+                                    .stockQuantity(3)
+                                    .status(ProductStatus.ACTIVE)
+                                    .calculatedPrice(new BigDecimal("100000"))
+                                    .selectedProductOptionValueIds(List.of(productOptionValueId))
+                                    .build()
+                    ))
                     .build();
 
             ReadProductDetailResponse response = productQueryResponseMapper.toReadProductDetailResponse(view);
@@ -71,6 +103,8 @@ class ProductQueryResponseMapperTest {
             assertThat(response.basePrice()).isEqualByComparingTo(new BigDecimal("99000"));
             assertThat(response.status()).isEqualTo("ACTIVE");
             assertThat(response.conditionType()).isEqualTo("NEW");
+            assertThat(response.optionGroups()).hasSize(1);
+            assertThat(response.variants()).hasSize(1);
         }
     }
 
