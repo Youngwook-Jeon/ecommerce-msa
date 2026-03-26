@@ -335,6 +335,39 @@ class ProductApplicationServiceSubAggregateTest {
             verify(idGenerator, times(5)).generateId();
             verify(productRepository, never()).save(any());
         }
+
+        @Test
+        @DisplayName("삭제된 상품에는 variant를 추가할 수 없다")
+        void deletedProduct_CannotAddVariant() {
+            UUID productId = UUID.randomUUID();
+            Product deletedProduct = Product.reconstitute(
+                    new ProductId(productId),
+                    null,
+                    "삭제 상품",
+                    "상품 설명은 20자 이상으로 충분히 길어야 합니다.",
+                    new Money(new BigDecimal("10000")),
+                    ProductStatus.DELETED,
+                    ConditionType.NEW,
+                    "브랜드",
+                    "https://example.com/image.jpg",
+                    List.of(),
+                    List.of()
+            );
+
+            AddProductVariantCommand command = AddProductVariantCommand.builder()
+                    .stockQuantity(1)
+                    .selectedProductOptionValueIds(Set.of(UUID.randomUUID()))
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(deletedProduct));
+
+            assertThatThrownBy(() -> productApplicationService.addProductVariant(productId, command))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Cannot update a product that has been deleted");
+
+            verify(productRepository, never()).save(any());
+            verifyNoInteractions(productDomainService);
+        }
     }
 
     @Nested
@@ -433,6 +466,25 @@ class ProductApplicationServiceSubAggregateTest {
             assertThatThrownBy(() -> productApplicationService.updateProductVariant(productId, variantId, command))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Variant not found in this product");
+        }
+
+        @Test
+        @DisplayName("상품이 없으면 ProductNotFoundException")
+        void productNotFound_Throws() {
+            UUID productId = UUID.randomUUID();
+            UUID variantId = UUID.randomUUID();
+            UpdateProductVariantCommand command = UpdateProductVariantCommand.builder()
+                    .stockQuantity(10)
+                    .status(ProductStatus.ACTIVE)
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> productApplicationService.updateProductVariant(productId, variantId, command))
+                    .isInstanceOf(ProductNotFoundException.class)
+                    .hasMessageContaining("Product with id");
+
+            verify(productRepository, never()).save(any());
         }
 
         @Test

@@ -3,9 +3,17 @@ package com.project.young.productservice.dataaccess.repository;
 import com.project.young.productservice.dataaccess.config.ProductDataAccessConfig;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.entity.OptionGroupEntity;
+import com.project.young.productservice.dataaccess.entity.OptionValueEntity;
+import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
+import com.project.young.productservice.dataaccess.entity.ProductOptionValueEntity;
+import com.project.young.productservice.dataaccess.entity.ProductVariantEntity;
+import com.project.young.productservice.dataaccess.entity.VariantOptionValueEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
+import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
+import org.hibernate.Hibernate;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -65,6 +73,125 @@ class ProductJpaRepositoryTest {
     void setUp() {
         productJpaRepository.deleteAll();
         testEntityManager.flush();
+    }
+
+    @Nested
+    @DisplayName("findAggregateById 테스트")
+    class FindAggregateByIdTests {
+
+        @Test
+        @DisplayName("상품 aggregate 조회 시 하위 컬렉션까지 로딩된다")
+        void findAggregateById_LoadsSubCollections() {
+            CategoryEntity category = testEntityManager.persistAndFlush(
+                    createCategory("의류", CategoryStatusEntity.ACTIVE)
+            );
+
+            OptionGroupEntity globalOptionGroup = OptionGroupEntity.builder()
+                    .id(UUID.randomUUID())
+                    .name("size")
+                    .displayName("사이즈")
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            testEntityManager.persist(globalOptionGroup);
+
+            OptionValueEntity globalOptionValue = OptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .optionGroup(globalOptionGroup)
+                    .value("M")
+                    .displayName("미디움")
+                    .sortOrder(1)
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            testEntityManager.persistAndFlush(globalOptionValue);
+
+            UUID referencedOptionGroupId = globalOptionGroup.getId();
+            UUID referencedOptionValueId = globalOptionValue.getId();
+            UUID selectedProductOptionValueId = UUID.randomUUID();
+
+            ProductEntity product = createProduct("와이드핏 데님", category, ProductStatusEntity.ACTIVE);
+
+            ProductOptionGroupEntity optionGroup = ProductOptionGroupEntity.builder()
+                    .id(UUID.randomUUID())
+                    .optionGroupId(referencedOptionGroupId)
+                    .stepOrder(1)
+                    .isRequired(true)
+                    .build();
+
+            ProductOptionValueEntity optionValue = ProductOptionValueEntity.builder()
+                    .id(selectedProductOptionValueId)
+                    .optionValueId(referencedOptionValueId)
+                    .priceDelta(new BigDecimal("1500"))
+                    .isDefault(true)
+                    .isActive(true)
+                    .build();
+            optionGroup.addOptionValue(optionValue);
+            product.addOptionGroup(optionGroup);
+
+            ProductVariantEntity variant = ProductVariantEntity.builder()
+                    .id(UUID.randomUUID())
+                    .sku("SKU-AGG-001")
+                    .stockQuantity(10)
+                    .status(ProductStatusEntity.ACTIVE)
+                    .calculatedPrice(new BigDecimal("11500"))
+                    .build();
+
+            VariantOptionValueEntity selected = VariantOptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .productOptionValueId(selectedProductOptionValueId)
+                    .build();
+            variant.addSelectedOptionValue(selected);
+            product.addVariant(variant);
+
+            ProductEntity saved = testEntityManager.persistAndFlush(product);
+            testEntityManager.clear();
+
+            Optional<ProductEntity> found = productJpaRepository.findAggregateById(saved.getId());
+
+            assertThat(found).isPresent();
+            ProductEntity aggregate = found.get();
+            assertThat(Hibernate.isInitialized(aggregate.getOptionGroups())).isTrue();
+            assertThat(Hibernate.isInitialized(aggregate.getVariants())).isTrue();
+            assertThat(aggregate.getOptionGroups()).hasSize(1);
+            assertThat(aggregate.getVariants()).hasSize(1);
+
+            ProductOptionGroupEntity loadedGroup = aggregate.getOptionGroups().iterator().next();
+            ProductVariantEntity loadedVariant = aggregate.getVariants().iterator().next();
+
+            assertThat(Hibernate.isInitialized(loadedGroup.getOptionValues())).isTrue();
+            assertThat(Hibernate.isInitialized(loadedVariant.getSelectedOptionValues())).isTrue();
+            assertThat(loadedGroup.getOptionValues()).hasSize(1);
+            assertThat(loadedVariant.getSelectedOptionValues()).hasSize(1);
+        }
+    }
+
+    @Nested
+    @DisplayName("existsVariantSku 테스트")
+    class ExistsVariantSkuTests {
+
+        @Test
+        @DisplayName("등록된 variant SKU 존재 여부를 반환한다")
+        void existsVariantSku_ReturnsTrueWhenExists() {
+            CategoryEntity category = testEntityManager.persistAndFlush(
+                    createCategory("의류", CategoryStatusEntity.ACTIVE)
+            );
+
+            ProductEntity product = createProduct("데님", category, ProductStatusEntity.ACTIVE);
+            ProductVariantEntity variant = ProductVariantEntity.builder()
+                    .id(UUID.randomUUID())
+                    .sku("SKU-EXIST-001")
+                    .stockQuantity(3)
+                    .status(ProductStatusEntity.ACTIVE)
+                    .calculatedPrice(new BigDecimal("10000"))
+                    .build();
+            product.addVariant(variant);
+            testEntityManager.persistAndFlush(product);
+
+            boolean exists = productJpaRepository.existsVariantSku("SKU-EXIST-001");
+            boolean notExists = productJpaRepository.existsVariantSku("SKU-NOT-FOUND");
+
+            assertThat(exists).isTrue();
+            assertThat(notExists).isFalse();
+        }
     }
 
     @Nested

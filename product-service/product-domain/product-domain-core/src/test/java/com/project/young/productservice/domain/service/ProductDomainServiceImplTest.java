@@ -147,6 +147,42 @@ class ProductDomainServiceImplTest {
     }
 
     @Nested
+    @DisplayName("validateGlobalSkuUniqueness")
+    class ValidateGlobalSkuUniquenessTests {
+        @Test
+        @DisplayName("sku가 null/blank면 ProductDomainException")
+        void nullOrBlankSku_Throws() {
+            assertThatThrownBy(() -> productDomainService.validateGlobalSkuUniqueness(null))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("SKU cannot be empty");
+
+            assertThatThrownBy(() -> productDomainService.validateGlobalSkuUniqueness(" "))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("SKU cannot be empty");
+        }
+
+        @Test
+        @DisplayName("이미 존재하는 sku면 ProductDomainException")
+        void existingSku_Throws() {
+            when(productRepository.existsBySku("SKU-001")).thenReturn(true);
+
+            assertThatThrownBy(() -> productDomainService.validateGlobalSkuUniqueness("SKU-001"))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Global SKU uniqueness violation");
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 sku면 통과")
+        void nonExistingSku_Allows() {
+            when(productRepository.existsBySku("SKU-NEW-001")).thenReturn(false);
+
+            productDomainService.validateGlobalSkuUniqueness("SKU-NEW-001");
+
+            verify(productRepository).existsBySku("SKU-NEW-001");
+        }
+    }
+
+    @Nested
     @DisplayName("prepareForDeletion")
     class PrepareForDeletionTests {
 
