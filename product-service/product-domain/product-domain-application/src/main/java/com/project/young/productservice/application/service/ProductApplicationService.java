@@ -1,7 +1,8 @@
 package com.project.young.productservice.application.service;
 
 import com.project.young.common.domain.valueobject.*;
-import com.project.young.productservice.application.dto.*;
+import com.project.young.productservice.application.dto.command.*;
+import com.project.young.productservice.application.dto.result.*;
 import com.project.young.productservice.application.mapper.ProductDataMapper;
 import com.project.young.productservice.application.port.output.IdGenerator;
 import com.project.young.productservice.domain.entity.Product;

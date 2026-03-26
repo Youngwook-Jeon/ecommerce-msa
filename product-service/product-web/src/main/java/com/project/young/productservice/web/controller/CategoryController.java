@@ -1,6 +1,7 @@
 package com.project.young.productservice.web.controller;
 
-import com.project.young.productservice.application.dto.*;
+import com.project.young.productservice.application.dto.command.CreateCategoryCommand;
+import com.project.young.productservice.application.dto.command.UpdateCategoryCommand;
 import com.project.young.productservice.application.service.CategoryApplicationService;
 import com.project.young.productservice.web.dto.CreateCategoryResponse;
 import com.project.young.productservice.web.dto.DeleteCategoryResponse;

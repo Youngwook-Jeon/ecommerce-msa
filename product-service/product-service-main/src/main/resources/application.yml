@@ -30,6 +30,7 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: ${schema.name}
+        default_batch_fetch_size: 100
 
   security:
     oauth2:

@@ -1,11 +1,11 @@
 package com.project.young.productservice.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.project.young.productservice.application.dto.CreateProductCommand;
-import com.project.young.productservice.application.dto.CreateProductResult;
-import com.project.young.productservice.application.dto.DeleteProductResult;
-import com.project.young.productservice.application.dto.UpdateProductCommand;
-import com.project.young.productservice.application.dto.UpdateProductResult;
+import com.project.young.productservice.application.dto.command.CreateProductCommand;
+import com.project.young.productservice.application.dto.result.CreateProductResult;
+import com.project.young.productservice.application.dto.result.DeleteProductResult;
+import com.project.young.productservice.application.dto.command.UpdateProductCommand;
+import com.project.young.productservice.application.dto.result.UpdateProductResult;
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;

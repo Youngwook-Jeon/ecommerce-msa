@@ -1,9 +1,8 @@
 package com.project.young.productservice.web.mapper;
 
-import com.project.young.productservice.application.dto.CreateCategoryResult;
-import com.project.young.productservice.application.dto.DeleteCategoryResult;
-import com.project.young.productservice.application.dto.UpdateCategoryResult;
-import com.project.young.productservice.domain.valueobject.CategoryStatus;
+import com.project.young.productservice.application.dto.result.CreateCategoryResult;
+import com.project.young.productservice.application.dto.result.DeleteCategoryResult;
+import com.project.young.productservice.application.dto.result.UpdateCategoryResult;
 import com.project.young.productservice.web.converter.CategoryStatusWebConverter;
 import com.project.young.productservice.web.dto.CreateCategoryResponse;
 import com.project.young.productservice.web.dto.DeleteCategoryResponse;

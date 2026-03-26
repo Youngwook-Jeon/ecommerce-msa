@@ -1,6 +1,6 @@
 package com.project.young.productservice.web.mapper;
 
-import com.project.young.productservice.application.dto.AdminProductDetailResult;
+import com.project.young.productservice.application.dto.result.AdminProductDetailResult;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;

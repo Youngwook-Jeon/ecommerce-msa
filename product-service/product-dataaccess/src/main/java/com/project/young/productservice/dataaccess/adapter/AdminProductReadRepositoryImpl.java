@@ -1,8 +1,8 @@
 package com.project.young.productservice.dataaccess.adapter;
 
-import com.project.young.productservice.application.dto.AdminProductDetailQuery;
-import com.project.young.productservice.application.dto.AdminProductDetailResult;
-import com.project.young.productservice.application.dto.AdminProductSearchCondition;
+import com.project.young.productservice.application.dto.query.AdminProductDetailQuery;
+import com.project.young.productservice.application.dto.result.AdminProductDetailResult;
+import com.project.young.productservice.application.dto.condition.AdminProductSearchCondition;
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;

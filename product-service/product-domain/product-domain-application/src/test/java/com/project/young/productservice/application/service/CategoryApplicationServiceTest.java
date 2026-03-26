@@ -1,11 +1,11 @@
 package com.project.young.productservice.application.service;
 
 import com.project.young.common.domain.valueobject.CategoryId;
-import com.project.young.productservice.application.dto.CreateCategoryCommand;
-import com.project.young.productservice.application.dto.CreateCategoryResult;
-import com.project.young.productservice.application.dto.DeleteCategoryResult;
-import com.project.young.productservice.application.dto.UpdateCategoryCommand;
-import com.project.young.productservice.application.dto.UpdateCategoryResult;
+import com.project.young.productservice.application.dto.command.CreateCategoryCommand;
+import com.project.young.productservice.application.dto.result.CreateCategoryResult;
+import com.project.young.productservice.application.dto.result.DeleteCategoryResult;
+import com.project.young.productservice.application.dto.command.UpdateCategoryCommand;
+import com.project.young.productservice.application.dto.result.UpdateCategoryResult;
 import com.project.young.productservice.application.mapper.CategoryDataMapper;
 import com.project.young.productservice.domain.entity.Category;
 import com.project.young.productservice.domain.exception.CategoryDomainException;

@@ -1,6 +1,6 @@
 package com.project.young.productservice.web.mapper;
 
-import com.project.young.productservice.application.dto.*;
+import com.project.young.productservice.application.dto.result.*;
 import com.project.young.productservice.web.converter.OptionStatusWebConverter;
 import com.project.young.productservice.web.dto.*;
 import com.project.young.productservice.web.message.OptionGroupResponseMessageFactory;

@@ -1,7 +1,7 @@
 package com.project.young.productservice.web.controller;
 
-import com.project.young.productservice.application.dto.CreateProductCommand;
-import com.project.young.productservice.application.dto.UpdateProductCommand;
+import com.project.young.productservice.application.dto.command.CreateProductCommand;
+import com.project.young.productservice.application.dto.command.UpdateProductCommand;
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.web.dto.CreateProductResponse;
 import com.project.young.productservice.web.dto.DeleteProductResponse;

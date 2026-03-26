@@ -2,8 +2,8 @@ package com.project.young.productservice.it;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.productservice.ProductServiceMain;
-import com.project.young.productservice.application.dto.CreateCategoryCommand;
-import com.project.young.productservice.application.dto.UpdateCategoryCommand;
+import com.project.young.productservice.application.dto.command.CreateCategoryCommand;
+import com.project.young.productservice.application.dto.command.UpdateCategoryCommand;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import jakarta.persistence.EntityManager;

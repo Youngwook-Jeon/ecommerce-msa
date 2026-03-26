@@ -1,8 +1,8 @@
 package com.project.young.productservice.web.mapper;
 
-import com.project.young.productservice.application.dto.CreateProductResult;
-import com.project.young.productservice.application.dto.DeleteProductResult;
-import com.project.young.productservice.application.dto.UpdateProductResult;
+import com.project.young.productservice.application.dto.result.CreateProductResult;
+import com.project.young.productservice.application.dto.result.DeleteProductResult;
+import com.project.young.productservice.application.dto.result.UpdateProductResult;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
 import com.project.young.productservice.web.dto.CreateProductResponse;

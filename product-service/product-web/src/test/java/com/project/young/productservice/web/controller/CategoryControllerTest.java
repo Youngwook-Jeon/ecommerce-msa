@@ -1,11 +1,11 @@
 package com.project.young.productservice.web.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.project.young.productservice.application.dto.CreateCategoryCommand;
-import com.project.young.productservice.application.dto.CreateCategoryResult;
-import com.project.young.productservice.application.dto.DeleteCategoryResult;
-import com.project.young.productservice.application.dto.UpdateCategoryCommand;
-import com.project.young.productservice.application.dto.UpdateCategoryResult;
+import com.project.young.productservice.application.dto.command.CreateCategoryCommand;
+import com.project.young.productservice.application.dto.result.CreateCategoryResult;
+import com.project.young.productservice.application.dto.result.DeleteCategoryResult;
+import com.project.young.productservice.application.dto.command.UpdateCategoryCommand;
+import com.project.young.productservice.application.dto.result.UpdateCategoryResult;
 import com.project.young.productservice.application.service.CategoryApplicationService;
 import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import com.project.young.productservice.web.config.SecurityConfig;

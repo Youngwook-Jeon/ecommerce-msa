@@ -1,8 +1,8 @@
 package com.project.young.productservice.web.controller;
 
-import com.project.young.productservice.application.dto.AdminProductDetailResult;
-import com.project.young.productservice.application.dto.AdminProductDetailQuery;
-import com.project.young.productservice.application.dto.AdminProductSearchCondition;
+import com.project.young.productservice.application.dto.result.AdminProductDetailResult;
+import com.project.young.productservice.application.dto.query.AdminProductDetailQuery;
+import com.project.young.productservice.application.dto.condition.AdminProductSearchCondition;
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
 import com.project.young.productservice.application.service.AdminProductQueryService;
 import com.project.young.productservice.domain.valueobject.ProductStatus;

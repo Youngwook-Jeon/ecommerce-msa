@@ -2,7 +2,9 @@ package com.project.young.productservice.application.mapper;
 
 import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
-import com.project.young.productservice.application.dto.*;
+import com.project.young.productservice.application.dto.command.AddOptionValueCommand;
+import com.project.young.productservice.application.dto.command.CreateOptionGroupCommand;
+import com.project.young.productservice.application.dto.result.*;
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.OptionValue;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
