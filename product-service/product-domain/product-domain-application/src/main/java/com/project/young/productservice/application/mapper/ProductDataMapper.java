@@ -75,23 +75,6 @@ public class ProductDataMapper {
                 .build();
     }
 
-    public Product toProduct(CreateProductCommand command, CategoryId categoryId) {
-        Objects.requireNonNull(command, "CreateProductCommand cannot be null");
-
-        Money basePrice = new Money(command.getBasePrice());
-
-        return Product.builder()
-                .categoryId(categoryId)
-                .name(command.getName())
-                .description(command.getDescription())
-                .basePrice(basePrice)
-                .brand(command.getBrand())
-                .mainImageUrl(command.getMainImageUrl())
-                .conditionType(command.getConditionType())
-                .status(command.getStatus())
-                .build();
-    }
-
     public Product toDraftProduct(CreateProductCommand command, CategoryId categoryId) {
         Objects.requireNonNull(command, "CreateProductCommand cannot be null");
 

@@ -134,7 +134,6 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             // When & Then
@@ -164,7 +163,6 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             String createResponse = mockMvc.perform(post("/products")
@@ -216,7 +214,6 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             String createResponse = mockMvc.perform(post("/products")
@@ -246,9 +243,9 @@ class ProductApiIntegrationTest {
     class ProductQueryTests {
 
         @Test
-        @DisplayName("GET /queries/products - 전체 보이는 상품 목록 조회")
+        @DisplayName("GET /queries/products - 생성 직후 DRAFT 상품은 노출 목록에 포함되지 않음")
         @WithMockUser(authorities = "ADMIN")
-        void getAllVisibleProducts_Success() throws Exception {
+        void getAllVisibleProducts_DraftProductNotListed() throws Exception {
             // Given
             Long categoryId = createCategory("의류");
 
@@ -260,7 +257,6 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             mockMvc.perform(post("/products")
@@ -274,14 +270,13 @@ class ProductApiIntegrationTest {
                     .andDo(print())
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.products").isArray())
-                    .andExpect(jsonPath("$.products.length()").value(greaterThanOrEqualTo(1)))
-                    .andExpect(jsonPath("$.products[0].name").value("와이드핏 데님"));
+                    .andExpect(jsonPath("$.products.length()").value(0));
         }
 
         @Test
-        @DisplayName("GET /queries/products/{productId} - 단일 상품 상세 조회")
+        @DisplayName("GET /queries/products/{productId} - DRAFT 상품은 공개 상세로 조회되지 않음 (404)")
         @WithMockUser(authorities = "ADMIN")
-        void getProductDetail_Success() throws Exception {
+        void getProductDetail_DraftProduct_ReturnsNotFound() throws Exception {
             // Given
             Long categoryId = createCategory("의류");
 
@@ -293,7 +288,6 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             String createResponse = mockMvc.perform(post("/products")
@@ -310,16 +304,13 @@ class ProductApiIntegrationTest {
             // When & Then
             mockMvc.perform(get("/queries/products/{productId}", productId))
                     .andDo(print())
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.id").value(productId.toString()))
-                    .andExpect(jsonPath("$.name").value("와이드핏 데님"))
-                    .andExpect(jsonPath("$.status").value("ACTIVE"));
+                    .andExpect(status().isNotFound());
         }
 
         @Test
-        @DisplayName("GET /queries/products/categories/{categoryId} - 카테고리별 상품 목록 조회")
+        @DisplayName("GET /queries/products/categories/{categoryId} - DRAFT 상품은 카테고리 노출 목록에 포함되지 않음")
         @WithMockUser(authorities = "ADMIN")
-        void getProductsByCategory_Success() throws Exception {
+        void getProductsByCategory_DraftProductNotListed() throws Exception {
             // Given
             Long categoryId = createCategory("의류");
 
@@ -331,7 +322,6 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             mockMvc.perform(post("/products")
@@ -345,9 +335,7 @@ class ProductApiIntegrationTest {
                     .andDo(print())
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.products").isArray())
-                    .andExpect(jsonPath("$.products.length()").value(1))
-                    .andExpect(jsonPath("$.products[0].categoryId").value(categoryId))
-                    .andExpect(jsonPath("$.products[0].name").value("와이드핏 데님"));
+                    .andExpect(jsonPath("$.products.length()").value(0));
         }
     }
 
@@ -369,7 +357,6 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
             String createResponse = mockMvc.perform(post("/products")
                             .with(csrf())
@@ -388,8 +375,10 @@ class ProductApiIntegrationTest {
                     .andExpect(jsonPath("$.id").value(productId.toString()))
                     .andExpect(jsonPath("$.name").value("와이드핏 데님"))
                     .andExpect(jsonPath("$.description").value("와이드핏 데님 상세 설명입니다. 20자 이상."))
-                    .andExpect(jsonPath("$.status").value("ACTIVE"))
-                    .andExpect(jsonPath("$.conditionType").value("NEW"));
+                    .andExpect(jsonPath("$.status").value("DRAFT"))
+                    .andExpect(jsonPath("$.conditionType").value("NEW"))
+                    .andExpect(jsonPath("$.optionGroups").isArray())
+                    .andExpect(jsonPath("$.variants").isArray());
         }
 
         @Test
@@ -407,7 +396,6 @@ class ProductApiIntegrationTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             mockMvc.perform(post("/products")

@@ -1,10 +1,15 @@
 package com.project.young.productservice.web.mapper;
 
+import com.project.young.productservice.application.dto.result.AdminProductDetailResult;
+import com.project.young.productservice.application.port.output.view.ReadProductOptionGroupView;
+import com.project.young.productservice.application.port.output.view.ReadProductOptionValueView;
+import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
+import com.project.young.productservice.web.dto.AdminProductDetailResponse;
 import com.project.young.productservice.web.dto.AdminProductListItemResponse;
 import com.project.young.productservice.web.dto.AdminProductPageResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -72,6 +78,67 @@ class AdminProductQueryResponseMapperTest {
         assertThat(item.basePrice()).isEqualByComparingTo(new BigDecimal("99000"));
         assertThat(item.status()).isEqualTo("ACTIVE");
         assertThat(item.conditionType()).isEqualTo("NEW");
+    }
+
+    @Test
+    @DisplayName("AdminProductDetailResult를 옵션 그룹·변형 포함 AdminProductDetailResponse로 매핑")
+    void toAdminProductDetailResponse_IncludesOptionGroupsAndVariants() {
+        UUID productId = UUID.randomUUID();
+        UUID pogId = UUID.randomUUID();
+        UUID ogId = UUID.randomUUID();
+        UUID povId = UUID.randomUUID();
+        UUID ovId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        Instant now = Instant.now();
+
+        ReadProductOptionValueView valueView = ReadProductOptionValueView.builder()
+                .productOptionValueId(povId)
+                .optionValueId(ovId)
+                .priceDelta(new BigDecimal("1000"))
+                .isDefault(true)
+                .isActive(true)
+                .build();
+        ReadProductOptionGroupView groupView = ReadProductOptionGroupView.builder()
+                .productOptionGroupId(pogId)
+                .optionGroupId(ogId)
+                .stepOrder(1)
+                .required(true)
+                .optionValues(List.of(valueView))
+                .build();
+        ReadProductVariantView variantView = ReadProductVariantView.builder()
+                .productVariantId(variantId)
+                .sku("SKU-1")
+                .stockQuantity(10)
+                .status(ProductStatus.ACTIVE)
+                .calculatedPrice(new BigDecimal("100000"))
+                .selectedProductOptionValueIds(List.of(povId))
+                .build();
+
+        AdminProductDetailResult result = AdminProductDetailResult.builder()
+                .id(productId)
+                .categoryId(1L)
+                .name("상품")
+                .description("설명 20자 이상 채워야 합니다.")
+                .brand("브랜드")
+                .mainImageUrl("https://example.com/x.jpg")
+                .basePrice(new BigDecimal("99000"))
+                .status(ProductStatus.ACTIVE)
+                .conditionType(ConditionType.NEW)
+                .createdAt(now)
+                .updatedAt(now)
+                .optionGroups(List.of(groupView))
+                .variants(List.of(variantView))
+                .build();
+
+        AdminProductDetailResponse response = adminProductQueryResponseMapper.toAdminProductDetailResponse(result);
+
+        assertThat(response.optionGroups()).hasSize(1);
+        assertThat(response.optionGroups().getFirst().productOptionGroupId()).isEqualTo(pogId);
+        assertThat(response.optionGroups().getFirst().optionValues()).hasSize(1);
+        assertThat(response.optionGroups().getFirst().optionValues().getFirst().productOptionValueId()).isEqualTo(povId);
+        assertThat(response.variants()).hasSize(1);
+        assertThat(response.variants().getFirst().sku()).isEqualTo("SKU-1");
+        assertThat(response.variants().getFirst().selectedProductOptionValueIds()).containsExactly(povId);
     }
 }
 

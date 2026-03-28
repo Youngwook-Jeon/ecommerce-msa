@@ -1,7 +1,6 @@
 package com.project.young.productservice.application.dto.command;
 
 import com.project.young.productservice.domain.valueobject.ConditionType;
-import com.project.young.productservice.domain.valueobject.ProductStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -45,7 +44,4 @@ public class CreateProductCommand {
 
     @NotNull(message = "Condition type must not be null.")
     private ConditionType conditionType;
-
-    @NotNull(message = "Product status must not be null.")
-    private ProductStatus status;
 }

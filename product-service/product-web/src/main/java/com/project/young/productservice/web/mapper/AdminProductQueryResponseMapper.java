@@ -1,12 +1,18 @@
 package com.project.young.productservice.web.mapper;
 
 import com.project.young.productservice.application.dto.result.AdminProductDetailResult;
+import com.project.young.productservice.application.port.output.view.ReadProductOptionGroupView;
+import com.project.young.productservice.application.port.output.view.ReadProductOptionValueView;
+import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
 import com.project.young.productservice.web.dto.AdminProductDetailResponse;
 import com.project.young.productservice.web.dto.AdminProductListItemResponse;
 import com.project.young.productservice.web.dto.AdminProductPageResponse;
+import com.project.young.productservice.web.dto.ReadProductOptionGroupResponse;
+import com.project.young.productservice.web.dto.ReadProductOptionValueResponse;
+import com.project.young.productservice.web.dto.ReadProductVariantResponse;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -36,6 +42,39 @@ public class AdminProductQueryResponseMapper {
                 .conditionType(conditionTypeWebConverter.toStringValue(result.conditionType()))
                 .createdAt(result.createdAt())
                 .updatedAt(result.updatedAt())
+                .optionGroups(result.optionGroups().stream().map(this::toReadProductOptionGroupResponse).toList())
+                .variants(result.variants().stream().map(this::toReadProductVariantResponse).toList())
+                .build();
+    }
+
+    private ReadProductOptionGroupResponse toReadProductOptionGroupResponse(ReadProductOptionGroupView view) {
+        return ReadProductOptionGroupResponse.builder()
+                .productOptionGroupId(view.productOptionGroupId())
+                .optionGroupId(view.optionGroupId())
+                .stepOrder(view.stepOrder())
+                .required(view.required())
+                .optionValues(view.optionValues().stream().map(this::toReadProductOptionValueResponse).toList())
+                .build();
+    }
+
+    private ReadProductOptionValueResponse toReadProductOptionValueResponse(ReadProductOptionValueView view) {
+        return ReadProductOptionValueResponse.builder()
+                .productOptionValueId(view.productOptionValueId())
+                .optionValueId(view.optionValueId())
+                .priceDelta(view.priceDelta())
+                .isDefault(view.isDefault())
+                .isActive(view.isActive())
+                .build();
+    }
+
+    private ReadProductVariantResponse toReadProductVariantResponse(ReadProductVariantView view) {
+        return ReadProductVariantResponse.builder()
+                .productVariantId(view.productVariantId())
+                .sku(view.sku())
+                .stockQuantity(view.stockQuantity())
+                .status(productStatusWebConverter.toStringValue(view.status()))
+                .calculatedPrice(view.calculatedPrice())
+                .selectedProductOptionValueIds(view.selectedProductOptionValueIds())
                 .build();
     }
 

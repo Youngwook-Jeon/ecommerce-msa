@@ -67,7 +67,6 @@ class ProductControllerTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(1L)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             UUID productId = UUID.randomUUID();
@@ -109,7 +108,6 @@ class ProductControllerTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(1L)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             mockMvc.perform(post("/products")

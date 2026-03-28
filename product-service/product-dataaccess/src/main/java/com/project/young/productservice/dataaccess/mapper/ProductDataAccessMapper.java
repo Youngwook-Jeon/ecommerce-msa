@@ -38,6 +38,7 @@ public class ProductDataAccessMapper {
 
     public ProductEntity productToProductEntity(Product product, CategoryEntity categoryEntity) {
         Objects.requireNonNull(product, "product must not be null.");
+        Objects.requireNonNull(product.getBasePrice(), "basePrice must not be null.");
 
         ProductEntity entity = ProductEntity.builder()
                 .id(product.getId() != null ? product.getId().getValue() : null)

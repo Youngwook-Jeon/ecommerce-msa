@@ -4,6 +4,7 @@ import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Builder
@@ -18,6 +19,12 @@ public record AdminProductDetailResponse(
         String status,
         String conditionType,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        List<ReadProductOptionGroupResponse> optionGroups,
+        List<ReadProductVariantResponse> variants
 ) {
+    public AdminProductDetailResponse {
+        optionGroups = optionGroups == null ? List.of() : optionGroups;
+        variants = variants == null ? List.of() : variants;
+    }
 }

@@ -198,16 +198,16 @@ class ProductDataMapperTest {
     }
 
     @Test
-    @DisplayName("toProduct: command가 null이면 NullPointerException")
-    void toProduct_NullCommand_ThrowsNpe() {
-        assertThatThrownBy(() -> productDataMapper.toProduct(null, null))
+    @DisplayName("toDraftProduct: command가 null이면 NullPointerException")
+    void toDraftProduct_NullCommand_ThrowsNpe() {
+        assertThatThrownBy(() -> productDataMapper.toDraftProduct(null, null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("CreateProductCommand cannot be null");
     }
 
     @Test
-    @DisplayName("toProduct: categoryId가 있으면 Product에 반영")
-    void toProduct_WithCategoryId_Success() {
+    @DisplayName("toDraftProduct: categoryId가 있으면 Product에 반영하고 상태는 DRAFT")
+    void toDraftProduct_WithCategoryId_Success() {
         CreateProductCommand command = CreateProductCommand.builder()
                 .name("와이드핏 데님")
                 .description("브랜드A의 와이드핏 데님 상세 설명입니다.")
@@ -216,25 +216,24 @@ class ProductDataMapperTest {
                 .mainImageUrl("https://example.com/image.jpg")
                 .categoryId(1L)
                 .conditionType(ConditionType.NEW)
-                .status(ProductStatus.ACTIVE)
                 .build();
 
         CategoryId categoryId = new CategoryId(1L);
 
-        Product product = productDataMapper.toProduct(command, categoryId);
+        Product product = productDataMapper.toDraftProduct(command, categoryId);
 
         assertThat(product).isNotNull();
         assertThat(product.getId()).isNull();
         assertThat(product.getName()).isEqualTo("와이드핏 데님");
         assertThat(product.getCategoryId()).contains(categoryId);
         assertThat(product.getBasePrice()).isEqualTo(new Money(new BigDecimal("99000")));
-        assertThat(product.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
         assertThat(product.getConditionType()).isEqualTo(ConditionType.NEW);
     }
 
     @Test
-    @DisplayName("toProduct: categoryId가 null이면 카테고리 없는 상품으로 매핑")
-    void toProduct_WithoutCategoryId_Success() {
+    @DisplayName("toDraftProduct: categoryId가 null이면 카테고리 없는 DRAFT 상품으로 매핑")
+    void toDraftProduct_WithoutCategoryId_Success() {
         CreateProductCommand command = CreateProductCommand.builder()
                 .name("카테고리없음")
                 .description("상품에 대한 상세 설명입니다. 충분히 깁니다.")
@@ -243,13 +242,12 @@ class ProductDataMapperTest {
                 .mainImageUrl("https://example.com/image2.jpg")
                 .categoryId(null)
                 .conditionType(ConditionType.REFURBISHED)
-                .status(ProductStatus.INACTIVE)
                 .build();
 
-        Product product = productDataMapper.toProduct(command, null);
+        Product product = productDataMapper.toDraftProduct(command, null);
 
         assertThat(product.getCategoryId()).isEmpty();
-        assertThat(product.getStatus()).isEqualTo(ProductStatus.INACTIVE);
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
         assertThat(product.getConditionType()).isEqualTo(ConditionType.REFURBISHED);
     }
 }

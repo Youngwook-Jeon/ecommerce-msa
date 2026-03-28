@@ -78,7 +78,6 @@ class ProductApplicationServiceTest {
                     .mainImageUrl("url")
                     .categoryId(1L)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             CategoryId categoryId = new CategoryId(1L);
@@ -143,7 +142,6 @@ class ProductApplicationServiceTest {
                     .mainImageUrl("url")
                     .categoryId(null)
                     .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             Product toSave = Product.builder()

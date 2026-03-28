@@ -73,7 +73,9 @@ class AdminProductReadRepositoryImplTest {
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
-        when(adminProductJpaRepository.findById(productId))
+        when(adminProductJpaRepository.findAdminDetailWithOptionsById(productId))
+                .thenReturn(java.util.Optional.of(productEntity));
+        when(adminProductJpaRepository.findAdminDetailWithVariantsById(productId))
                 .thenReturn(java.util.Optional.of(productEntity));
         when(productDataAccessMapper.toDomainStatus(ProductStatusEntity.ACTIVE))
                 .thenReturn(ProductStatus.ACTIVE);
@@ -94,7 +96,10 @@ class AdminProductReadRepositoryImplTest {
         assertThat(result.basePrice()).isEqualByComparingTo(new BigDecimal("99000"));
         assertThat(result.status()).isEqualTo(ProductStatus.ACTIVE);
         assertThat(result.conditionType()).isEqualTo(ConditionType.NEW);
-        verify(adminProductJpaRepository).findById(productId);
+        assertThat(result.optionGroups()).isEmpty();
+        assertThat(result.variants()).isEmpty();
+        verify(adminProductJpaRepository).findAdminDetailWithOptionsById(productId);
+        verify(adminProductJpaRepository).findAdminDetailWithVariantsById(productId);
     }
 
     @Test

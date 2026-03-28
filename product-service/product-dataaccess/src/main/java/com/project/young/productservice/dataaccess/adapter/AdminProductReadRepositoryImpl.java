@@ -4,7 +4,14 @@ import com.project.young.productservice.application.dto.query.AdminProductDetail
 import com.project.young.productservice.application.dto.result.AdminProductDetailResult;
 import com.project.young.productservice.application.dto.condition.AdminProductSearchCondition;
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
+import com.project.young.productservice.application.port.output.view.ReadProductOptionGroupView;
+import com.project.young.productservice.application.port.output.view.ReadProductOptionValueView;
+import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
+import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
+import com.project.young.productservice.dataaccess.entity.ProductOptionValueEntity;
+import com.project.young.productservice.dataaccess.entity.ProductVariantEntity;
+import com.project.young.productservice.dataaccess.entity.VariantOptionValueEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
@@ -19,6 +26,8 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 
 @Repository
 @Transactional(readOnly = true)
@@ -38,10 +47,13 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
         if (query == null) {
             throw new IllegalArgumentException("AdminProductDetailQuery cannot be null");
         }
-        ProductEntity product = adminProductJpaRepository.findById(query.id())
-                .orElseThrow(() -> new ProductNotFoundException("Product not found: " + query.id()));
+        var optionLoaded = adminProductJpaRepository.findAdminDetailWithOptionsById(query.id());
+        if (optionLoaded.isEmpty()) {
+            throw new ProductNotFoundException("Product not found: " + query.id());
+        }
+        adminProductJpaRepository.findAdminDetailWithVariantsById(query.id());
 
-        return toAdminReadProductDetailView(product);
+        return optionLoaded.map(this::toAdminReadProductDetailView).orElseThrow();
     }
 
     @Override
@@ -119,7 +131,22 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
     }
 
     private AdminProductDetailResult toAdminReadProductDetailView(ProductEntity entity) {
+        Objects.requireNonNull(entity, "entity must not be null.");
+
         Long categoryId = entity.getCategory() != null ? entity.getCategory().getId() : null;
+
+        List<ReadProductOptionGroupView> optionGroups = entity.getOptionGroups() == null
+                ? List.of()
+                : entity.getOptionGroups().stream()
+                .map(this::toReadProductOptionGroupView)
+                .toList();
+
+        List<ReadProductVariantView> variants = entity.getVariants() == null
+                ? List.of()
+                : entity.getVariants().stream()
+                .map(this::toReadProductVariantView)
+                .toList();
+
         return AdminProductDetailResult.builder()
                 .id(entity.getId())
                 .categoryId(categoryId)
@@ -132,6 +159,51 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 .conditionType(productDataAccessMapper.toDomainConditionType(entity.getConditionType()))
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .optionGroups(optionGroups)
+                .variants(variants)
+                .build();
+    }
+
+    private ReadProductOptionGroupView toReadProductOptionGroupView(ProductOptionGroupEntity groupEntity) {
+        List<ReadProductOptionValueView> optionValues = groupEntity.getOptionValues() == null
+                ? List.of()
+                : groupEntity.getOptionValues().stream()
+                .map(this::toReadProductOptionValueView)
+                .toList();
+
+        return ReadProductOptionGroupView.builder()
+                .productOptionGroupId(groupEntity.getId())
+                .optionGroupId(groupEntity.getOptionGroupId())
+                .stepOrder(groupEntity.getStepOrder())
+                .required(groupEntity.isRequired())
+                .optionValues(optionValues)
+                .build();
+    }
+
+    private ReadProductOptionValueView toReadProductOptionValueView(ProductOptionValueEntity valueEntity) {
+        return ReadProductOptionValueView.builder()
+                .productOptionValueId(valueEntity.getId())
+                .optionValueId(valueEntity.getOptionValueId())
+                .priceDelta(valueEntity.getPriceDelta())
+                .isDefault(valueEntity.isDefault())
+                .isActive(valueEntity.isActive())
+                .build();
+    }
+
+    private ReadProductVariantView toReadProductVariantView(ProductVariantEntity variantEntity) {
+        List<UUID> selectedOptionIds = variantEntity.getSelectedOptionValues() == null
+                ? List.of()
+                : variantEntity.getSelectedOptionValues().stream()
+                .map(VariantOptionValueEntity::getProductOptionValueId)
+                .toList();
+
+        return ReadProductVariantView.builder()
+                .productVariantId(variantEntity.getId())
+                .sku(variantEntity.getSku())
+                .stockQuantity(variantEntity.getStockQuantity())
+                .status(productDataAccessMapper.toDomainStatus(variantEntity.getStatus()))
+                .calculatedPrice(variantEntity.getCalculatedPrice())
+                .selectedProductOptionValueIds(selectedOptionIds)
                 .build();
     }
 }
