@@ -1,11 +1,15 @@
 package com.project.young.productservice.dataaccess.repository;
 
+import com.project.young.productservice.application.dto.condition.AdminProductSearchCondition;
 import com.project.young.productservice.dataaccess.config.ProductDataAccessConfig;
+import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
+import com.project.young.productservice.dataaccess.projection.AdminProductListProjection;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
+import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -60,6 +64,9 @@ class AdminProductJpaRepositoryTest {
     private AdminProductJpaRepository adminProductJpaRepository;
 
     @Autowired
+    private AdminProductSearchQueryRepository adminProductSearchQueryRepository;
+
+    @Autowired
     private TestEntityManager testEntityManager;
 
     private CategoryEntity activeCategory;
@@ -97,22 +104,13 @@ class AdminProductJpaRepositoryTest {
         void searchAdminProducts_FiltersByStatus() {
             Pageable pageable = PageRequest.of(0, 10);
 
-            Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
-                    false,
-                    null,
-                    true,
-                    true,
-                    ProductStatusEntity.ACTIVE,
-                    false,
-                    null,
-                    false,
-                    null,
-                    pageable
-            );
+            AdminProductSearchCondition condition = new AdminProductSearchCondition(
+                    null, true, ProductStatus.ACTIVE, null, null);
+            Page<AdminProductListProjection> page = adminProductSearchQueryRepository.search(condition, pageable);
 
             assertThat(page.getTotalElements()).isEqualTo(3);
             assertThat(page.getContent())
-                    .extracting(ProductEntity::getStatus)
+                    .extracting(AdminProductListProjection::status)
                     .allMatch(status -> status == ProductStatusEntity.ACTIVE);
         }
 
@@ -121,22 +119,13 @@ class AdminProductJpaRepositoryTest {
         void searchAdminProducts_FiltersByCategoryId() {
             Pageable pageable = PageRequest.of(0, 10);
 
-            Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
-                    true,
-                    activeCategory.getId(),
-                    true,
-                    false,
-                    null,
-                    false,
-                    null,
-                    false,
-                    null,
-                    pageable
-            );
+            AdminProductSearchCondition condition = new AdminProductSearchCondition(
+                    activeCategory.getId(), true, null, null, null);
+            Page<AdminProductListProjection> page = adminProductSearchQueryRepository.search(condition, pageable);
 
             assertThat(page.getTotalElements()).isEqualTo(2);
             assertThat(page.getContent())
-                    .extracting(ProductEntity::getName)
+                    .extracting(AdminProductListProjection::name)
                     .containsExactlyInAnyOrder("와이드핏 데님", "스트레이트핏 데님");
         }
     }
@@ -150,22 +139,12 @@ class AdminProductJpaRepositoryTest {
         void searchAdminProducts_IncludeOrphansTrue_IncludesCategoryLessProducts() {
             Pageable pageable = PageRequest.of(0, 10);
 
-            Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
-                    false,
-                    null,
-                    true,
-                    false,
-                    null,
-                    false,
-                    null,
-                    false,
-                    null,
-                    pageable
-            );
+            AdminProductSearchCondition condition = new AdminProductSearchCondition(null, true, null, null, null);
+            Page<AdminProductListProjection> page = adminProductSearchQueryRepository.search(condition, pageable);
 
             assertThat(page.getTotalElements()).isEqualTo(4);
             assertThat(page.getContent())
-                    .extracting(ProductEntity::getName)
+                    .extracting(AdminProductListProjection::name)
                     .contains("카테고리없음상품");
         }
 
@@ -174,22 +153,12 @@ class AdminProductJpaRepositoryTest {
         void searchAdminProducts_IncludeOrphansFalse_ExcludesCategoryLessProducts() {
             Pageable pageable = PageRequest.of(0, 10);
 
-            Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
-                    false,
-                    null,
-                    false,
-                    false,
-                    null,
-                    false,
-                    null,
-                    false,
-                    null,
-                    pageable
-            );
+            AdminProductSearchCondition condition = new AdminProductSearchCondition(null, false, null, null, null);
+            Page<AdminProductListProjection> page = adminProductSearchQueryRepository.search(condition, pageable);
 
             assertThat(page.getTotalElements()).isEqualTo(3);
             assertThat(page.getContent())
-                    .extracting(ProductEntity::getName)
+                    .extracting(AdminProductListProjection::name)
                     .doesNotContain("카테고리없음상품");
         }
     }
@@ -203,22 +172,13 @@ class AdminProductJpaRepositoryTest {
         void searchAdminProducts_FiltersByBrand() {
             Pageable pageable = PageRequest.of(0, 10);
 
-            Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
-                    false,
-                    null,
-                    true,
-                    false,
-                    null,
-                    true,
-                    "브랜드A",
-                    false,
-                    null,
-                    pageable
-            );
+            AdminProductSearchCondition condition = new AdminProductSearchCondition(
+                    null, true, null, "브랜드A", null);
+            Page<AdminProductListProjection> page = adminProductSearchQueryRepository.search(condition, pageable);
 
             assertThat(page.getTotalElements()).isEqualTo(2);
             assertThat(page.getContent())
-                    .extracting(ProductEntity::getBrand)
+                    .extracting(AdminProductListProjection::brand)
                     .allMatch("브랜드A"::equals);
         }
 
@@ -227,22 +187,13 @@ class AdminProductJpaRepositoryTest {
         void searchAdminProducts_FiltersByKeyword() {
             Pageable pageable = PageRequest.of(0, 10);
 
-            Page<ProductEntity> page = adminProductJpaRepository.searchAdminProducts(
-                    false,
-                    null,
-                    true,
-                    false,
-                    null,
-                    false,
-                    null,
-                    true,
-                    "데님",
-                    pageable
-            );
+            AdminProductSearchCondition condition = new AdminProductSearchCondition(
+                    null, true, null, null, "데님");
+            Page<AdminProductListProjection> page = adminProductSearchQueryRepository.search(condition, pageable);
 
             assertThat(page.getTotalElements()).isEqualTo(2);
             assertThat(page.getContent())
-                    .extracting(ProductEntity::getName)
+                    .extracting(AdminProductListProjection::name)
                     .containsExactlyInAnyOrder("와이드핏 데님", "스트레이트핏 데님");
         }
     }
@@ -279,7 +230,7 @@ class AdminProductJpaRepositoryTest {
     }
 
     @Configuration
-    @Import(ProductDataAccessConfig.class)
+    @Import({ProductDataAccessConfig.class, ProductDataAccessMapper.class, AdminProductSearchQueryRepository.class})
     static class Config {
     }
 }

@@ -11,7 +11,9 @@ import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
+import com.project.young.productservice.dataaccess.projection.AdminProductListProjection;
 import com.project.young.productservice.dataaccess.repository.AdminProductJpaRepository;
+import com.project.young.productservice.dataaccess.repository.AdminProductSearchQueryRepository;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.junit.jupiter.api.DisplayName;
@@ -23,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -40,6 +43,9 @@ class AdminProductReadRepositoryImplTest {
 
     @Mock
     private AdminProductJpaRepository adminProductJpaRepository;
+
+    @Mock
+    private AdminProductSearchQueryRepository adminProductSearchQueryRepository;
 
     @Mock
     private ProductDataAccessMapper productDataAccessMapper;
@@ -114,50 +120,27 @@ class AdminProductReadRepositoryImplTest {
                 "데님"
         );
 
-        Instant now = Instant.now();
-        CategoryEntity category = CategoryEntity.builder()
-                .id(1L)
-                .name("의류")
-                .status(CategoryStatusEntity.ACTIVE)
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
+        UUID productRowId = UUID.randomUUID();
+        AdminProductListProjection row = new AdminProductListProjection(
+                productRowId,
+                1L,
+                "와이드핏 데님",
+                "와이드핏 데님 상세 설명입니다.",
+                "브랜드A",
+                "https://example.com/image.jpg",
+                new BigDecimal("99000"),
+                ProductStatusEntity.ACTIVE,
+                ConditionTypeEntity.NEW
+        );
 
-        ProductEntity productEntity = ProductEntity.builder()
-                .id(UUID.randomUUID())
-                .category(category)
-                .name("와이드핏 데님")
-                .description("와이드핏 데님 상세 설명입니다.")
-                .basePrice(new BigDecimal("99000"))
-                .status(ProductStatusEntity.ACTIVE)
-                .conditionType(ConditionTypeEntity.NEW)
-                .brand("브랜드A")
-                .mainImageUrl("https://example.com/image.jpg")
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
-
-        Page<ProductEntity> entityPage = new PageImpl<>(
-                List.of(productEntity),
+        Page<AdminProductListProjection> rowPage = new PageImpl<>(
+                List.of(row),
                 PageRequest.of(0, 10),
                 1
         );
 
-        when(productDataAccessMapper.toEntityStatus(ProductStatus.ACTIVE))
-                .thenReturn(ProductStatusEntity.ACTIVE);
-
-        when(adminProductJpaRepository.searchAdminProducts(
-                eq(true),
-                eq(1L),
-                eq(true),
-                eq(true),
-                eq(ProductStatusEntity.ACTIVE),
-                eq(true),
-                eq("브랜드A"),
-                eq(true),
-                eq("데님"),
-                any()))
-                .thenReturn(entityPage);
+        when(adminProductSearchQueryRepository.search(eq(condition), any(Pageable.class)))
+                .thenReturn(rowPage);
 
         when(productDataAccessMapper.toDomainStatus(ProductStatusEntity.ACTIVE))
                 .thenReturn(ProductStatus.ACTIVE);
@@ -176,7 +159,7 @@ class AdminProductReadRepositoryImplTest {
 
         assertThat(result.content()).hasSize(1);
         ReadProductView view = result.content().getFirst();
-        assertThat(view.id()).isEqualTo(productEntity.getId());
+        assertThat(view.id()).isEqualTo(productRowId);
         assertThat(view.categoryId()).isEqualTo(1L);
         assertThat(view.name()).isEqualTo("와이드핏 데님");
         assertThat(view.brand()).isEqualTo("브랜드A");
@@ -185,17 +168,6 @@ class AdminProductReadRepositoryImplTest {
         assertThat(view.status()).isEqualTo(ProductStatus.ACTIVE);
         assertThat(view.conditionType()).isEqualTo(ConditionType.NEW);
 
-        verify(adminProductJpaRepository).searchAdminProducts(
-                eq(true),
-                eq(1L),
-                eq(true),
-                eq(true),
-                eq(ProductStatusEntity.ACTIVE),
-                eq(true),
-                eq("브랜드A"),
-                eq(true),
-                eq("데님"),
-                any()
-        );
+        verify(adminProductSearchQueryRepository).search(eq(condition), any(Pageable.class));
     }
 }

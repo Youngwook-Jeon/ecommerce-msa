@@ -15,9 +15,10 @@ import com.project.young.productservice.dataaccess.entity.VariantOptionValueEnti
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
+import com.project.young.productservice.dataaccess.projection.AdminProductListProjection;
 import com.project.young.productservice.dataaccess.repository.AdminProductJpaRepository;
+import com.project.young.productservice.dataaccess.repository.AdminProductSearchQueryRepository;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
-import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -34,11 +35,14 @@ import java.util.UUID;
 public class AdminProductReadRepositoryImpl implements AdminProductReadRepository {
 
     private final AdminProductJpaRepository adminProductJpaRepository;
+    private final AdminProductSearchQueryRepository adminProductSearchQueryRepository;
     private final ProductDataAccessMapper productDataAccessMapper;
 
     public AdminProductReadRepositoryImpl(AdminProductJpaRepository adminProductJpaRepository,
+                                          AdminProductSearchQueryRepository adminProductSearchQueryRepository,
                                           ProductDataAccessMapper productDataAccessMapper) {
         this.adminProductJpaRepository = adminProductJpaRepository;
+        this.adminProductSearchQueryRepository = adminProductSearchQueryRepository;
         this.productDataAccessMapper = productDataAccessMapper;
     }
 
@@ -74,59 +78,32 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                         .and(Sort.by(Sort.Direction.DESC, "id"))
         );
 
-        Long categoryId = condition.categoryId();
-        boolean includeOrphans = condition.includeOrphansOrDefault();
+        Page<AdminProductListProjection> rowPage = adminProductSearchQueryRepository.search(condition, pageable);
 
-        ProductStatus status = condition.status();
-        ProductStatusEntity statusEntity = (status != null)
-                ? productDataAccessMapper.toEntityStatus(status) : null;
-
-        String brand = condition.normalizedBrand();
-        String keyword = condition.normalizedKeyword();
-
-        boolean hasCategoryId = categoryId != null;
-        boolean hasStatus = statusEntity != null;
-        boolean hasBrand = brand != null;
-        boolean hasKeyword = keyword != null;
-
-        Page<ProductEntity> entityPage = adminProductJpaRepository.searchAdminProducts(
-                hasCategoryId,
-                categoryId,
-                includeOrphans,
-                hasStatus,
-                statusEntity,
-                hasBrand,
-                brand,
-                hasKeyword,
-                keyword,
-                pageable
-        );
-
-        List<ReadProductView> views = entityPage.getContent().stream()
+        List<ReadProductView> views = rowPage.getContent().stream()
                 .map(this::toReadProductView)
                 .toList();
 
         return new AdminProductSearchResult(
                 views,
-                entityPage.getNumber(),
-                entityPage.getSize(),
-                entityPage.getTotalElements(),
-                entityPage.getTotalPages()
+                rowPage.getNumber(),
+                rowPage.getSize(),
+                rowPage.getTotalElements(),
+                rowPage.getTotalPages()
         );
     }
 
-    private ReadProductView toReadProductView(ProductEntity entity) {
-        Long categoryId = entity.getCategory() != null ? entity.getCategory().getId() : null;
+    private ReadProductView toReadProductView(AdminProductListProjection row) {
         return ReadProductView.builder()
-                .id(entity.getId())
-                .categoryId(categoryId)
-                .name(entity.getName())
-                .description(entity.getDescription())
-                .brand(entity.getBrand())
-                .mainImageUrl(entity.getMainImageUrl())
-                .basePrice(entity.getBasePrice())
-                .status(productDataAccessMapper.toDomainStatus(entity.getStatus()))
-                .conditionType(productDataAccessMapper.toDomainConditionType(entity.getConditionType()))
+                .id(row.id())
+                .categoryId(row.categoryId())
+                .name(row.name())
+                .description(row.description())
+                .brand(row.brand())
+                .mainImageUrl(row.mainImageUrl())
+                .basePrice(row.basePrice())
+                .status(productDataAccessMapper.toDomainStatus(row.status()))
+                .conditionType(productDataAccessMapper.toDomainConditionType(row.conditionType()))
                 .build();
     }
 
