@@ -22,6 +22,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 
+/**
+ * 상품 루트 CRUD. 신규 상품은 항상 DRAFT로 생성되며,
+ * 옵션 그룹(최소 1개 옵션 값 동반)·추가 값·변형은 {@link AdminProductCompositionController} 의 {@code /admin/products/...} API로 이어 붙인다.
+ */
 @Slf4j
 @RestController
 @RequestMapping("products")

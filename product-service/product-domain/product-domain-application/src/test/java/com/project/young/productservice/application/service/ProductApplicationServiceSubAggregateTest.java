@@ -25,10 +25,7 @@ import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -184,6 +181,154 @@ class ProductApplicationServiceSubAggregateTest {
                     .hasMessageContaining("Cannot add option groups after product is ACTIVE");
 
             verify(productRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("옵션 값이 없으면 IllegalArgumentException")
+        void emptyOptionValues_Throws() {
+            UUID productId = UUID.randomUUID();
+            Product product = createBaseProduct(productId);
+            UUID globalOptionGroupId = UUID.randomUUID();
+
+            AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(globalOptionGroupId)
+                    .stepOrder(1)
+                    .required(true)
+                    .optionValues(null)
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+            when(idGenerator.generateId()).thenReturn(UUID.randomUUID());
+
+            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Product option values must not be empty");
+
+            verify(productRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("addProductOptionValue")
+    class AddProductOptionValueTests {
+
+        @Test
+        @DisplayName("요청이 null이면 IllegalArgumentException")
+        void invalidRequest_Throws() {
+            assertThatThrownBy(() -> productApplicationService.addProductOptionValue(null, UUID.randomUUID(), null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Invalid add product option value request");
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 productOptionGroupId면 ProductDomainException")
+        void unknownGroup_Throws() {
+            UUID productId = UUID.randomUUID();
+            Product product = createBaseProduct(productId);
+            UUID pogId = UUID.randomUUID();
+
+            AddProductOptionValueCommand command = AddProductOptionValueCommand.builder()
+                    .optionValueId(UUID.randomUUID())
+                    .priceDelta(BigDecimal.ZERO)
+                    .isDefault(false)
+                    .isActive(true)
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+            when(idGenerator.generateId()).thenReturn(UUID.randomUUID());
+
+            assertThatThrownBy(() -> productApplicationService.addProductOptionValue(productId, pogId, command))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Product option group not found");
+
+            verify(productRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("빈 그룹에 옵션 값을 추가하면 저장된다")
+        void success() {
+            UUID productId = UUID.randomUUID();
+            Product product = createBaseProduct(productId);
+            UUID globalOptionGroupId = UUID.randomUUID();
+            UUID productOptionGroupId = UUID.randomUUID();
+            UUID globalOptionValueId = UUID.randomUUID();
+            UUID generatedProductOptionValueId = UUID.randomUUID();
+
+            ProductOptionGroup pog = ProductOptionGroup.builder()
+                    .id(new ProductOptionGroupId(productOptionGroupId))
+                    .optionGroupId(new OptionGroupId(globalOptionGroupId))
+                    .stepOrder(1)
+                    .isRequired(true)
+                    .optionValues(new ArrayList<>())
+                    .build();
+            product.addOptionGroup(pog);
+
+            AddProductOptionValueCommand command = AddProductOptionValueCommand.builder()
+                    .optionValueId(globalOptionValueId)
+                    .priceDelta(new BigDecimal("500"))
+                    .isDefault(true)
+                    .isActive(true)
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+            when(productRepository.save(product)).thenReturn(product);
+            when(idGenerator.generateId()).thenReturn(generatedProductOptionValueId);
+
+            AddProductOptionValueToGroupResult result =
+                    productApplicationService.addProductOptionValue(productId, productOptionGroupId, command);
+
+            assertThat(result.productOptionGroupId()).isEqualTo(productOptionGroupId);
+            assertThat(result.productOptionValueId()).isEqualTo(generatedProductOptionValueId);
+            assertThat(result.optionValueId()).isEqualTo(globalOptionValueId);
+            assertThat(product.getOptionGroups().getFirst().getOptionValues()).hasSize(1);
+
+            verify(productRepository).save(product);
+        }
+
+        @Test
+        @DisplayName("ACTIVE 상품에도 기존 그룹에 옵션 값 추가는 가능하다")
+        void activeProduct_CanAddOptionValue() {
+            UUID productId = UUID.randomUUID();
+            UUID globalOptionGroupId = UUID.randomUUID();
+            UUID productOptionGroupId = UUID.randomUUID();
+
+            ProductOptionGroup pog = ProductOptionGroup.builder()
+                    .id(new ProductOptionGroupId(productOptionGroupId))
+                    .optionGroupId(new OptionGroupId(globalOptionGroupId))
+                    .stepOrder(1)
+                    .isRequired(true)
+                    .optionValues(new ArrayList<>())
+                    .build();
+
+            Product product = Product.reconstitute(
+                    new ProductId(productId),
+                    null,
+                    "상품",
+                    "상품 설명은 20자 이상으로 충분히 길어야 합니다.",
+                    new Money(new BigDecimal("10000")),
+                    ProductStatus.ACTIVE,
+                    ConditionType.NEW,
+                    "브랜드",
+                    "https://example.com/image.jpg",
+                    new ArrayList<>(List.of(pog)),
+                    new ArrayList<>()
+            );
+
+            AddProductOptionValueCommand command = AddProductOptionValueCommand.builder()
+                    .optionValueId(UUID.randomUUID())
+                    .priceDelta(BigDecimal.ZERO)
+                    .isDefault(false)
+                    .isActive(true)
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+            when(productRepository.save(product)).thenReturn(product);
+            when(idGenerator.generateId()).thenReturn(UUID.randomUUID());
+
+            assertThatCode(() -> productApplicationService.addProductOptionValue(productId, productOptionGroupId, command))
+                    .doesNotThrowAnyException();
+
+            verify(productRepository).save(product);
         }
     }
 

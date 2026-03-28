@@ -16,4 +16,16 @@ public class ProductResponseMessageFactory {
     public String productDeleted() {
         return "Product deleted successfully";
     }
+
+    public String productOptionGroupAdded() {
+        return "Product option group added successfully";
+    }
+
+    public String productOptionValueAdded() {
+        return "Product option value added successfully";
+    }
+
+    public String productVariantAdded() {
+        return "Product variant added successfully";
+    }
 }

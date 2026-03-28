@@ -28,6 +28,6 @@ public class AddProductOptionGroupCommand {
     private boolean required = true;
 
     @Valid
-    @NotEmpty(message = "Product option values must not be empty.")
+    @NotEmpty(message = "At least one product option value is required when adding an option group.")
     private List<AddProductOptionValueCommand> optionValues;
 }

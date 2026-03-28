@@ -9,6 +9,7 @@ import com.project.young.common.domain.valueobject.ProductOptionValueId;
 import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.productservice.application.dto.command.AddProductOptionGroupCommand;
 import com.project.young.productservice.application.dto.result.AddProductOptionGroupResult;
+import com.project.young.productservice.application.dto.result.AddProductOptionValueToGroupResult;
 import com.project.young.productservice.application.dto.command.AddProductOptionValueCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantCommand;
 import com.project.young.productservice.application.dto.result.AddProductVariantResult;
@@ -133,6 +134,26 @@ public class ProductDataMapper {
                 .stepOrder(optionGroup.getStepOrder())
                 .required(optionGroup.isRequired())
                 .optionValueCount(optionGroup.getOptionValues().size())
+                .build();
+    }
+
+    public AddProductOptionValueToGroupResult toAddProductOptionValueToGroupResult(
+            Product product,
+            ProductOptionGroupId productOptionGroupId,
+            ProductOptionValue value
+    ) {
+        Objects.requireNonNull(product, "Product cannot be null");
+        Objects.requireNonNull(product.getId(), "Product ID cannot be null");
+        Objects.requireNonNull(productOptionGroupId, "ProductOptionGroupId cannot be null");
+        Objects.requireNonNull(value, "ProductOptionValue cannot be null");
+        Objects.requireNonNull(value.getId(), "ProductOptionValue id cannot be null");
+
+        return AddProductOptionValueToGroupResult.builder()
+                .productId(product.getId().getValue())
+                .productOptionGroupId(productOptionGroupId.getValue())
+                .productOptionValueId(value.getId().getValue())
+                .optionValueId(value.getOptionValueId().getValue())
+                .priceDelta(value.getPriceDelta().getAmount())
                 .build();
     }
 

@@ -1,5 +1,8 @@
 package com.project.young.productservice.web.mapper;
 
+import com.project.young.productservice.application.dto.result.AddProductOptionGroupResult;
+import com.project.young.productservice.application.dto.result.AddProductOptionValueToGroupResult;
+import com.project.young.productservice.application.dto.result.AddProductVariantResult;
 import com.project.young.productservice.application.dto.result.CreateProductResult;
 import com.project.young.productservice.application.dto.result.DeleteProductResult;
 import com.project.young.productservice.application.dto.result.UpdateProductResult;
@@ -7,6 +10,9 @@ import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
+import com.project.young.productservice.web.dto.AddProductOptionGroupResponse;
+import com.project.young.productservice.web.dto.AddProductOptionValueToGroupResponse;
+import com.project.young.productservice.web.dto.AddProductVariantResponse;
 import com.project.young.productservice.web.dto.CreateProductResponse;
 import com.project.young.productservice.web.dto.DeleteProductResponse;
 import com.project.young.productservice.web.dto.UpdateProductResponse;
@@ -105,6 +111,58 @@ class ProductResponseMapperTest {
             assertThat(response.id()).isEqualTo(id);
             assertThat(response.name()).isEqualTo("와이드핏 데님");
             assertThat(response.message()).containsIgnoringCase("deleted");
+        }
+    }
+
+    @Nested
+    @DisplayName("toAddProductOptionGroupResponse / toAddProductOptionValueToGroupResponse / toAddProductVariantResponse")
+    class CompositionMappingTests {
+
+        @Test
+        @DisplayName("구성 API 응답 매핑")
+        void compositionResponses() {
+            UUID pid = UUID.randomUUID();
+            UUID pog = UUID.randomUUID();
+            UUID globalOg = UUID.randomUUID();
+            UUID pov = UUID.randomUUID();
+            UUID globalVal = UUID.randomUUID();
+            UUID varId = UUID.randomUUID();
+
+            AddProductOptionGroupResponse g = productResponseMapper.toAddProductOptionGroupResponse(
+                    AddProductOptionGroupResult.builder()
+                            .productId(pid)
+                            .productOptionGroupId(pog)
+                            .optionGroupId(globalOg)
+                            .stepOrder(2)
+                            .required(false)
+                            .optionValueCount(0)
+                            .build());
+            assertThat(g.productOptionGroupId()).isEqualTo(pog);
+            assertThat(g.message()).containsIgnoringCase("option group");
+
+            AddProductOptionValueToGroupResponse v = productResponseMapper.toAddProductOptionValueToGroupResponse(
+                    AddProductOptionValueToGroupResult.builder()
+                            .productId(pid)
+                            .productOptionGroupId(pog)
+                            .productOptionValueId(pov)
+                            .optionValueId(globalVal)
+                            .priceDelta(new BigDecimal("100"))
+                            .build());
+            assertThat(v.productOptionValueId()).isEqualTo(pov);
+            assertThat(v.message()).containsIgnoringCase("option value");
+
+            AddProductVariantResponse r = productResponseMapper.toAddProductVariantResponse(
+                    AddProductVariantResult.builder()
+                            .productId(pid)
+                            .productVariantId(varId)
+                            .sku("SKU")
+                            .stockQuantity(3)
+                            .status(ProductStatus.ACTIVE)
+                            .calculatedPrice(new BigDecimal("999"))
+                            .build());
+            assertThat(r.sku()).isEqualTo("SKU");
+            assertThat(r.status()).isEqualTo("ACTIVE");
+            assertThat(r.message()).containsIgnoringCase("variant");
         }
     }
 }

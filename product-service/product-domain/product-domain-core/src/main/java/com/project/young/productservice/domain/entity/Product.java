@@ -4,6 +4,7 @@ import com.project.young.common.domain.entity.AggregateRoot;
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
+import com.project.young.common.domain.valueobject.ProductOptionGroupId;
 import com.project.young.common.domain.valueobject.ProductOptionValueId;
 import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.productservice.domain.exception.ProductDomainException;
@@ -175,6 +176,20 @@ public class Product extends AggregateRoot<ProductId> {
             throw new ProductDomainException("Option group already exists in this product.");
         }
         this.optionGroups.add(group);
+    }
+
+    public void addProductOptionValue(ProductOptionGroupId productOptionGroupId, ProductOptionValue newValue) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot add option value to a deleted product.");
+        }
+        if (productOptionGroupId == null || newValue == null) {
+            throw new ProductDomainException("Product option group id and option value must not be null.");
+        }
+        ProductOptionGroup group = this.optionGroups.stream()
+                .filter(g -> g.getId().equals(productOptionGroupId))
+                .findFirst()
+                .orElseThrow(() -> new ProductDomainException("Product option group not found in this product."));
+        group.addOptionValue(newValue);
     }
 
     public void addVariant(ProductVariant variant) {

@@ -128,6 +128,28 @@ public class ProductApplicationService {
     }
 
     @Transactional
+    public AddProductOptionValueToGroupResult addProductOptionValue(
+            UUID productIdValue,
+            UUID productOptionGroupIdValue,
+            AddProductOptionValueCommand command
+    ) {
+        if (productIdValue == null || productOptionGroupIdValue == null || command == null) {
+            throw new IllegalArgumentException("Invalid add product option value request.");
+        }
+
+        Product product = findProductOrThrow(new ProductId(productIdValue));
+        validateProductCanBeUpdated(product);
+
+        ProductOptionGroupId productOptionGroupId = new ProductOptionGroupId(productOptionGroupIdValue);
+        ProductOptionValue newValue = toProductOptionValue(command);
+
+        product.addProductOptionValue(productOptionGroupId, newValue);
+        productRepository.save(product);
+
+        return productDataMapper.toAddProductOptionValueToGroupResult(product, productOptionGroupId, newValue);
+    }
+
+    @Transactional
     public AddProductVariantResult addProductVariant(UUID productIdValue, AddProductVariantCommand command) {
         if (productIdValue == null || command == null) {
             throw new IllegalArgumentException("Invalid add product variant request.");
