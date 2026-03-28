@@ -1,6 +1,5 @@
 package com.project.young.productservice.application.dto.command;
 
-import com.project.young.productservice.domain.valueobject.ProductStatus;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -37,7 +36,4 @@ public class UpdateProductCommand {
 
     @Positive(message = "Category id must be a positive number.")
     private Long categoryId;
-
-    @NotNull(message = "Product status must not be null.")
-    private ProductStatus status;
 }

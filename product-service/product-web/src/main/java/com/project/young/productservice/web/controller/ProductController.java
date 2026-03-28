@@ -2,6 +2,7 @@ package com.project.young.productservice.web.controller;
 
 import com.project.young.productservice.application.dto.command.CreateProductCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductCommand;
+import com.project.young.productservice.application.dto.command.UpdateProductStatusCommand;
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.web.dto.CreateProductResponse;
 import com.project.young.productservice.web.dto.DeleteProductResponse;
@@ -13,6 +14,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -24,6 +26,7 @@ import java.util.UUID;
 
 /**
  * 상품 루트 CRUD. 신규 상품은 항상 DRAFT로 생성되며,
+ * 상태 전환은 {@code PATCH /products/{id}/status} 로만 수행한다.
  * 옵션 그룹(최소 1개 옵션 값 동반)·추가 값·변형은 {@link AdminProductCompositionController} 의 {@code /admin/products/...} API로 이어 붙인다.
  */
 @Slf4j
@@ -57,6 +60,16 @@ public class ProductController {
         log.info("A put request to update Product with id: {}, command: {}", productId, command.getName());
         return ResponseEntity.ok(productResponseMapper.toUpdateProductResponse(
                 productApplicationService.updateProduct(productId, command)));
+    }
+
+    @PatchMapping("/{productId}/status")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<UpdateProductResponse> updateStatus(
+            @PathVariable("productId") UUID productId,
+            @Valid @RequestBody UpdateProductStatusCommand command) {
+        log.info("A patch request to update Product status with id: {}, status: {}", productId, command.getStatus());
+        return ResponseEntity.ok(productResponseMapper.toUpdateProductStatusResponse(
+                productApplicationService.updateProductStatus(productId, command)));
     }
 
     @DeleteMapping("/{productId}")

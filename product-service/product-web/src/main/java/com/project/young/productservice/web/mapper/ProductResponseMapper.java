@@ -41,6 +41,14 @@ public class ProductResponseMapper {
     }
 
     public UpdateProductResponse toUpdateProductResponse(UpdateProductResult result) {
+        return toUpdateProductResponse(result, messageFactory.productUpdated());
+    }
+
+    public UpdateProductResponse toUpdateProductStatusResponse(UpdateProductResult result) {
+        return toUpdateProductResponse(result, messageFactory.productStatusUpdated());
+    }
+
+    private UpdateProductResponse toUpdateProductResponse(UpdateProductResult result, String message) {
         return UpdateProductResponse.builder()
                 .id(result.id())
                 .categoryId(result.categoryId())
@@ -51,7 +59,7 @@ public class ProductResponseMapper {
                 .mainImageUrl(result.mainImageUrl())
                 .conditionType(conditionTypeWebConverter.toStringValue(result.conditionType()))
                 .status(productStatusWebConverter.toStringValue(result.status()))
-                .message(messageFactory.productUpdated())
+                .message(message)
                 .build();
     }
 

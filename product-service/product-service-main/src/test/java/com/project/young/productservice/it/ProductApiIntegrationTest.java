@@ -5,6 +5,7 @@ import com.project.young.productservice.ProductServiceMain;
 import com.project.young.productservice.application.dto.command.CreateCategoryCommand;
 import com.project.young.productservice.application.dto.command.CreateProductCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductCommand;
+import com.project.young.productservice.application.dto.command.UpdateProductStatusCommand;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
 import com.project.young.productservice.domain.valueobject.ConditionType;
@@ -149,7 +150,7 @@ class ProductApiIntegrationTest {
         }
 
         @Test
-        @DisplayName("제품 수정 성공")
+        @DisplayName("제품 수정(PUT) 후 상태 변경(PATCH) 성공")
         @WithMockUser(authorities = "ADMIN")
         void updateProduct_Success() throws Exception {
             // Given
@@ -183,10 +184,8 @@ class ProductApiIntegrationTest {
                     .brand("브랜드B")
                     .mainImageUrl("https://example.com/updated.jpg")
                     .categoryId(categoryId)
-                    .status(ProductStatus.INACTIVE)
                     .build();
 
-            // When & Then
             mockMvc.perform(put("/products/{productId}", productId)
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
@@ -195,8 +194,22 @@ class ProductApiIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(productId.toString()))
                     .andExpect(jsonPath("$.name").value("와이드핏 데님 수정"))
-                    .andExpect(jsonPath("$.status").value("INACTIVE"))
+                    .andExpect(jsonPath("$.status").value("DRAFT"))
                     .andExpect(jsonPath("$.message").value(containsString("updated successfully")));
+
+            UpdateProductStatusCommand statusCommand = UpdateProductStatusCommand.builder()
+                    .status(ProductStatus.INACTIVE)
+                    .build();
+
+            mockMvc.perform(patch("/products/{productId}/status", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(statusCommand)))
+                    .andDo(print())
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(productId.toString()))
+                    .andExpect(jsonPath("$.status").value("INACTIVE"))
+                    .andExpect(jsonPath("$.message").value(containsString("status updated successfully")));
         }
 
         @Test

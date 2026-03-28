@@ -5,6 +5,7 @@ import com.project.young.productservice.application.dto.command.CreateProductCom
 import com.project.young.productservice.application.dto.result.CreateProductResult;
 import com.project.young.productservice.application.dto.result.DeleteProductResult;
 import com.project.young.productservice.application.dto.command.UpdateProductCommand;
+import com.project.young.productservice.application.dto.command.UpdateProductStatusCommand;
 import com.project.young.productservice.application.dto.result.UpdateProductResult;
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.domain.valueobject.ConditionType;
@@ -137,7 +138,6 @@ class ProductControllerTest {
                     .brand("브랜드B")
                     .mainImageUrl("https://example.com/updated.jpg")
                     .categoryId(2L)
-                    .status(ProductStatus.INACTIVE)
                     .build();
 
             UpdateProductResult serviceResult = new UpdateProductResult(
@@ -148,7 +148,7 @@ class ProductControllerTest {
                     "브랜드B",
                     "https://example.com/updated.jpg",
                     new BigDecimal("89000"),
-                    ProductStatus.INACTIVE,
+                    ProductStatus.DRAFT,
                     ConditionType.USED
             );
 
@@ -160,7 +160,7 @@ class ProductControllerTest {
                     .brand("브랜드B")
                     .mainImageUrl("https://example.com/updated.jpg")
                     .basePrice(new BigDecimal("89000"))
-                    .status("INACTIVE")
+                    .status("DRAFT")
                     .conditionType("USED_GOOD")
                     .message("Product updated successfully.")
                     .build();
@@ -178,7 +178,7 @@ class ProductControllerTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(productId.toString()))
                     .andExpect(jsonPath("$.name").value("와이드핏 데님 수정"))
-                    .andExpect(jsonPath("$.status").value("INACTIVE"))
+                    .andExpect(jsonPath("$.status").value("DRAFT"))
                     .andExpect(jsonPath("$.message").exists());
 
             verify(productApplicationService).updateProduct(eq(productId), any(UpdateProductCommand.class));
@@ -197,7 +197,6 @@ class ProductControllerTest {
                     .brand("브랜드A")
                     .mainImageUrl("https://example.com/image.jpg")
                     .categoryId(1L)
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             mockMvc.perform(put("/products/{productId}", productId)
@@ -207,6 +206,81 @@ class ProductControllerTest {
                     .andExpect(status().isForbidden());
 
             verify(productApplicationService, never()).updateProduct(any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("updateStatus")
+    class UpdateStatusTests {
+
+        @Test
+        @DisplayName("유효한 요청 시 200 OK와 status 업데이트 응답")
+        @WithMockUser(authorities = "ADMIN")
+        void updateStatus_ValidRequest_Returns200AndResponse() throws Exception {
+            UUID productId = UUID.randomUUID();
+            UpdateProductStatusCommand command = UpdateProductStatusCommand.builder()
+                    .status(ProductStatus.ACTIVE)
+                    .build();
+
+            UpdateProductResult serviceResult = new UpdateProductResult(
+                    productId,
+                    "상품",
+                    1L,
+                    "상품에 대한 설명입니다. 20자 이상 충분히 깁니다.",
+                    "브랜드",
+                    "https://example.com/img.jpg",
+                    new BigDecimal("10000"),
+                    ProductStatus.ACTIVE,
+                    ConditionType.NEW
+            );
+
+            UpdateProductResponse expectedResponse = UpdateProductResponse.builder()
+                    .id(productId)
+                    .name("상품")
+                    .categoryId(1L)
+                    .description("상품에 대한 설명입니다. 20자 이상 충분히 깁니다.")
+                    .brand("브랜드")
+                    .mainImageUrl("https://example.com/img.jpg")
+                    .basePrice(new BigDecimal("10000"))
+                    .status("ACTIVE")
+                    .conditionType("NEW")
+                    .message("Product status updated successfully")
+                    .build();
+
+            when(productApplicationService.updateProductStatus(eq(productId), any(UpdateProductStatusCommand.class)))
+                    .thenReturn(serviceResult);
+            when(productResponseMapper.toUpdateProductStatusResponse(serviceResult))
+                    .thenReturn(expectedResponse);
+
+            mockMvc.perform(patch("/products/{productId}/status", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(command)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(productId.toString()))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"))
+                    .andExpect(jsonPath("$.message").value("Product status updated successfully"));
+
+            verify(productApplicationService).updateProductStatus(eq(productId), any(UpdateProductStatusCommand.class));
+            verify(productResponseMapper).toUpdateProductStatusResponse(serviceResult);
+        }
+
+        @Test
+        @DisplayName("ADMIN 권한 없으면 403 Forbidden")
+        @WithMockUser(authorities = "CUSTOMER")
+        void updateStatus_WithoutAdminAuthority_Returns403() throws Exception {
+            UUID productId = UUID.randomUUID();
+            UpdateProductStatusCommand command = UpdateProductStatusCommand.builder()
+                    .status(ProductStatus.INACTIVE)
+                    .build();
+
+            mockMvc.perform(patch("/products/{productId}/status", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(command)))
+                    .andExpect(status().isForbidden());
+
+            verify(productApplicationService, never()).updateProductStatus(any(), any());
         }
     }
 

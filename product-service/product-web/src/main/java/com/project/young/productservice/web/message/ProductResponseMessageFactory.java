@@ -13,6 +13,10 @@ public class ProductResponseMessageFactory {
         return "Product updated successfully";
     }
 
+    public String productStatusUpdated() {
+        return "Product status updated successfully";
+    }
+
     public String productDeleted() {
         return "Product deleted successfully";
     }

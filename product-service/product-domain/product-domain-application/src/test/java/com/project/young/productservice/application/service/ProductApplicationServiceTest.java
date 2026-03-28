@@ -5,6 +5,7 @@ import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.dto.command.CreateProductCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductCommand;
+import com.project.young.productservice.application.dto.command.UpdateProductStatusCommand;
 import com.project.young.productservice.application.dto.result.CreateProductResult;
 import com.project.young.productservice.application.dto.result.DeleteProductResult;
 import com.project.young.productservice.application.dto.result.UpdateProductResult;
@@ -200,7 +201,6 @@ class ProductApplicationServiceTest {
                     .basePrice(new BigDecimal("1000"))
                     .brand("브랜드")
                     .mainImageUrl("url")
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             UUID rawId = UUID.randomUUID();
@@ -227,7 +227,6 @@ class ProductApplicationServiceTest {
                     .basePrice(new BigDecimal("1000"))
                     .brand("브랜드")
                     .mainImageUrl("url")
-                    .status(ProductStatus.ACTIVE)
                     .build();
 
             Product product = Product.reconstitute(
@@ -270,19 +269,27 @@ class ProductApplicationServiceTest {
             verify(productDataMapper).toUpdateProductResult(product);
         }
 
+    }
+
+    @Nested
+    @DisplayName("updateProductStatus")
+    class UpdateProductStatusTests {
+
+        @Test
+        @DisplayName("요청이 null이면 IllegalArgumentException")
+        void updateProductStatus_InvalidRequest_ThrowsException() {
+            assertThatThrownBy(() -> productApplicationService.updateProductStatus(null, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Invalid product status update request");
+        }
+
         @Test
         @DisplayName("상태 변경 시 ProductDomainService.validateStatusChangeRules 호출")
-        void updateProduct_StatusChange_ValidatesStatusChangeRules() {
-            // Given
+        void updateProductStatus_ValidatesStatusChangeRules() {
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
 
-            UpdateProductCommand command = UpdateProductCommand.builder()
-                    .name("상품")
-                    .description("상품에 대한 설명입니다. 충분히 깁니다.")
-                    .basePrice(new BigDecimal("1000"))
-                    .brand("브랜드")
-                    .mainImageUrl("url")
+            UpdateProductStatusCommand command = UpdateProductStatusCommand.builder()
                     .status(ProductStatus.INACTIVE)
                     .build();
 
@@ -316,10 +323,8 @@ class ProductApplicationServiceTest {
                             .build()
             );
 
-            // When
-            UpdateProductResult result = productApplicationService.updateProduct(rawId, command);
+            UpdateProductResult result = productApplicationService.updateProductStatus(rawId, command);
 
-            // Then
             assertThat(result.status()).isEqualTo(ProductStatus.INACTIVE);
             verify(productDomainService).validateStatusChangeRules(product, ProductStatus.INACTIVE);
             verify(productRepository).save(product);
@@ -327,16 +332,11 @@ class ProductApplicationServiceTest {
 
         @Test
         @DisplayName("DRAFT 상품을 variant 없이 ACTIVE로 변경하면 ProductDomainException")
-        void updateProduct_PublishWithoutVariant_Throws() {
+        void updateProductStatus_PublishWithoutVariant_Throws() {
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
 
-            UpdateProductCommand command = UpdateProductCommand.builder()
-                    .name("상품")
-                    .description("상품에 대한 설명입니다. 충분히 깁니다.")
-                    .basePrice(new BigDecimal("1000"))
-                    .brand("브랜드")
-                    .mainImageUrl("url")
+            UpdateProductStatusCommand command = UpdateProductStatusCommand.builder()
                     .status(ProductStatus.ACTIVE)
                     .build();
 
@@ -356,7 +356,7 @@ class ProductApplicationServiceTest {
 
             when(productRepository.findById(productId)).thenReturn(Optional.of(draftProduct));
 
-            assertThatThrownBy(() -> productApplicationService.updateProduct(rawId, command))
+            assertThatThrownBy(() -> productApplicationService.updateProductStatus(rawId, command))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Cannot publish product without at least one variant");
 

@@ -96,6 +96,34 @@ class ProductResponseMapperTest {
     }
 
     @Nested
+    @DisplayName("toUpdateProductStatusResponse")
+    class ToUpdateProductStatusResponseTests {
+
+        @Test
+        @DisplayName("정상 매핑 — 메시지는 status 업데이트용 문구")
+        void success() {
+            UUID id = UUID.randomUUID();
+            UpdateProductResult result = new UpdateProductResult(
+                    id,
+                    "와이드핏 데님",
+                    1L,
+                    "와이드핏 데님 상세 설명입니다.",
+                    "브랜드A",
+                    "https://example.com/image.jpg",
+                    new BigDecimal("99000"),
+                    ProductStatus.INACTIVE,
+                    ConditionType.NEW
+            );
+
+            UpdateProductResponse response = productResponseMapper.toUpdateProductStatusResponse(result);
+
+            assertThat(response.status()).isEqualTo("INACTIVE");
+            assertThat(response.message()).containsIgnoringCase("status");
+            assertThat(response.message()).containsIgnoringCase("updated");
+        }
+    }
+
+    @Nested
     @DisplayName("toDeleteProductResponse")
     class ToDeleteProductResponseTests {
 

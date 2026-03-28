@@ -82,11 +82,28 @@ public class ProductApplicationService {
         isModified |= applyBasePriceChange(product, command.getBasePrice());
         isModified |= applyBrandChange(product, command.getBrand());
         isModified |= applyMainImageUrlChange(product, command.getMainImageUrl());
-        isModified |= applyStatusChange(product, command.getStatus());
 
         if (isModified) {
             productRepository.save(product);
             log.info("Product updated successfully. id: {}", product.getId().getValue());
+        }
+
+        return productDataMapper.toUpdateProductResult(product);
+    }
+
+    @Transactional
+    public UpdateProductResult updateProductStatus(UUID productIdValue, UpdateProductStatusCommand command) {
+        validateUpdateStatusRequest(productIdValue, command);
+
+        ProductId productId = new ProductId(productIdValue);
+        log.info("Attempting to update product status. id: {}, status: {}", productId.getValue(), command.getStatus());
+
+        Product product = findProductOrThrow(productId);
+        validateProductCanBeUpdated(product);
+
+        if (applyStatusChange(product, command.getStatus())) {
+            productRepository.save(product);
+            log.info("Product status updated. id: {}", product.getId().getValue());
         }
 
         return productDataMapper.toUpdateProductResult(product);
@@ -273,6 +290,12 @@ public class ProductApplicationService {
     private void validateUpdateRequest(UUID productIdValue, UpdateProductCommand command) {
         if (productIdValue == null || command == null) {
             throw new IllegalArgumentException("Invalid product update request.");
+        }
+    }
+
+    private void validateUpdateStatusRequest(UUID productIdValue, UpdateProductStatusCommand command) {
+        if (productIdValue == null || command == null) {
+            throw new IllegalArgumentException("Invalid product status update request.");
         }
     }
 
