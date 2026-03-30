@@ -138,7 +138,7 @@ class ProductApiIntegrationTest {
                     .build();
 
             // When & Then
-            mockMvc.perform(post("/products")
+            mockMvc.perform(post("/admin/products")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -166,7 +166,7 @@ class ProductApiIntegrationTest {
                     .conditionType(ConditionType.NEW)
                     .build();
 
-            String createResponse = mockMvc.perform(post("/products")
+            String createResponse = mockMvc.perform(post("/admin/products")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(createCommand)))
@@ -186,7 +186,7 @@ class ProductApiIntegrationTest {
                     .categoryId(categoryId)
                     .build();
 
-            mockMvc.perform(put("/products/{productId}", productId)
+            mockMvc.perform(put("/admin/products/{productId}", productId)
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateCommand)))
@@ -201,7 +201,7 @@ class ProductApiIntegrationTest {
                     .status(ProductStatus.INACTIVE)
                     .build();
 
-            mockMvc.perform(patch("/products/{productId}/status", productId)
+            mockMvc.perform(patch("/admin/products/{productId}/status", productId)
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(statusCommand)))
@@ -229,7 +229,7 @@ class ProductApiIntegrationTest {
                     .conditionType(ConditionType.NEW)
                     .build();
 
-            String createResponse = mockMvc.perform(post("/products")
+            String createResponse = mockMvc.perform(post("/admin/products")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(createCommand)))
@@ -241,7 +241,7 @@ class ProductApiIntegrationTest {
             UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
 
             // When & Then
-            mockMvc.perform(delete("/products/{productId}", productId)
+            mockMvc.perform(delete("/admin/products/{productId}", productId)
                             .with(csrf()))
                     .andDo(print())
                     .andExpect(status().isOk())
@@ -272,7 +272,7 @@ class ProductApiIntegrationTest {
                     .conditionType(ConditionType.NEW)
                     .build();
 
-            mockMvc.perform(post("/products")
+            mockMvc.perform(post("/admin/products")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(createCommand)))
@@ -303,7 +303,7 @@ class ProductApiIntegrationTest {
                     .conditionType(ConditionType.NEW)
                     .build();
 
-            String createResponse = mockMvc.perform(post("/products")
+            String createResponse = mockMvc.perform(post("/admin/products")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(createCommand)))
@@ -337,7 +337,7 @@ class ProductApiIntegrationTest {
                     .conditionType(ConditionType.NEW)
                     .build();
 
-            mockMvc.perform(post("/products")
+            mockMvc.perform(post("/admin/products")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(createCommand)))
@@ -371,7 +371,7 @@ class ProductApiIntegrationTest {
                     .categoryId(categoryId)
                     .conditionType(ConditionType.NEW)
                     .build();
-            String createResponse = mockMvc.perform(post("/products")
+            String createResponse = mockMvc.perform(post("/admin/products")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(createCommand)))
@@ -411,7 +411,7 @@ class ProductApiIntegrationTest {
                     .conditionType(ConditionType.NEW)
                     .build();
 
-            mockMvc.perform(post("/products")
+            mockMvc.perform(post("/admin/products")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(createCommand)))

@@ -101,6 +101,11 @@ public class ProductApplicationService {
         Product product = findProductOrThrow(productId);
         validateProductCanBeUpdated(product);
 
+        if (product.getStatus() == command.getStatus()) {
+            log.info("Product is already in {} status. id: {}", command.getStatus(), productId.getValue());
+            return productDataMapper.toUpdateProductResult(product);
+        }
+
         if (applyStatusChange(product, command.getStatus())) {
             productRepository.save(product);
             log.info("Product status updated. id: {}", product.getId().getValue());

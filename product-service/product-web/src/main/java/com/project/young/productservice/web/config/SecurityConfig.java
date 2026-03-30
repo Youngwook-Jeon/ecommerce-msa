@@ -40,7 +40,6 @@ public class SecurityConfig {
 
         http.authorizeHttpRequests(requests -> requests
                 .requestMatchers(HttpMethod.GET,
-                        "/products/**",
                         "/categories/**",
                         "/queries/categories/hierarchy",
                         "/queries/products/**",

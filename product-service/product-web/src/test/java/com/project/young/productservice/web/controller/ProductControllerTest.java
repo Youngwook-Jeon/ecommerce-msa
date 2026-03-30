@@ -84,7 +84,7 @@ class ProductControllerTest {
                     .thenReturn(expectedResponse);
 
             // When & Then
-            mockMvc.perform(post("/products")
+            mockMvc.perform(post("/admin/products")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -111,7 +111,7 @@ class ProductControllerTest {
                     .conditionType(ConditionType.NEW)
                     .build();
 
-            mockMvc.perform(post("/products")
+            mockMvc.perform(post("/admin/products")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -171,7 +171,7 @@ class ProductControllerTest {
                     .thenReturn(expectedResponse);
 
             // When & Then
-            mockMvc.perform(put("/products/{productId}", productId)
+            mockMvc.perform(put("/admin/products/{productId}", productId)
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -199,7 +199,7 @@ class ProductControllerTest {
                     .categoryId(1L)
                     .build();
 
-            mockMvc.perform(put("/products/{productId}", productId)
+            mockMvc.perform(put("/admin/products/{productId}", productId)
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -252,7 +252,7 @@ class ProductControllerTest {
             when(productResponseMapper.toUpdateProductStatusResponse(serviceResult))
                     .thenReturn(expectedResponse);
 
-            mockMvc.perform(patch("/products/{productId}/status", productId)
+            mockMvc.perform(patch("/admin/products/{productId}/status", productId)
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -274,7 +274,7 @@ class ProductControllerTest {
                     .status(ProductStatus.INACTIVE)
                     .build();
 
-            mockMvc.perform(patch("/products/{productId}/status", productId)
+            mockMvc.perform(patch("/admin/products/{productId}/status", productId)
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -306,7 +306,7 @@ class ProductControllerTest {
                     .thenReturn(expectedResponse);
 
             // When & Then
-            mockMvc.perform(delete("/products/{productId}", productId)
+            mockMvc.perform(delete("/admin/products/{productId}", productId)
                             .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(productId.toString()))
@@ -323,7 +323,7 @@ class ProductControllerTest {
         void delete_WithoutAdminAuthority_Returns403() throws Exception {
             UUID productId = UUID.randomUUID();
 
-            mockMvc.perform(delete("/products/{productId}", productId)
+            mockMvc.perform(delete("/admin/products/{productId}", productId)
                             .with(csrf()))
                     .andExpect(status().isForbidden());
 

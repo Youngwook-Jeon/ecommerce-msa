@@ -26,12 +26,13 @@ import java.util.UUID;
 
 /**
  * 상품 루트 CRUD. 신규 상품은 항상 DRAFT로 생성되며,
- * 상태 전환은 {@code PATCH /products/{id}/status} 로만 수행한다.
+ * 상태 전환은 {@code PATCH /admin/products/{id}/status} 로만 수행한다.
  * 옵션 그룹(최소 1개 옵션 값 동반)·추가 값·변형은 {@link AdminProductCompositionController} 의 {@code /admin/products/...} API로 이어 붙인다.
  */
 @Slf4j
 @RestController
-@RequestMapping("products")
+@RequestMapping("admin/products")
+@PreAuthorize("hasAuthority('ADMIN')")
 public class ProductController {
 
     private final ProductApplicationService productApplicationService;
@@ -44,7 +45,6 @@ public class ProductController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<CreateProductResponse> create(@Valid @RequestBody CreateProductCommand command) {
         log.info("A post request to create Product: {}", command.getName());
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -53,7 +53,6 @@ public class ProductController {
     }
 
     @PutMapping("/{productId}")
-    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<UpdateProductResponse> update(
             @PathVariable("productId") UUID productId,
             @Valid @RequestBody UpdateProductCommand command) {
@@ -63,7 +62,6 @@ public class ProductController {
     }
 
     @PatchMapping("/{productId}/status")
-    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<UpdateProductResponse> updateStatus(
             @PathVariable("productId") UUID productId,
             @Valid @RequestBody UpdateProductStatusCommand command) {
@@ -73,7 +71,6 @@ public class ProductController {
     }
 
     @DeleteMapping("/{productId}")
-    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<DeleteProductResponse> delete(@PathVariable("productId") UUID productId) {
         log.info("A delete request to delete Product with id: {}", productId);
         return ResponseEntity.ok(productResponseMapper.toDeleteProductResponse(
