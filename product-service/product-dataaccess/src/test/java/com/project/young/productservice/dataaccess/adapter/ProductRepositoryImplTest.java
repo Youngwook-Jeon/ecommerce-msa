@@ -127,14 +127,12 @@ class ProductRepositoryImplTest {
             );
 
             ProductEntity existingEntity = mock(ProductEntity.class);
-            ProductEntity savedEntity = mock(ProductEntity.class);
             CategoryEntity categoryRef = mock(CategoryEntity.class);
             Product savedDomain = domainProduct; // 단순히 동일 객체를 반환한다고 가정
 
             when(productJpaRepository.findAggregateById(rawId)).thenReturn(Optional.of(existingEntity));
             when(categoryJpaRepository.getReferenceById(10L)).thenReturn(categoryRef);
-            when(productJpaRepository.save(existingEntity)).thenReturn(savedEntity);
-            when(productDataAccessMapper.productEntityToProduct(savedEntity)).thenReturn(savedDomain);
+            when(productDataAccessMapper.productEntityToProduct(existingEntity)).thenReturn(savedDomain);
 
             // When
             Product result = productRepository.save(domainProduct);
@@ -146,8 +144,8 @@ class ProductRepositoryImplTest {
             verify(productJpaRepository).findAggregateById(rawId);
             verify(categoryJpaRepository).getReferenceById(10L);
             verify(productDataAccessMapper).updateEntityFromDomain(domainProduct, existingEntity, categoryRef);
-            verify(productJpaRepository).save(existingEntity);
-            verify(productDataAccessMapper).productEntityToProduct(savedEntity);
+            verify(productJpaRepository, never()).save(any());
+            verify(productDataAccessMapper).productEntityToProduct(existingEntity);
         }
 
         @Test

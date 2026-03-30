@@ -2,11 +2,11 @@ package com.project.young.productservice.web.controller;
 
 import com.project.young.productservice.application.dto.command.AddProductOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.AddProductOptionValueCommand;
-import com.project.young.productservice.application.dto.command.AddProductVariantCommand;
+import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.web.dto.AddProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.AddProductOptionValueToGroupResponse;
-import com.project.young.productservice.web.dto.AddProductVariantResponse;
+import com.project.young.productservice.web.dto.AddProductVariantsResponse;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * 어드민 상품 구성 플로우: 원형(DRAFT) 생성은 {@link ProductController#create} 이후,
@@ -70,16 +71,26 @@ public class AdminProductCompositionController {
     }
 
     /**
-     * 선택한 {@code productOptionValueId} 조합으로 변형(SKU)을 생성한다. SKU는 서버에서 부여한다.
+     * 선택한 {@code productOptionValueId} 조합들로 변형(SKU)을 생성한다. SKU는 서버에서 부여한다.
      */
     @PostMapping("/{productId}/variants")
-    public ResponseEntity<AddProductVariantResponse> addVariant(
+    public ResponseEntity<AddProductVariantsResponse> addVariants(
             @PathVariable("productId") UUID productId,
-            @Valid @RequestBody AddProductVariantCommand command
+            @Valid @RequestBody AddProductVariantsCommand command
     ) {
-        log.info("REST request to add variant to productId={}", productId);
+        log.info("REST request to add variants to productId={}, variantsCount={}",
+                productId,
+                command.getVariants() != null ? command.getVariants().size() : 0
+        );
+
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(productResponseMapper.toAddProductVariantResponse(
-                        productApplicationService.addProductVariant(productId, command)));
+                .body(AddProductVariantsResponse.builder()
+                        .variants(
+                                productApplicationService.addProductVariants(productId, command)
+                                        .stream()
+                                        .map(productResponseMapper::toAddProductVariantResponse)
+                                        .collect(Collectors.toList())
+                        )
+                        .build());
     }
 }

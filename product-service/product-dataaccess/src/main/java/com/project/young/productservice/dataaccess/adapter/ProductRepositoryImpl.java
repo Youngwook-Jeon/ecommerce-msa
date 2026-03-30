@@ -42,20 +42,22 @@ public class ProductRepositoryImpl implements ProductRepository {
                 .map(id -> categoryJpaRepository.getReferenceById(id.getValue()))
                 .orElse(null);
 
-        ProductEntity toSave;
         if (product.getId() != null) {
             UUID id = product.getId().getValue();
+
             ProductEntity current = productJpaRepository.findAggregateById(id)
                     .orElseThrow(() -> new ProductNotFoundException("Product not found: " + id));
+
             productDataAccessMapper.updateEntityFromDomain(product, current, categoryRef);
-            toSave = current;
+
+            // 트랜잭션이 종료될 때 하이버네이트가 알아서 컬렉션의 변화를 감지 (더티 체킹에 저장 위임)
+            return productDataAccessMapper.productEntityToProduct(current);
         } else {
-            toSave = productDataAccessMapper.productToProductEntity(product, categoryRef);
+            ProductEntity toSave = productDataAccessMapper.productToProductEntity(product, categoryRef);
+            ProductEntity saved = productJpaRepository.save(toSave);
+
+            return productDataAccessMapper.productEntityToProduct(saved);
         }
-
-        ProductEntity saved = productJpaRepository.save(toSave);
-
-        return productDataAccessMapper.productEntityToProduct(saved);
     }
 
     @Override

@@ -31,6 +31,11 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         default_schema: ${schema.name}
         default_batch_fetch_size: 100
+        jdbc:
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+        generate_statistics: true
 
   security:
     oauth2:
@@ -66,3 +71,8 @@ logging:
     org:
       springframework:
         security: INFO
+      hibernate:
+        engine:
+          jdbc:
+            batch:
+              internal: DEBUG

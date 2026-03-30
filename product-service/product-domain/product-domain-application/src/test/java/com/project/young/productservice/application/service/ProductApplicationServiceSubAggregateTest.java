@@ -333,39 +333,69 @@ class ProductApplicationServiceSubAggregateTest {
     }
 
     @Nested
-    @DisplayName("addProductVariant")
-    class AddProductVariantTests {
+    @DisplayName("addProductVariants")
+    class AddProductVariantsTests {
 
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void invalidRequest_Throws() {
-            assertThatThrownBy(() -> productApplicationService.addProductVariant(null, null))
+            assertThatThrownBy(() -> productApplicationService.addProductVariants(null, null))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Invalid add product variant request");
+                    .hasMessageContaining("Invalid add product variants request");
         }
 
         @Test
-        @DisplayName("SKU가 5회 이상 중복이면 ProductDomainException")
+        @DisplayName("요청 내부 SKU 충돌이 5회 연속이면 ProductDomainException")
         void duplicateSku_Throws() {
             UUID productId = UUID.randomUUID();
-            UUID productVariantId = UUID.randomUUID();
             Product product = createBaseProduct(productId);
+            UUID globalOptionGroupId = UUID.randomUUID();
+            UUID globalOptionValueId = UUID.randomUUID();
+            UUID productOptionValueId = UUID.randomUUID();
+
+            ProductOptionValue pov = ProductOptionValue.reconstitute(
+                    new ProductOptionValueId(productOptionValueId),
+                    new OptionValueId(globalOptionValueId),
+                    new Money(new BigDecimal("1000")),
+                    true,
+                    true
+            );
+
+            ProductOptionGroup pog = ProductOptionGroup.reconstitute(
+                    new ProductOptionGroupId(UUID.randomUUID()),
+                    new OptionGroupId(globalOptionGroupId),
+                    1,
+                    true,
+                    List.of(pov)
+            );
+            product.addOptionGroup(pog);
 
             AddProductVariantCommand command = AddProductVariantCommand.builder()
                     .stockQuantity(5)
-                    .selectedProductOptionValueIds(Set.of(UUID.randomUUID()))
+                    .selectedProductOptionValueIds(Set.of(productOptionValueId))
+                    .build();
+
+            AddProductVariantsCommand bulkCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(command, command))
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(idGenerator.generateId()).thenReturn(productVariantId);
-            doThrow(new ProductDomainException("Global SKU uniqueness violation"))
-                    .when(productDomainService).validateGlobalSkuUniqueness(anyString());
+            UUID sameVariantId = UUID.randomUUID();
+            when(idGenerator.generateId()).thenReturn(
+                    sameVariantId,
+                    sameVariantId,
+                    sameVariantId,
+                    sameVariantId,
+                    sameVariantId,
+                    sameVariantId
+            );
 
-            assertThatThrownBy(() -> productApplicationService.addProductVariant(productId, command))
+            assertThatThrownBy(() -> productApplicationService.addProductVariants(productId, bulkCommand))
                     .isInstanceOf(ProductDomainException.class)
-                    .hasMessageContaining("Failed to generate unique SKU after");
+                    .hasMessageContaining("Failed to generate unique SKU after 5 attempts");
 
             verify(productRepository, never()).save(any());
+            verifyNoInteractions(productDomainService);
         }
 
         @Test
@@ -401,12 +431,16 @@ class ProductApplicationServiceSubAggregateTest {
                     .selectedProductOptionValueIds(Set.of(productOptionValueId))
                     .build();
 
+            AddProductVariantsCommand bulkCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(command))
+                    .build();
+
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
             when(productRepository.save(product)).thenReturn(product);
             UUID generatedVariantId = UUID.randomUUID();
             when(idGenerator.generateId()).thenReturn(generatedVariantId);
 
-            AddProductVariantResult result = productApplicationService.addProductVariant(productId, command);
+            AddProductVariantResult result = productApplicationService.addProductVariants(productId, bulkCommand).get(0);
 
             assertThat(result.productId()).isEqualTo(productId);
             assertThat(result.productVariantId()).isEqualTo(generatedVariantId);
@@ -415,111 +449,8 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(result.calculatedPrice()).isEqualByComparingTo(new BigDecimal("11000.00"));
             assertThat(product.getVariants()).hasSize(1);
 
-            verify(productDomainService).validateGlobalSkuUniqueness(result.sku());
             verify(productRepository).save(product);
-        }
-
-        @Test
-        @DisplayName("SKU 충돌 시 최대 5회 내에서 재시도 후 성공")
-        void retriesOnSkuCollision_ThenSucceeds() {
-            UUID productId = UUID.randomUUID();
-            Product product = createBaseProduct(productId);
-
-            UUID globalOptionGroupId = UUID.randomUUID();
-            UUID globalOptionValueId = UUID.randomUUID();
-            UUID productOptionValueId = UUID.randomUUID();
-
-            ProductOptionValue pov = ProductOptionValue.reconstitute(
-                    new ProductOptionValueId(productOptionValueId),
-                    new OptionValueId(globalOptionValueId),
-                    new Money(new BigDecimal("1000")),
-                    true,
-                    true
-            );
-            ProductOptionGroup pog = ProductOptionGroup.reconstitute(
-                    new ProductOptionGroupId(UUID.randomUUID()),
-                    new OptionGroupId(globalOptionGroupId),
-                    1,
-                    true,
-                    List.of(pov)
-            );
-            product.addOptionGroup(pog);
-
-            AddProductVariantCommand command = AddProductVariantCommand.builder()
-                    .stockQuantity(2)
-                    .selectedProductOptionValueIds(Set.of(productOptionValueId))
-                    .build();
-
-            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.save(product)).thenReturn(product);
-            when(idGenerator.generateId()).thenReturn(
-                    UUID.randomUUID(),
-                    UUID.randomUUID(),
-                    UUID.randomUUID()
-            );
-            doThrow(new ProductDomainException("Global SKU uniqueness violation"))
-                    .doThrow(new ProductDomainException("Global SKU uniqueness violation"))
-                    .doNothing()
-                    .when(productDomainService).validateGlobalSkuUniqueness(anyString());
-
-            AddProductVariantResult result = productApplicationService.addProductVariant(productId, command);
-
-            assertThat(result.productId()).isEqualTo(productId);
-            assertThat(result.sku()).startsWith("PRD-");
-            verify(productDomainService, times(3)).validateGlobalSkuUniqueness(anyString());
-            verify(idGenerator, times(3)).generateId();
-            verify(productRepository).save(product);
-        }
-
-        @Test
-        @DisplayName("SKU 충돌이 5회 연속이면 ProductDomainException")
-        void retriesExceeded_ThrowsException() {
-            UUID productId = UUID.randomUUID();
-            Product product = createBaseProduct(productId);
-
-            UUID globalOptionGroupId = UUID.randomUUID();
-            UUID globalOptionValueId = UUID.randomUUID();
-            UUID productOptionValueId = UUID.randomUUID();
-
-            ProductOptionValue pov = ProductOptionValue.reconstitute(
-                    new ProductOptionValueId(productOptionValueId),
-                    new OptionValueId(globalOptionValueId),
-                    new Money(new BigDecimal("1000")),
-                    true,
-                    true
-            );
-            ProductOptionGroup pog = ProductOptionGroup.reconstitute(
-                    new ProductOptionGroupId(UUID.randomUUID()),
-                    new OptionGroupId(globalOptionGroupId),
-                    1,
-                    true,
-                    List.of(pov)
-            );
-            product.addOptionGroup(pog);
-
-            AddProductVariantCommand command = AddProductVariantCommand.builder()
-                    .stockQuantity(2)
-                    .selectedProductOptionValueIds(Set.of(productOptionValueId))
-                    .build();
-
-            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(idGenerator.generateId()).thenReturn(
-                    UUID.randomUUID(),
-                    UUID.randomUUID(),
-                    UUID.randomUUID(),
-                    UUID.randomUUID(),
-                    UUID.randomUUID()
-            );
-            doThrow(new ProductDomainException("Global SKU uniqueness violation"))
-                    .when(productDomainService).validateGlobalSkuUniqueness(anyString());
-
-            assertThatThrownBy(() -> productApplicationService.addProductVariant(productId, command))
-                    .isInstanceOf(ProductDomainException.class)
-                    .hasMessageContaining("Failed to generate unique SKU after 5 attempts");
-
-            verify(productDomainService, times(5)).validateGlobalSkuUniqueness(anyString());
-            verify(idGenerator, times(5)).generateId();
-            verify(productRepository, never()).save(any());
+            verifyNoInteractions(productDomainService);
         }
 
         @Test
@@ -545,9 +476,13 @@ class ProductApplicationServiceSubAggregateTest {
                     .selectedProductOptionValueIds(Set.of(UUID.randomUUID()))
                     .build();
 
+            AddProductVariantsCommand bulkCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(command))
+                    .build();
+
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(deletedProduct));
 
-            assertThatThrownBy(() -> productApplicationService.addProductVariant(productId, command))
+            assertThatThrownBy(() -> productApplicationService.addProductVariants(productId, bulkCommand))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Cannot update a product that has been deleted");
 

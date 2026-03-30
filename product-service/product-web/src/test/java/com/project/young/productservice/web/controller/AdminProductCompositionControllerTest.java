@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.productservice.application.dto.command.AddProductOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.AddProductOptionValueCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantCommand;
+import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
 import com.project.young.productservice.application.dto.result.AddProductOptionGroupResult;
 import com.project.young.productservice.application.dto.result.AddProductOptionValueToGroupResult;
 import com.project.young.productservice.application.dto.result.AddProductVariantResult;
@@ -187,6 +188,10 @@ class AdminProductCompositionControllerTest {
                     .selectedProductOptionValueIds(Set.of(selectedPov))
                     .build();
 
+            AddProductVariantsCommand bulkCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(command))
+                    .build();
+
             AddProductVariantResult result = AddProductVariantResult.builder()
                     .productId(productId)
                     .productVariantId(variantId)
@@ -206,18 +211,18 @@ class AdminProductCompositionControllerTest {
                     .message("ok")
                     .build();
 
-            when(productApplicationService.addProductVariant(eq(productId), any(AddProductVariantCommand.class)))
-                    .thenReturn(result);
+            when(productApplicationService.addProductVariants(eq(productId), any(AddProductVariantsCommand.class)))
+                    .thenReturn(List.of(result));
             when(productResponseMapper.toAddProductVariantResponse(result)).thenReturn(response);
 
             mockMvc.perform(post("/admin/products/{productId}/variants", productId)
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(command)))
+                            .content(objectMapper.writeValueAsString(bulkCommand)))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.sku").value("PRD-TEST-SKU"));
+                    .andExpect(jsonPath("$.variants[0].sku").value("PRD-TEST-SKU"));
 
-            verify(productApplicationService).addProductVariant(eq(productId), any(AddProductVariantCommand.class));
+            verify(productApplicationService).addProductVariants(eq(productId), any(AddProductVariantsCommand.class));
         }
     }
 }

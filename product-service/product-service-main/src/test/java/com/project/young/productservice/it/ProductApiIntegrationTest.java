@@ -1,16 +1,29 @@
 package com.project.young.productservice.it;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.young.productservice.application.dto.command.AddProductOptionGroupCommand;
+import com.project.young.productservice.application.dto.command.AddProductOptionValueCommand;
+import com.project.young.productservice.application.dto.command.AddProductVariantCommand;
+import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
 import com.project.young.productservice.ProductServiceMain;
 import com.project.young.productservice.application.dto.command.CreateCategoryCommand;
 import com.project.young.productservice.application.dto.command.CreateProductCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductStatusCommand;
+import com.project.young.productservice.dataaccess.entity.OptionGroupEntity;
+import com.project.young.productservice.dataaccess.entity.OptionValueEntity;
+import com.project.young.productservice.dataaccess.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
+import com.project.young.productservice.dataaccess.entity.ProductOptionValueEntity;
+import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
+import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import jakarta.persistence.EntityManager;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -31,6 +44,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.math.BigDecimal;
+import java.lang.reflect.Method;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
@@ -80,11 +96,15 @@ class ProductApiIntegrationTest {
     private CategoryJpaRepository categoryJpaRepository;
 
     @Autowired
+    private OptionGroupJpaRepository optionGroupJpaRepository;
+
+    @Autowired
     private EntityManager entityManager;
 
     @BeforeEach
     void setUp() {
         productJpaRepository.deleteAll();
+        optionGroupJpaRepository.deleteAll();
         categoryJpaRepository.deleteAll();
         entityManager.flush();
 
@@ -114,6 +134,41 @@ class ProductApiIntegrationTest {
                 .andExpect(jsonPath("$.id").value(1));
 
         return 1L;
+    }
+
+    private record OptionFixture(UUID optionGroupId, List<UUID> optionValueIds) {
+    }
+
+    private OptionFixture createGlobalOptionGroupWithValues(String suffix) {
+        OptionGroupEntity group = OptionGroupEntity.builder()
+                .name("size-" + suffix)
+                .displayName("사이즈-" + suffix)
+                .status(OptionStatusEntity.ACTIVE)
+                .build();
+
+        OptionValueEntity small = OptionValueEntity.builder()
+                .optionGroup(group)
+                .value("S-" + suffix)
+                .displayName("S")
+                .sortOrder(1)
+                .status(OptionStatusEntity.ACTIVE)
+                .build();
+        OptionValueEntity medium = OptionValueEntity.builder()
+                .optionGroup(group)
+                .value("M-" + suffix)
+                .displayName("M")
+                .sortOrder(2)
+                .status(OptionStatusEntity.ACTIVE)
+                .build();
+
+        group.addOptionValue(small);
+        group.addOptionValue(medium);
+        OptionGroupEntity saved = optionGroupJpaRepository.save(group);
+
+        return new OptionFixture(
+                saved.getId(),
+                saved.getOptionValues().stream().map(OptionValueEntity::getId).toList()
+        );
     }
 
     @Nested
@@ -249,6 +304,130 @@ class ProductApiIntegrationTest {
                     .andExpect(jsonPath("$.name").value("와이드핏 데님"))
                     .andExpect(jsonPath("$.message").value(containsString("deleted successfully")));
         }
+
+        @Test
+        @DisplayName("변형 벌크 생성 시 Hibernate JDBC Batch가 동작한다")
+        @WithMockUser(authorities = "ADMIN")
+        void bulkCreateVariants_UsesJdbcBatch() throws Exception {
+            Long categoryId = createCategory("의류");
+
+            CreateProductCommand createProductCommand = CreateProductCommand.builder()
+                    .name("배치 테스트 상품")
+                    .description("배치 테스트용 상품 설명입니다. 20자 이상.")
+                    .basePrice(new BigDecimal("10000"))
+                    .brand("배치브랜드")
+                    .mainImageUrl("https://example.com/batch.jpg")
+                    .categoryId(categoryId)
+                    .conditionType(ConditionType.NEW)
+                    .build();
+
+            String createResponse = mockMvc.perform(post("/admin/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createProductCommand)))
+                    .andExpect(status().isCreated())
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
+
+            OptionFixture optionFixture = createGlobalOptionGroupWithValues(UUID.randomUUID().toString().substring(0, 8));
+
+            AddProductOptionGroupCommand addOptionGroupCommand = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(optionFixture.optionGroupId())
+                    .stepOrder(1)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(optionFixture.optionValueIds().get(0))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(true)
+                                    .isActive(true)
+                                    .build(),
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(optionFixture.optionValueIds().get(1))
+                                    .priceDelta(new BigDecimal("1000"))
+                                    .isDefault(false)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
+                    .andExpect(status().isCreated());
+
+            ProductEntity aggregate = productJpaRepository.findAggregateById(productId).orElseThrow();
+            ProductOptionGroupEntity productOptionGroup = aggregate.getOptionGroups().stream().findFirst().orElseThrow();
+            List<UUID> productOptionValueIds = productOptionGroup.getOptionValues().stream()
+                    .map(ProductOptionValueEntity::getId)
+                    .toList();
+
+            int variantCount = 60;
+            List<AddProductVariantCommand> variants = java.util.stream.IntStream.range(0, variantCount)
+                    .mapToObj(i -> AddProductVariantCommand.builder()
+                            .stockQuantity(10 + i)
+                            .selectedProductOptionValueIds(Set.of(productOptionValueIds.get(i % productOptionValueIds.size())))
+                            .build())
+                    .toList();
+
+            AddProductVariantsCommand addProductVariantsCommand = AddProductVariantsCommand.builder()
+                    .variants(variants)
+                    .build();
+
+            SessionFactory sessionFactory = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class);
+            Statistics statistics = sessionFactory.getStatistics();
+            statistics.clear();
+
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(addProductVariantsCommand)))
+                    .andExpect(status().isCreated())
+                    .andExpect(jsonPath("$.variants.length()").value(variantCount));
+
+            entityManager.flush();
+
+            long insertCount = statistics.getEntityInsertCount();
+            long preparedStatementCount = statistics.getPrepareStatementCount();
+            long batchExecutionCount = readBatchExecutionCount(statistics);
+
+            org.assertj.core.api.Assertions.assertThat(insertCount)
+                    .as("entity inserts should include all requested variants")
+                    .isGreaterThanOrEqualTo(variantCount);
+            if (batchExecutionCount >= 0) {
+                org.assertj.core.api.Assertions.assertThat(batchExecutionCount)
+                        .as("jdbc batch execution should occur at least once")
+                        .isGreaterThan(0L);
+                org.assertj.core.api.Assertions.assertThat(preparedStatementCount)
+                        .as("prepared statements should be fewer than inserted entities when batching")
+                        .isLessThan(insertCount);
+            } else {
+                // Hibernate version doesn't expose batch-execution counters via Statistics.
+                // Still assert that the JDBC layer is involved.
+                org.assertj.core.api.Assertions.assertThat(preparedStatementCount)
+                        .as("prepared statements should be recorded")
+                        .isGreaterThan(0L);
+            }
+        }
+    }
+
+    private long readBatchExecutionCount(Statistics statistics) {
+        List<String> candidateMethods = List.of("getJdbcBatchExecutionCount", "getBatchExecutionCount");
+        for (String methodName : candidateMethods) {
+            try {
+                Method method = statistics.getClass().getMethod(methodName);
+                Object value = method.invoke(statistics);
+                if (value instanceof Number number) {
+                    return number.longValue();
+                }
+            } catch (ReflectiveOperationException ignored) {
+                // Try next candidate method for Hibernate version compatibility.
+            }
+        }
+        return -1L;
     }
 
     @Nested

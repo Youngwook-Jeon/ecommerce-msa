@@ -172,28 +172,56 @@ public class ProductApplicationService {
     }
 
     @Transactional
-    public AddProductVariantResult addProductVariant(UUID productIdValue, AddProductVariantCommand command) {
+    public List<AddProductVariantResult> addProductVariants(
+            UUID productIdValue,
+            AddProductVariantsCommand command
+    ) {
         if (productIdValue == null || command == null) {
-            throw new IllegalArgumentException("Invalid add product variant request.");
+            throw new IllegalArgumentException("Invalid add product variants request.");
+        }
+
+        if (command.getVariants() == null || command.getVariants().isEmpty()) {
+            throw new IllegalArgumentException("At least one variant is required.");
         }
 
         Product product = findProductOrThrow(new ProductId(productIdValue));
         validateProductCanBeUpdated(product);
 
-        VariantIdentity identity = generateUniqueVariantIdentity(product.getId());
-        ProductVariantId productVariantId = identity.variantId();
-        String generatedSku = identity.sku();
-
-        Set<ProductOptionValueId> selectedOptionValueIds = command.getSelectedProductOptionValueIds().stream()
-                .map(ProductOptionValueId::new)
+        List<AddProductVariantResult> results = new ArrayList<>();
+        Set<String> reservedSkus = product.getVariants() == null
+                ? new HashSet<>()
+                : product.getVariants().stream()
+                .map(ProductVariant::getSku)
                 .collect(Collectors.toSet());
 
-        ProductVariant variant = productDataMapper.toProductVariant(command, productVariantId, generatedSku, selectedOptionValueIds);
+        for (AddProductVariantCommand variantCommand : command.getVariants()) {
+            if (variantCommand == null) {
+                throw new IllegalArgumentException("Variant command must not be null.");
+            }
 
-        product.addVariant(variant);
+            VariantIdentity identity = generateUniqueVariantIdentity(product.getId(), reservedSkus);
+            ProductVariantId productVariantId = identity.variantId();
+            String generatedSku = identity.sku();
+            reservedSkus.add(generatedSku);
+
+            Set<ProductOptionValueId> selectedOptionValueIds = variantCommand.getSelectedProductOptionValueIds().stream()
+                    .map(ProductOptionValueId::new)
+                    .collect(Collectors.toSet());
+
+            ProductVariant variant = productDataMapper.toProductVariant(
+                    variantCommand,
+                    productVariantId,
+                    generatedSku,
+                    selectedOptionValueIds
+            );
+
+            product.addVariant(variant);
+            results.add(productDataMapper.toAddProductVariantResult(product, variant));
+        }
+
         productRepository.save(product);
 
-        return productDataMapper.toAddProductVariantResult(product, variant);
+        return results;
     }
 
     @Transactional
@@ -389,12 +417,14 @@ public class ProductApplicationService {
         return false;
     }
 
-    private VariantIdentity generateUniqueVariantIdentity(ProductId productId) {
+    private VariantIdentity generateUniqueVariantIdentity(ProductId productId, Set<String> reservedSkus) {
         for (int attempt = 1; attempt <= MAX_SKU_GENERATION_RETRIES; attempt++) {
             ProductVariantId candidateVariantId = new ProductVariantId(idGenerator.generateId());
             String candidateSku = generateVariantSku(productId, candidateVariantId);
             try {
-                productDomainService.validateGlobalSkuUniqueness(candidateSku);
+                if (reservedSkus != null && reservedSkus.contains(candidateSku)) {
+                    throw new ProductDomainException("In-request SKU collision: " + candidateSku);
+                }
                 return new VariantIdentity(candidateVariantId, candidateSku);
             } catch (ProductDomainException ex) {
                 if (attempt == MAX_SKU_GENERATION_RETRIES) {
@@ -410,12 +440,16 @@ public class ProductApplicationService {
     }
 
     private String generateVariantSku(ProductId productId, ProductVariantId variantId) {
-        return "PRD-" + shortToken(productId.getValue()) + "-VAR-" + shortToken(variantId.getValue());
+        return "PRD-" + shortToken(productId.getValue()) + "-VAR-" + fullToken(variantId.getValue());
     }
 
     private String shortToken(UUID value) {
         String compact = value.toString().replace("-", "").toUpperCase(Locale.ROOT);
         return compact.substring(0, 8);
+    }
+
+    private String fullToken(UUID value) {
+        return value.toString().replace("-", "").toUpperCase(Locale.ROOT);
     }
 
     private void validateProductPublishable(Product product) {
