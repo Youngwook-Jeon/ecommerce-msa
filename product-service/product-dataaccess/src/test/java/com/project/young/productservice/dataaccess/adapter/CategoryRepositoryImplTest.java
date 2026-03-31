@@ -147,7 +147,6 @@ class CategoryRepositoryImplTest {
 
             CategoryEntity existingEntity = mock(CategoryEntity.class);
             CategoryEntity parentRefEntity = mock(CategoryEntity.class);
-            CategoryEntity savedEntity = mock(CategoryEntity.class);
             Category savedCategory = Category.reconstitute(
                     categoryId,
                     "수정된 카테고리",
@@ -159,8 +158,7 @@ class CategoryRepositoryImplTest {
             when(categoryJpaRepository.getReferenceById(2L)).thenReturn(parentRefEntity);
             when(categoryDataAccessMapper.toEntityStatus(CategoryStatus.INACTIVE))
                     .thenReturn(CategoryStatusEntity.INACTIVE);
-            when(categoryJpaRepository.save(existingEntity)).thenReturn(savedEntity);
-            when(categoryDataAccessMapper.categoryEntityToCategory(savedEntity)).thenReturn(savedCategory);
+            when(categoryDataAccessMapper.categoryEntityToCategory(existingEntity)).thenReturn(savedCategory);
 
             // When
             Category result = categoryRepository.save(category);
@@ -175,7 +173,7 @@ class CategoryRepositoryImplTest {
             verify(categoryDataAccessMapper).toEntityStatus(CategoryStatus.INACTIVE);
             verify(existingEntity).setStatus(CategoryStatusEntity.INACTIVE);
             verify(existingEntity).setParent(parentRefEntity);
-            verify(categoryJpaRepository).save(existingEntity);
+            verify(categoryJpaRepository, never()).save(any());
         }
 
         @Test

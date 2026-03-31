@@ -200,7 +200,7 @@ class ProductDataMapperTest {
     @Test
     @DisplayName("toDraftProduct: command가 null이면 NullPointerException")
     void toDraftProduct_NullCommand_ThrowsNpe() {
-        assertThatThrownBy(() -> productDataMapper.toDraftProduct(null, null))
+        assertThatThrownBy(() -> productDataMapper.toDraftProduct(null, null, new ProductId(UUID.randomUUID())))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("CreateProductCommand cannot be null");
     }
@@ -219,11 +219,12 @@ class ProductDataMapperTest {
                 .build();
 
         CategoryId categoryId = new CategoryId(1L);
+        ProductId productId = new ProductId(UUID.randomUUID());
 
-        Product product = productDataMapper.toDraftProduct(command, categoryId);
+        Product product = productDataMapper.toDraftProduct(command, categoryId, productId);
 
         assertThat(product).isNotNull();
-        assertThat(product.getId()).isNull();
+        assertThat(product.getId()).isEqualTo(productId);
         assertThat(product.getName()).isEqualTo("와이드핏 데님");
         assertThat(product.getCategoryId()).contains(categoryId);
         assertThat(product.getBasePrice()).isEqualTo(new Money(new BigDecimal("99000")));
@@ -243,9 +244,11 @@ class ProductDataMapperTest {
                 .categoryId(null)
                 .conditionType(ConditionType.REFURBISHED)
                 .build();
+        ProductId productId = new ProductId(UUID.randomUUID());
 
-        Product product = productDataMapper.toDraftProduct(command, null);
+        Product product = productDataMapper.toDraftProduct(command, null, productId);
 
+        assertThat(product.getId()).isEqualTo(productId);
         assertThat(product.getCategoryId()).isEmpty();
         assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
         assertThat(product.getConditionType()).isEqualTo(ConditionType.REFURBISHED);

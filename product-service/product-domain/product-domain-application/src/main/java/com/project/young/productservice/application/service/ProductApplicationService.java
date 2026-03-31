@@ -52,12 +52,9 @@ public class ProductApplicationService {
                 .orElse(null);
 
         productDomainService.validateCategoryForProduct(categoryId);
-        Product newProduct = productDataMapper.toDraftProduct(command, categoryId);
+        ProductId productId = new ProductId(idGenerator.generateId());
+        Product newProduct = productDataMapper.toDraftProduct(command, categoryId, productId);
         Product savedProduct = productRepository.save(newProduct);
-        if (savedProduct.getId() == null) {
-            log.error("Product ID was not assigned after save for name: {}", savedProduct.getName());
-            throw new ProductDomainException("Failed to assign ID to the new product.");
-        }
 
         log.info("Product saved successfully with id: {}", savedProduct.getId().getValue());
 

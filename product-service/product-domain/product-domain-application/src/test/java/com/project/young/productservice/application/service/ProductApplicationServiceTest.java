@@ -113,8 +113,11 @@ class ProductApplicationServiceTest {
                     .id(savedId)
                     .name("상품")
                     .build();
+            UUID generatedId = UUID.randomUUID();
+            ProductId generatedProductId = new ProductId(generatedId);
 
-            when(productDataMapper.toDraftProduct(command, categoryId)).thenReturn(toSave);
+            when(idGenerator.generateId()).thenReturn(generatedId);
+            when(productDataMapper.toDraftProduct(command, categoryId, generatedProductId)).thenReturn(toSave);
             when(productRepository.save(toSave)).thenReturn(saved);
             when(productDataMapper.toCreateProductResult(saved)).thenReturn(expected);
 
@@ -127,13 +130,15 @@ class ProductApplicationServiceTest {
             assertThat(result.name()).isEqualTo("상품");
 
             verify(productDomainService).validateCategoryForProduct(categoryId);
+            verify(idGenerator).generateId();
+            verify(productDataMapper).toDraftProduct(command, categoryId, generatedProductId);
             verify(productRepository).save(toSave);
             verify(productDataMapper).toCreateProductResult(saved);
         }
 
         @Test
-        @DisplayName("저장 후 ID가 할당되지 않으면 ProductDomainException")
-        void createProduct_IdNotAssigned_ThrowsException() {
+        @DisplayName("ID를 선생성해서 저장 커맨드에 전달한다")
+        void createProduct_GeneratesIdBeforeSave() {
             // Given
             CreateProductCommand command = CreateProductCommand.builder()
                     .name("새 상품")
@@ -144,8 +149,11 @@ class ProductApplicationServiceTest {
                     .categoryId(null)
                     .conditionType(ConditionType.NEW)
                     .build();
+            UUID generatedId = UUID.randomUUID();
+            ProductId generatedProductId = new ProductId(generatedId);
 
             Product toSave = Product.builder()
+                    .productId(generatedProductId)
                     .categoryId(null)
                     .name("새 상품")
                     .description("상품에 대한 설명입니다. 충분히 깁니다.")
@@ -156,26 +164,25 @@ class ProductApplicationServiceTest {
                     .status(ProductStatus.DRAFT)
                     .build();
 
-            Product savedWithoutId = Product.builder()
-                    .categoryId(null)
+            CreateProductResult expected = CreateProductResult.builder()
+                    .id(generatedId)
                     .name("새 상품")
-                    .description("상품에 대한 설명입니다. 충분히 깁니다.")
-                    .basePrice(new Money(new BigDecimal("10000")))
-                    .brand("브랜드")
-                    .mainImageUrl("url")
-                    .conditionType(ConditionType.NEW)
-                    .status(ProductStatus.DRAFT)
                     .build();
 
-            when(productDataMapper.toDraftProduct(command, null)).thenReturn(toSave);
-            when(productRepository.save(toSave)).thenReturn(savedWithoutId);
+            when(idGenerator.generateId()).thenReturn(generatedId);
+            when(productDataMapper.toDraftProduct(command, null, generatedProductId)).thenReturn(toSave);
+            when(productRepository.save(toSave)).thenReturn(toSave);
+            when(productDataMapper.toCreateProductResult(toSave)).thenReturn(expected);
 
-            // When & Then
-            assertThatThrownBy(() -> productApplicationService.createProduct(command))
-                    .isInstanceOf(ProductDomainException.class)
-                    .hasMessageContaining("Failed to assign ID to the new product.");
+            // When
+            CreateProductResult result = productApplicationService.createProduct(command);
 
-            verify(productDataMapper, never()).toCreateProductResult(any());
+            // Then
+            assertThat(result.id()).isEqualTo(generatedId);
+            verify(idGenerator).generateId();
+            verify(productDataMapper).toDraftProduct(command, null, generatedProductId);
+            verify(productRepository).save(toSave);
+            verify(productDataMapper).toCreateProductResult(toSave);
         }
     }
 

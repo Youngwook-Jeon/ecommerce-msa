@@ -82,7 +82,7 @@ class OptionGroupRepositoryImplTest {
         }
 
         @Test
-        @DisplayName("기존 행이 있으면 merge 후 저장한다")
+        @DisplayName("기존 행이 있으면 merge 후 dirty checking으로 반영한다")
         void save_ExistingRow_MergesAndSaves() {
             UUID groupId = UUID.randomUUID();
             UUID existingValueId = UUID.randomUUID();
@@ -129,7 +129,6 @@ class OptionGroupRepositoryImplTest {
             );
 
             when(optionGroupJpaRepository.findById(groupId)).thenReturn(Optional.of(existingEntity));
-            when(optionGroupJpaRepository.save(existingEntity)).thenReturn(existingEntity);
 
             OptionGroup result = optionGroupRepository.save(domain);
 
@@ -142,7 +141,7 @@ class OptionGroupRepositoryImplTest {
             assertThat(existingValEntity.getSortOrder()).isEqualTo(3);
             assertThat(existingValEntity.getStatus()).isEqualTo(OptionStatusEntity.INACTIVE);
 
-            verify(optionGroupJpaRepository).save(existingEntity);
+            verify(optionGroupJpaRepository, never()).save(any());
         }
     }
 

@@ -36,8 +36,6 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
             throw new IllegalArgumentException("optionGroup must not be null.");
         }
 
-        OptionGroupEntity toSave;
-
         if (optionGroup.getId() != null) {
             UUID id = optionGroup.getId().getValue();
             Optional<OptionGroupEntity> existingEntityOpt = optionGroupJpaRepository.findById(id);
@@ -45,17 +43,17 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
             if (existingEntityOpt.isPresent()) {
                 OptionGroupEntity current = existingEntityOpt.get();
                 mergeDomainIntoEntity(optionGroup, current);
-                toSave = current;
+                return optionGroupDataAccessMapper.entityToDomain(current);
             } else {
-                toSave = optionGroupDataAccessMapper.domainToEntity(optionGroup);
+                OptionGroupEntity toSave = optionGroupDataAccessMapper.domainToEntity(optionGroup);
+                OptionGroupEntity saved = optionGroupJpaRepository.save(toSave);
+                return optionGroupDataAccessMapper.entityToDomain(saved);
             }
         } else {
-            toSave = optionGroupDataAccessMapper.domainToEntity(optionGroup);
+            OptionGroupEntity toSave = optionGroupDataAccessMapper.domainToEntity(optionGroup);
+            OptionGroupEntity saved = optionGroupJpaRepository.save(toSave);
+            return optionGroupDataAccessMapper.entityToDomain(saved);
         }
-
-        OptionGroupEntity saved = optionGroupJpaRepository.save(toSave);
-
-        return optionGroupDataAccessMapper.entityToDomain(saved);
     }
 
     @Override

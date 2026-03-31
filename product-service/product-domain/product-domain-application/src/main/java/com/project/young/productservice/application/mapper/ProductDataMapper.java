@@ -6,6 +6,7 @@ import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.common.domain.valueobject.ProductOptionGroupId;
 import com.project.young.common.domain.valueobject.ProductOptionValueId;
+import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.productservice.application.dto.command.AddProductOptionGroupCommand;
 import com.project.young.productservice.application.dto.result.AddProductOptionGroupResult;
@@ -76,12 +77,14 @@ public class ProductDataMapper {
                 .build();
     }
 
-    public Product toDraftProduct(CreateProductCommand command, CategoryId categoryId) {
+    public Product toDraftProduct(CreateProductCommand command, CategoryId categoryId, ProductId productId) {
         Objects.requireNonNull(command, "CreateProductCommand cannot be null");
+        Objects.requireNonNull(productId, "ProductId cannot be null");
 
         Money basePrice = new Money(command.getBasePrice());
 
         return Product.builder()
+                .productId(productId)
                 .categoryId(categoryId)
                 .name(command.getName())
                 .description(command.getDescription())

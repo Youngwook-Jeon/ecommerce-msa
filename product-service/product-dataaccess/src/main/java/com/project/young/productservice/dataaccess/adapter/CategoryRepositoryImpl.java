@@ -39,7 +39,6 @@ public class CategoryRepositoryImpl implements CategoryRepository {
                 ? categoryJpaRepository.getReferenceById(category.getParentId().get().getValue())
                 : null;
 
-        CategoryEntity toSave;
         if (category.getId() != null) {
             final Long id = category.getId().getValue();
             CategoryEntity current = categoryJpaRepository.findById(id)
@@ -47,13 +46,13 @@ public class CategoryRepositoryImpl implements CategoryRepository {
             current.setName(category.getName());
             current.setStatus(categoryDataAccessMapper.toEntityStatus(category.getStatus()));
             current.setParent(parentRef);
-            toSave = current;
-        } else {
-            toSave = categoryDataAccessMapper.categoryToCategoryEntity(category, parentRef);
-        }
 
-        CategoryEntity saved = categoryJpaRepository.save(toSave);
-        return categoryDataAccessMapper.categoryEntityToCategory(saved);
+            return categoryDataAccessMapper.categoryEntityToCategory(current);
+        } else {
+            CategoryEntity toSave = categoryDataAccessMapper.categoryToCategoryEntity(category, parentRef);
+            CategoryEntity saved = categoryJpaRepository.save(toSave);
+            return categoryDataAccessMapper.categoryEntityToCategory(saved);
+        }
     }
 
     @Override
