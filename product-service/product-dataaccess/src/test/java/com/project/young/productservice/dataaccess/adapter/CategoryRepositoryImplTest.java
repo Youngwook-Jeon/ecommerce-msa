@@ -43,7 +43,7 @@ class CategoryRepositoryImplTest {
         @Test
         @DisplayName("null 카테고리 저장 시 예외 발생")
         void save_NullCategory_ThrowsException() {
-            assertThatThrownBy(() -> categoryRepository.save(null))
+            assertThatThrownBy(() -> categoryRepository.insert(null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("category must not be null");
 
@@ -77,7 +77,7 @@ class CategoryRepositoryImplTest {
                     .thenReturn(savedCategory);
 
             // When
-            Category result = categoryRepository.save(category);
+            Category result = categoryRepository.insert(category);
 
             // Then
             assertThat(result).isNotNull();
@@ -119,7 +119,7 @@ class CategoryRepositoryImplTest {
                     .thenReturn(savedCategory);
 
             // When
-            Category result = categoryRepository.save(category);
+            Category result = categoryRepository.insert(category);
 
             // Then
             assertThat(result).isNotNull();
@@ -161,7 +161,7 @@ class CategoryRepositoryImplTest {
             when(categoryDataAccessMapper.categoryEntityToCategory(existingEntity)).thenReturn(savedCategory);
 
             // When
-            Category result = categoryRepository.save(category);
+            Category result = categoryRepository.update(category);
 
             // Then
             assertThat(result).isNotNull();
@@ -191,7 +191,7 @@ class CategoryRepositoryImplTest {
             when(categoryJpaRepository.findById(999L)).thenReturn(Optional.empty());
 
             // When & Then
-            assertThatThrownBy(() -> categoryRepository.save(category))
+            assertThatThrownBy(() -> categoryRepository.update(category))
                     .isInstanceOf(CategoryNotFoundException.class)
                     .hasMessageContaining("Category not found: 999");
 
@@ -207,7 +207,7 @@ class CategoryRepositoryImplTest {
         @Test
         @DisplayName("null 목록으로 일괄 저장 시 예외 발생")
         void saveAll_WithNullList_ThrowsException() {
-            assertThatThrownBy(() -> categoryRepository.saveAll(null))
+            assertThatThrownBy(() -> categoryRepository.updateAll(null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("categories must not be null");
 
@@ -219,10 +219,9 @@ class CategoryRepositoryImplTest {
         @DisplayName("빈 목록으로 일괄 저장 시 빈 목록 반환")
         void saveAll_WithEmptyList_ReturnsEmptyList() {
             // When
-            List<Category> result = categoryRepository.saveAll(Collections.emptyList());
+            categoryRepository.updateAll(Collections.emptyList());
 
             // Then
-            assertThat(result).isEmpty();
             verifyNoInteractions(categoryJpaRepository);
             verifyNoInteractions(categoryDataAccessMapper);
         }
@@ -234,7 +233,7 @@ class CategoryRepositoryImplTest {
             List<Category> categories = new ArrayList<>();
             categories.add(null);
 
-            assertThatThrownBy(() -> categoryRepository.saveAll(categories))
+            assertThatThrownBy(() -> categoryRepository.updateAll(categories))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("categories must not contain null elements");
 
@@ -243,7 +242,7 @@ class CategoryRepositoryImplTest {
         }
 
         @Test
-        @DisplayName("새 카테고리들 일괄 저장 성공")
+        @DisplayName("ID 없는 카테고리 포함 시 updateAll 예외 발생")
         void saveAll_NewCategories_Success() {
             // Given
             Category category1 = Category.builder()
@@ -259,55 +258,12 @@ class CategoryRepositoryImplTest {
 
             List<Category> categories = List.of(category1, category2);
 
-            CategoryEntity entity1 = mock(CategoryEntity.class);
-            CategoryEntity entity2 = mock(CategoryEntity.class);
-            CategoryEntity parentRefEntity = mock(CategoryEntity.class);
-            CategoryEntity savedEntity1 = mock(CategoryEntity.class);
-            CategoryEntity savedEntity2 = mock(CategoryEntity.class);
-
-            Category savedCategory1 = Category.reconstitute(
-                    new CategoryId(10L),
-                    "전자제품",
-                    null,
-                    CategoryStatus.ACTIVE
-            );
-
-            Category savedCategory2 = Category.reconstitute(
-                    new CategoryId(11L),
-                    "도서",
-                    new CategoryId(1L),
-                    CategoryStatus.ACTIVE
-            );
-
-            when(categoryJpaRepository.findAllById(Collections.emptyList()))
-                    .thenReturn(Collections.emptyList());
-
-            when(categoryDataAccessMapper.categoryToCategoryEntity(any(Category.class), eq(null)))
-                    .thenReturn(entity1, entity2);
-
-            when(categoryJpaRepository.getReferenceById(1L)).thenReturn(parentRefEntity);
-
-            when(categoryJpaRepository.saveAll(anyList()))
-                    .thenReturn(List.of(savedEntity1, savedEntity2));
-
-            when(categoryDataAccessMapper.categoryEntityToCategory(savedEntity1))
-                    .thenReturn(savedCategory1);
-            when(categoryDataAccessMapper.categoryEntityToCategory(savedEntity2))
-                    .thenReturn(savedCategory2);
-
-            // When
-            List<Category> result = categoryRepository.saveAll(categories);
-
-            // Then
-            assertThat(result).hasSize(2);
-            assertThat(result).extracting(Category::getName)
-                    .containsExactly("전자제품", "도서");
+            assertThatThrownBy(() -> categoryRepository.updateAll(categories))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("category id must not be null for updateAll");
 
             verify(categoryJpaRepository).findAllById(Collections.emptyList());
-            verify(categoryDataAccessMapper, times(2)).categoryToCategoryEntity(any(Category.class), eq(null));
-            verify(categoryJpaRepository).getReferenceById(1L);
-            verify(entity2).setParent(parentRefEntity);
-            verify(categoryJpaRepository).saveAll(anyList());
+            verify(categoryJpaRepository, never()).saveAll(anyList());
         }
 
         @Test
@@ -337,20 +293,6 @@ class CategoryRepositoryImplTest {
             CategoryEntity existingEntity2 = mock(CategoryEntity.class);
             CategoryEntity parentRefEntity = mock(CategoryEntity.class);
 
-            Category savedCategory1 = Category.reconstitute(
-                    categoryId1,
-                    "수정된 전자제품",
-                    null,
-                    CategoryStatus.INACTIVE
-            );
-
-            Category savedCategory2 = Category.reconstitute(
-                    categoryId2,
-                    "수정된 도서",
-                    new CategoryId(3L),
-                    CategoryStatus.ACTIVE
-            );
-
             when(categoryJpaRepository.findAllById(List.of(1L, 2L)))
                     .thenReturn(List.of(existingEntity1, existingEntity2));
             when(existingEntity1.getId()).thenReturn(1L);
@@ -358,28 +300,17 @@ class CategoryRepositoryImplTest {
 
             when(categoryJpaRepository.getReferenceById(3L)).thenReturn(parentRefEntity);
 
-            when(categoryJpaRepository.saveAll(anyList()))
-                    .thenReturn(List.of(existingEntity1, existingEntity2));
-
-            when(categoryDataAccessMapper.categoryEntityToCategory(existingEntity1))
-                    .thenReturn(savedCategory1);
-            when(categoryDataAccessMapper.categoryEntityToCategory(existingEntity2))
-                    .thenReturn(savedCategory2);
-
             // When
-            List<Category> result = categoryRepository.saveAll(categories);
+            categoryRepository.updateAll(categories);
 
             // Then
-            assertThat(result).hasSize(2);
-            assertThat(result).extracting(Category::getName)
-                    .containsExactly("수정된 전자제품", "수정된 도서");
 
             verify(categoryJpaRepository).findAllById(List.of(1L, 2L));
             verify(categoryDataAccessMapper).updateEntityFromDomain(category1, existingEntity1);
             verify(categoryDataAccessMapper).updateEntityFromDomain(category2, existingEntity2);
             verify(categoryJpaRepository).getReferenceById(3L);
             verify(existingEntity2).setParent(parentRefEntity);
-            verify(categoryJpaRepository).saveAll(anyList());
+            verify(categoryJpaRepository, never()).saveAll(anyList());
         }
 
         @Test
@@ -399,9 +330,9 @@ class CategoryRepositoryImplTest {
                     .thenReturn(Collections.emptyList());
 
             // When & Then
-            assertThatThrownBy(() -> categoryRepository.saveAll(categories))
+            assertThatThrownBy(() -> categoryRepository.updateAll(categories))
                     .isInstanceOf(CategoryNotFoundException.class)
-                    .hasMessageContaining("Category with id 999 not found for update in saveAll");
+                    .hasMessageContaining("Category with id 999 not found for update in updateAll");
 
             verify(categoryJpaRepository).findAllById(List.of(999L));
             verify(categoryJpaRepository, never()).saveAll(anyList());
@@ -578,76 +509,6 @@ class CategoryRepositoryImplTest {
             categoryIds.add(null);
 
             assertThatThrownBy(() -> categoryRepository.findAllById(categoryIds))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("categoryIdList must not contain null elements");
-
-            verifyNoInteractions(categoryJpaRepository);
-        }
-    }
-
-    @Nested
-    @DisplayName("상태 업데이트 테스트")
-    class UpdateStatusTests {
-
-        @Test
-        @DisplayName("카테고리들 상태 일괄 업데이트 성공")
-        void updateStatusForIds_Success() {
-            // Given
-            List<CategoryId> categoryIds = List.of(
-                    new CategoryId(1L),
-                    new CategoryId(2L),
-                    new CategoryId(3L)
-            );
-            CategoryStatus newStatus = CategoryStatus.INACTIVE;
-
-            when(categoryDataAccessMapper.toEntityStatus(newStatus))
-                    .thenReturn(CategoryStatusEntity.INACTIVE);
-
-            // When
-            categoryRepository.updateStatusForIds(newStatus, categoryIds);
-
-            // Then
-            verify(categoryDataAccessMapper).toEntityStatus(newStatus);
-            verify(categoryJpaRepository).updateStatusForIds(CategoryStatusEntity.INACTIVE, List.of(1L, 2L, 3L));
-        }
-
-        @Test
-        @DisplayName("null status로 업데이트 시 예외 발생")
-        void updateStatusForIds_WithNullStatus_ThrowsException() {
-            List<CategoryId> categoryIds = List.of(new CategoryId(1L));
-
-            assertThatThrownBy(() -> categoryRepository.updateStatusForIds(null, categoryIds))
-                    .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("status or categoryIdList must not be null");
-
-            verifyNoInteractions(categoryJpaRepository);
-        }
-
-        @Test
-        @DisplayName("빈 ID 목록으로 업데이트 시 아무것도 하지 않음")
-        void updateStatusForIds_WithEmptyList_DoesNothing() {
-            // Given
-            CategoryStatus newStatus = CategoryStatus.INACTIVE;
-            List<CategoryId> emptyList = Collections.emptyList();
-
-            // When
-            categoryRepository.updateStatusForIds(newStatus, emptyList);
-
-            // Then
-            verifyNoInteractions(categoryJpaRepository);
-            verifyNoInteractions(categoryDataAccessMapper);
-        }
-
-        @Test
-        @DisplayName("ID 목록에 null 요소가 포함되면 예외 발생")
-        void updateStatusForIds_WithNullElement_ThrowsException() {
-            CategoryStatus newStatus = CategoryStatus.INACTIVE;
-
-            List<CategoryId> listContainsNull = new ArrayList<>();
-            listContainsNull.add(new CategoryId(1L));
-            listContainsNull.add(null);
-
-            assertThatThrownBy(() -> categoryRepository.updateStatusForIds(newStatus, listContainsNull))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("categoryIdList must not contain null elements");
 

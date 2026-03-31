@@ -3,7 +3,6 @@ package com.project.young.productservice.domain.service;
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.productservice.domain.entity.Category;
 import com.project.young.productservice.domain.exception.CategoryDomainException;
-import com.project.young.productservice.domain.exception.CategoryNotFoundException;
 import com.project.young.productservice.domain.repository.CategoryRepository;
 import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import lombok.extern.slf4j.Slf4j;
@@ -42,31 +41,23 @@ public class CategoryDomainServiceImpl implements CategoryDomainService {
     }
 
     @Override
-    public Category validateParentCategory(CategoryId parentId) {
-        if (parentId == null) {
-            return null;
+    public void validateParentCategory(Category parentCategory) {
+        if (parentCategory == null) {
+            throw new CategoryDomainException("Parent category must not be null.");
         }
-
-        Category parentCategory = categoryRepository.findById(parentId)
-                .orElseThrow(() ->
-                        new CategoryDomainException("Parent category with id " + parentId.getValue() + " not found.")
-                );
-
         if (!parentCategory.getStatus().isActive()) {
             throw new CategoryDomainException("A category can only be created/moved under an 'ACTIVE' parent category. " +
                     "Parent status is: " + parentCategory.getStatus());
         }
-
-        return parentCategory;
     }
 
     @Override
-    public void validateParentChangeRules(CategoryId categoryId, CategoryId newParentId) {
+    public void validateParentChangeRules(CategoryId categoryId, CategoryId newParentId, Category newParentCategory) {
         if (newParentId == null) {
             return; // 루트로 이동하는 것은 항상 허용
         }
 
-        validateParentCategory(newParentId);
+        validateParentCategory(newParentCategory);
 
         // 자기 자신을 부모로 설정하는 것 방지 (Category 엔티티에서도 검증하지만 추가 보장)
         if (categoryId.equals(newParentId)) {
@@ -109,40 +100,6 @@ public class CategoryDomainServiceImpl implements CategoryDomainService {
         }
     }
 
-    @Override
-    public List<Category> prepareForDeletion(CategoryId categoryId) {
-        List<Category> categoriesToDelete = categoryRepository.findSubTreeByIdAndStatusIn(
-                categoryId,
-                List.of(CategoryStatus.ACTIVE, CategoryStatus.INACTIVE)
-        );
-
-        if (categoriesToDelete.isEmpty()) {
-            throw new CategoryNotFoundException("Category with id " + categoryId.getValue() + " not found.");
-        }
-
-        validateDeletionRules(categoriesToDelete);
-
-        categoriesToDelete.forEach(Category::markAsDeleted);
-        log.info("Prepared {} categories for deletion", categoriesToDelete.size());
-
-        return categoriesToDelete;
-    }
-
-    @Override
-    public List<CategoryId> getAffectedCategories(CategoryId categoryId, CategoryStatus newStatus) {
-        List<CategoryId> idsToUpdateStatus;
-        if (newStatus == CategoryStatus.ACTIVE) { // INACTIVE -> ACTIVE
-            idsToUpdateStatus = categoryRepository.findAllAncestorsById(categoryId)
-                    .stream().map(Category::getId).toList();
-        } else if (newStatus == CategoryStatus.INACTIVE) { // ACTIVE -> INACTIVE
-            idsToUpdateStatus = categoryRepository.findSubTreeByIdAndStatusIn(categoryId, List.of(CategoryStatus.ACTIVE))
-                    .stream().map(Category::getId).toList();
-        } else {
-            throw new IllegalArgumentException("Invalid status: " + newStatus);
-        }
-        return idsToUpdateStatus;
-    }
-
     private void validateCircularReference(CategoryId categoryId, CategoryId newParentId) {
         List<Category> descendants = categoryRepository.findSubTreeByIdAndStatusIn(
                 categoryId,
@@ -157,7 +114,10 @@ public class CategoryDomainServiceImpl implements CategoryDomainService {
         }
     }
 
-    private void validateDeletionRules(List<Category> categoriesToDelete) {
+    public void validateDeletionRules(List<Category> categoriesToDelete) {
+        if (categoriesToDelete == null || categoriesToDelete.isEmpty()) {
+            throw new CategoryDomainException("Categories to delete must not be empty.");
+        }
         // TODO: 삭제될 카테고리들에 활성 상품이 있는지 검증
         // 예: productRepository.countByCategoryIdInAndStatus(categoryIds, "ACTIVE") > 0 이면 예외 발생
         log.debug("Validating deletion rules for {} categories", categoriesToDelete.size());

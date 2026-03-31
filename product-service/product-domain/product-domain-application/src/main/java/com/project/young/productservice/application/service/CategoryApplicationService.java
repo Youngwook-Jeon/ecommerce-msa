@@ -50,7 +50,9 @@ public class CategoryApplicationService {
                 .orElse(null);
 
         if (parentCategoryId != null) {
-            Category parentCategory = categoryDomainService.validateParentCategory(parentCategoryId);
+            Category parentCategory = categoryRepository.findById(parentCategoryId)
+                    .orElseThrow(() -> new CategoryNotFoundException("Parent category with id " + parentCategoryId.getValue() + " not found."));
+            categoryDomainService.validateParentCategory(parentCategory);
 
             if (!categoryDomainService.isParentDepthLessThanLimit(parentCategory.getId())) {
                 log.warn("Cannot add category under parent {} due to depth limit.", parentCategoryId.getValue());
@@ -81,30 +83,33 @@ public class CategoryApplicationService {
         boolean nameOrParentChanged = applyNameChange(mainCategory, command.getName(), mainCategory.getId());
         nameOrParentChanged |= applyParentChange(mainCategory, command.getParentId(), mainCategory.getId());
 
-        // 상태 변경은 Bulk Update로 별도 처리
         CategoryStatus oldStatus = mainCategory.getStatus();
         CategoryStatus newStatus = command.getStatus();
-        boolean statusChanged = false;
+        boolean statusChanged = oldStatus != newStatus;
+        boolean persistedByUpdateAll = false;
 
-        if (oldStatus != newStatus) {
-            statusChanged = true;
-            List<CategoryId> idsToUpdateStatus = categoryDomainService.getAffectedCategories(mainCategory.getId(), newStatus);
+        if (statusChanged) {
+            List<Category> categoriesToUpdate = resolveAffectedCategories(mainCategory.getId(), newStatus);
 
-            // 비즈니스 규칙 검증
-            if (!idsToUpdateStatus.isEmpty()) {
-                List<Category> categoriesToValidate = categoryRepository.findAllById(idsToUpdateStatus);
-                categoryDomainService.validateStatusChangeRules(categoriesToValidate, newStatus);
-                categoriesToValidate.forEach(category -> category.changeStatus(newStatus));
-                categoryRepository.updateStatusForIds(newStatus, idsToUpdateStatus);
-                log.info("{} categories' status updated via bulk operation.", idsToUpdateStatus.size());
+            if (!categoriesToUpdate.isEmpty()) {
+                categoryDomainService.validateStatusChangeRules(categoriesToUpdate, newStatus);
+                categoriesToUpdate.forEach(category -> category.changeStatus(newStatus));
+                mainCategory.changeStatus(newStatus);
+
+                List<Category> categoriesToPersist = categoriesToUpdate.stream()
+                        .map(category -> category.getId().equals(mainCategory.getId()) ? mainCategory : category)
+                        .toList();
+                categoryRepository.updateAll(categoriesToPersist);
+                persistedByUpdateAll = true;
+                log.info("{} categories updated via updateAll for status change.", categoriesToUpdate.size());
             }
         }
 
-        if (nameOrParentChanged || statusChanged) {
-            if (statusChanged) mainCategory.changeStatus(newStatus);
-            categoryRepository.save(mainCategory);
-
-            // TODO: Outbox 로직
+        if (nameOrParentChanged || (statusChanged && !persistedByUpdateAll)) {
+            if (statusChanged) {
+                mainCategory.changeStatus(newStatus);
+            }
+            categoryRepository.update(mainCategory);
         }
 
         return categoryDataMapper.toUpdateCategoryResult(mainCategory);
@@ -117,9 +122,17 @@ public class CategoryApplicationService {
         CategoryId categoryId = new CategoryId(categoryIdValue);
         log.info("Attempting to soft-delete category and its subtree with root id: {}", categoryId.getValue());
 
-        List<Category> categoriesToDelete = categoryDomainService.prepareForDeletion(categoryId);
+        List<Category> categoriesToDelete = categoryRepository.findSubTreeByIdAndStatusIn(
+                categoryId,
+                List.of(CategoryStatus.ACTIVE, CategoryStatus.INACTIVE)
+        );
+        if (categoriesToDelete.isEmpty()) {
+            throw new CategoryNotFoundException("Category with id " + categoryId.getValue() + " not found.");
+        }
+        categoryDomainService.validateDeletionRules(categoriesToDelete);
+        categoriesToDelete.forEach(Category::markAsDeleted);
 
-        categoryRepository.saveAll(categoriesToDelete);
+        categoryRepository.updateAll(categoriesToDelete);
 
         Category rootCategory = categoriesToDelete.getFirst();
 
@@ -175,13 +188,25 @@ public class CategoryApplicationService {
             return true;
         }
 
-        categoryDomainService.validateParentChangeRules(selfId, newParentId);
+        Category newParent = categoryRepository.findById(newParentId)
+                .orElseThrow(() -> new CategoryNotFoundException("Parent category with id " + newParentId.getValue() + " not found."));
+        categoryDomainService.validateParentChangeRules(selfId, newParentId, newParent);
         category.changeParent(newParentId);
         return true;
     }
 
+    private List<Category> resolveAffectedCategories(CategoryId categoryId, CategoryStatus newStatus) {
+        if (newStatus == CategoryStatus.ACTIVE) {
+            return categoryRepository.findAllAncestorsById(categoryId);
+        }
+        if (newStatus == CategoryStatus.INACTIVE) {
+            return categoryRepository.findSubTreeByIdAndStatusIn(categoryId, List.of(CategoryStatus.ACTIVE));
+        }
+        throw new IllegalArgumentException("Invalid status: " + newStatus);
+    }
+
     private Category persistCategory(Category category) {
-        Category savedCategory = categoryRepository.save(category);
+        Category savedCategory = categoryRepository.insert(category);
         if (savedCategory.getId() == null) {
             log.error("Category ID was not assigned after save for name: {}", savedCategory.getName());
             throw new CategoryDomainException("Failed to assign ID to the new category.");

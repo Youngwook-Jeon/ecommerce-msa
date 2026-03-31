@@ -2,7 +2,6 @@ package com.project.young.productservice.dataaccess.adapter;
 
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
-import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.CategoryDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.domain.entity.Category;
@@ -30,7 +29,7 @@ public class CategoryRepositoryImpl implements CategoryRepository {
 
     @Override
     @Transactional
-    public Category save(Category category) {
+    public Category insert(Category category) {
         if (category == null) {
             throw new IllegalArgumentException("category must not be null.");
         }
@@ -38,31 +37,41 @@ public class CategoryRepositoryImpl implements CategoryRepository {
         final CategoryEntity parentRef = category.getParentId().isPresent()
                 ? categoryJpaRepository.getReferenceById(category.getParentId().get().getValue())
                 : null;
-
-        if (category.getId() != null) {
-            final Long id = category.getId().getValue();
-            CategoryEntity current = categoryJpaRepository.findById(id)
-                    .orElseThrow(() -> new CategoryNotFoundException("Category not found: " + id));
-            current.setName(category.getName());
-            current.setStatus(categoryDataAccessMapper.toEntityStatus(category.getStatus()));
-            current.setParent(parentRef);
-
-            return categoryDataAccessMapper.categoryEntityToCategory(current);
-        } else {
-            CategoryEntity toSave = categoryDataAccessMapper.categoryToCategoryEntity(category, parentRef);
-            CategoryEntity saved = categoryJpaRepository.save(toSave);
-            return categoryDataAccessMapper.categoryEntityToCategory(saved);
-        }
+        CategoryEntity toSave = categoryDataAccessMapper.categoryToCategoryEntity(category, parentRef);
+        CategoryEntity saved = categoryJpaRepository.save(toSave);
+        return categoryDataAccessMapper.categoryEntityToCategory(saved);
     }
 
     @Override
     @Transactional
-    public List<Category> saveAll(List<Category> categories) {
+    public Category update(Category category) {
+        if (category == null) {
+            throw new IllegalArgumentException("category must not be null.");
+        }
+        if (category.getId() == null) {
+            throw new IllegalArgumentException("category id must not be null for update.");
+        }
+
+        final CategoryEntity parentRef = category.getParentId().isPresent()
+                ? categoryJpaRepository.getReferenceById(category.getParentId().get().getValue())
+                : null;
+        final Long id = category.getId().getValue();
+        CategoryEntity current = categoryJpaRepository.findById(id)
+                .orElseThrow(() -> new CategoryNotFoundException("Category not found: " + id));
+        current.setName(category.getName());
+        current.setStatus(categoryDataAccessMapper.toEntityStatus(category.getStatus()));
+        current.setParent(parentRef);
+        return categoryDataAccessMapper.categoryEntityToCategory(current);
+    }
+
+    @Override
+    @Transactional
+    public void updateAll(List<Category> categories) {
         if (categories == null) {
             throw new IllegalArgumentException("categories must not be null.");
         }
         if (categories.isEmpty()) {
-            return Collections.emptyList();
+            return;
         }
         if (categories.stream().anyMatch(Objects::isNull)) {
             throw new IllegalArgumentException("categories must not contain null elements.");
@@ -77,25 +86,15 @@ public class CategoryRepositoryImpl implements CategoryRepository {
         Map<Long, CategoryEntity> existingEntitiesMap = categoryJpaRepository.findAllById(existingIds).stream()
                 .collect(Collectors.toMap(CategoryEntity::getId, entity -> entity));
 
-        List<CategoryEntity> entitiesToPersist = categories.stream().map(domainCategory -> {
-            CategoryEntity entity;
-
-            if (domainCategory.getId() != null) {
-                // === UPDATE ===
-                // (DB 조회 없음)
-                entity = existingEntitiesMap.get(domainCategory.getId().getValue());
-                if (entity == null) {
-                    // saveAll 목록에는 있었지만 DB에는 없는 경우에 대한 예외 처리
-                    throw new CategoryNotFoundException("Category with id " + domainCategory.getId().getValue() + " not found for update in saveAll.");
-                }
-                // 매퍼를 사용해 속성을 업데이트 (부모 관계는 아래에서 별도 처리)
-                categoryDataAccessMapper.updateEntityFromDomain(domainCategory, entity);
-
-            } else {
-                // === CREATE ===
-                // 매퍼를 사용해 새 엔티티를 구성
-                entity = categoryDataAccessMapper.categoryToCategoryEntity(domainCategory, null);
+        categories.forEach(domainCategory -> {
+            if (domainCategory.getId() == null) {
+                throw new IllegalArgumentException("category id must not be null for updateAll.");
             }
+            CategoryEntity entity = existingEntitiesMap.get(domainCategory.getId().getValue());
+            if (entity == null) {
+                throw new CategoryNotFoundException("Category with id " + domainCategory.getId().getValue() + " not found for update in updateAll.");
+            }
+            categoryDataAccessMapper.updateEntityFromDomain(domainCategory, entity);
 
             // 부모 관계는 getReferenceById를 사용해 공통으로 처리
             if (domainCategory.getParentId().isPresent()) {
@@ -105,14 +104,7 @@ public class CategoryRepositoryImpl implements CategoryRepository {
                 entity.setParent(null);
             }
 
-            return entity;
-        }).collect(Collectors.toList());
-
-        List<CategoryEntity> savedEntities = categoryJpaRepository.saveAll(entitiesToPersist);
-
-        return savedEntities.stream()
-                .map(categoryDataAccessMapper::categoryEntityToCategory)
-                .collect(Collectors.toList());
+        });
     }
 
 
@@ -247,24 +239,6 @@ public class CategoryRepositoryImpl implements CategoryRepository {
 
         Integer depth = categoryJpaRepository.getMaxSubtreeDepthByIdAndStatusInNative(categoryId.getValue(), statusNames);
         return (depth != null) ? depth : 0;
-    }
-
-    @Override
-    @Transactional
-    public void updateStatusForIds(CategoryStatus status, List<CategoryId> categoryIdList) {
-        if (status == null || categoryIdList == null) {
-            throw new IllegalArgumentException("status or categoryIdList must not be null.");
-        }
-        if (categoryIdList.isEmpty()) {
-            return;
-        }
-        if (categoryIdList.stream().anyMatch(Objects::isNull)) {
-            throw new IllegalArgumentException("categoryIdList must not contain null elements.");
-        }
-
-        CategoryStatusEntity entityStatus = categoryDataAccessMapper.toEntityStatus(status);
-        List<Long> longIds = categoryIdList.stream().map(CategoryId::getValue).toList();
-        categoryJpaRepository.updateStatusForIds(entityStatus, longIds);
     }
 
 }

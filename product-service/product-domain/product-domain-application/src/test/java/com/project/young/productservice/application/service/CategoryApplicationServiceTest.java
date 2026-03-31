@@ -76,7 +76,7 @@ class CategoryApplicationServiceTest {
 
             when(categoryDomainService.isCategoryNameUnique("최상위")).thenReturn(true);
             when(categoryDataMapper.toCategory(command, null)).thenReturn(toSave);
-            when(categoryRepository.save(toSave)).thenReturn(saved);
+            when(categoryRepository.insert(toSave)).thenReturn(saved);
             when(categoryDataMapper.toCreateCategoryResult(saved)).thenReturn(expected);
 
             // When
@@ -89,7 +89,7 @@ class CategoryApplicationServiceTest {
 
             verify(categoryDomainService).isCategoryNameUnique("최상위");
             verify(categoryDomainService, never()).validateParentCategory(any());
-            verify(categoryRepository).save(toSave);
+            verify(categoryRepository).insert(toSave);
             verify(categoryDataMapper).toCreateCategoryResult(saved);
         }
 
@@ -128,11 +128,12 @@ class CategoryApplicationServiceTest {
                     .build();
 
             when(categoryDomainService.isCategoryNameUnique("노트북")).thenReturn(true);
-            when(categoryDomainService.validateParentCategory(parentId)).thenReturn(parentCategory);
+            when(categoryRepository.findById(parentId)).thenReturn(Optional.of(parentCategory));
+            doNothing().when(categoryDomainService).validateParentCategory(parentCategory);
             when(categoryDomainService.isParentDepthLessThanLimit(parentCategory.getId())).thenReturn(true);
 
             when(categoryDataMapper.toCategory(command, parentId)).thenReturn(toSave);
-            when(categoryRepository.save(toSave)).thenReturn(saved);
+            when(categoryRepository.insert(toSave)).thenReturn(saved);
             when(categoryDataMapper.toCreateCategoryResult(saved)).thenReturn(expected);
 
             // When
@@ -142,9 +143,10 @@ class CategoryApplicationServiceTest {
             assertThat(result.id()).isEqualTo(11L);
             assertThat(result.name()).isEqualTo("노트북");
 
-            verify(categoryDomainService).validateParentCategory(parentId);
+            verify(categoryRepository).findById(parentId);
+            verify(categoryDomainService).validateParentCategory(parentCategory);
             verify(categoryDomainService).isParentDepthLessThanLimit(parentCategory.getId());
-            verify(categoryRepository).save(toSave);
+            verify(categoryRepository).insert(toSave);
         }
 
         @Test
@@ -163,7 +165,7 @@ class CategoryApplicationServiceTest {
                     .isInstanceOf(DuplicateCategoryNameException.class)
                     .hasMessageContaining("already exists");
 
-            verify(categoryRepository, never()).save(any());
+            verify(categoryRepository, never()).insert(any());
             verify(categoryDataMapper, never()).toCreateCategoryResult(any());
         }
 
@@ -188,7 +190,7 @@ class CategoryApplicationServiceTest {
 
             when(categoryDomainService.isCategoryNameUnique("새 카테고리")).thenReturn(true);
             when(categoryDataMapper.toCategory(command, null)).thenReturn(toSave);
-            when(categoryRepository.save(toSave)).thenReturn(savedWithoutId);
+            when(categoryRepository.insert(toSave)).thenReturn(savedWithoutId);
 
             // When & Then
             assertThatThrownBy(() -> categoryApplicationService.createCategory(command))
@@ -227,7 +229,7 @@ class CategoryApplicationServiceTest {
                     .isInstanceOf(CategoryNotFoundException.class)
                     .hasMessageContaining("Category with id 999 not found");
 
-            verify(categoryRepository, never()).save(any());
+            verify(categoryRepository, never()).update(any());
         }
 
         @Test
@@ -251,7 +253,7 @@ class CategoryApplicationServiceTest {
 
             when(categoryRepository.findById(id)).thenReturn(Optional.of(main));
             when(categoryDomainService.isCategoryNameUniqueForUpdate("수정된 이름", id)).thenReturn(true);
-            when(categoryRepository.save(main)).thenReturn(main);
+            when(categoryRepository.update(main)).thenReturn(main);
             when(categoryDataMapper.toUpdateCategoryResult(main)).thenReturn(expected);
 
             // When
@@ -263,7 +265,7 @@ class CategoryApplicationServiceTest {
             assertThat(result.name()).isEqualTo("수정된 이름");
 
             verify(categoryDomainService).isCategoryNameUniqueForUpdate("수정된 이름", id);
-            verify(categoryRepository).save(main);
+            verify(categoryRepository).update(main);
             verify(categoryDataMapper).toUpdateCategoryResult(main);
         }
 
@@ -280,7 +282,6 @@ class CategoryApplicationServiceTest {
             CategoryId id = new CategoryId(1L);
             Category main = Category.reconstitute(id, "카테고리", null, CategoryStatus.ACTIVE);
 
-            List<CategoryId> affectedIds = List.of(id, new CategoryId(2L));
             List<Category> affectedCategories = List.of(
                     Category.reconstitute(new CategoryId(1L), "카테고리", null, CategoryStatus.ACTIVE),
                     Category.reconstitute(new CategoryId(2L), "자식", id, CategoryStatus.ACTIVE)
@@ -294,12 +295,10 @@ class CategoryApplicationServiceTest {
                     .build();
 
             when(categoryRepository.findById(id)).thenReturn(Optional.of(main));
-            when(categoryDomainService.getAffectedCategories(id, CategoryStatus.INACTIVE)).thenReturn(affectedIds);
-            when(categoryRepository.findAllById(affectedIds)).thenReturn(affectedCategories);
+            when(categoryRepository.findSubTreeByIdAndStatusIn(id, List.of(CategoryStatus.ACTIVE)))
+                    .thenReturn(affectedCategories);
             doNothing().when(categoryDomainService).validateStatusChangeRules(affectedCategories, CategoryStatus.INACTIVE);
-            doNothing().when(categoryRepository).updateStatusForIds(CategoryStatus.INACTIVE, affectedIds);
-
-            when(categoryRepository.save(main)).thenReturn(main);
+            doNothing().when(categoryRepository).updateAll(anyList());
             when(categoryDataMapper.toUpdateCategoryResult(main)).thenReturn(expected);
 
             // When
@@ -308,10 +307,10 @@ class CategoryApplicationServiceTest {
             // Then
             assertThat(result.status()).isEqualTo(CategoryStatus.INACTIVE);
 
-            verify(categoryRepository).findAllById(affectedIds);
+            verify(categoryRepository).findSubTreeByIdAndStatusIn(id, List.of(CategoryStatus.ACTIVE));
             verify(categoryDomainService).validateStatusChangeRules(affectedCategories, CategoryStatus.INACTIVE);
-            verify(categoryRepository).updateStatusForIds(CategoryStatus.INACTIVE, affectedIds);
-            verify(categoryRepository).save(main);
+            verify(categoryRepository).updateAll(anyList());
+            verify(categoryRepository, never()).update(main);
         }
     }
 
@@ -326,8 +325,8 @@ class CategoryApplicationServiceTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Category ID for delete cannot be null");
 
-            verify(categoryDomainService, never()).prepareForDeletion(any());
-            verify(categoryRepository, never()).saveAll(anyList());
+            verify(categoryDomainService, never()).validateDeletionRules(anyList());
+            verify(categoryRepository, never()).updateAll(anyList());
         }
 
         @Test
@@ -341,8 +340,9 @@ class CategoryApplicationServiceTest {
 
             List<Category> toDelete = List.of(rootDeleted, childDeleted);
 
-            when(categoryDomainService.prepareForDeletion(rootId)).thenReturn(toDelete);
-            when(categoryRepository.saveAll(toDelete)).thenReturn(toDelete);
+            when(categoryRepository.findSubTreeByIdAndStatusIn(eq(rootId), anyList())).thenReturn(toDelete);
+            doNothing().when(categoryDomainService).validateDeletionRules(toDelete);
+            doNothing().when(categoryRepository).updateAll(toDelete);
 
             // When
             DeleteCategoryResult result = categoryApplicationService.deleteCategory(1L);
@@ -352,8 +352,9 @@ class CategoryApplicationServiceTest {
             assertThat(result.id()).isEqualTo(1L);
             assertThat(result.name()).isEqualTo("루트");
 
-            verify(categoryDomainService).prepareForDeletion(rootId);
-            verify(categoryRepository).saveAll(toDelete);
+            verify(categoryRepository).findSubTreeByIdAndStatusIn(eq(rootId), anyList());
+            verify(categoryDomainService).validateDeletionRules(toDelete);
+            verify(categoryRepository).updateAll(toDelete);
         }
     }
 }

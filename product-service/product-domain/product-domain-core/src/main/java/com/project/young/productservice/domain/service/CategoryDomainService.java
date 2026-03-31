@@ -14,19 +14,14 @@ public interface CategoryDomainService {
 
     boolean isCategoryNameUniqueForUpdate(String name, CategoryId categoryIdToExclude);
 
-    /**
-     * Validates if a parent category is in a valid state to have a new child.
-     * Throws CategoryDomainException if the parent is not valid (e.g., not found or not ACTIVE).
-     * @param parentId The ID of the parent category to validate.
-     */
-    Category validateParentCategory(CategoryId parentId);
+    void validateParentCategory(Category parentCategory);
 
     /**
      * Validates parent change rules including validation, depth limit, and circular reference
      * @param categoryId The category being moved
      * @param newParentId The new parent ID (can be null for root)
      */
-    void validateParentChangeRules(CategoryId categoryId, CategoryId newParentId);
+    void validateParentChangeRules(CategoryId categoryId, CategoryId newParentId, Category newParentCategory);
 
     /**
      * Validates status change rules for multiple categories
@@ -35,13 +30,5 @@ public interface CategoryDomainService {
      */
     void validateStatusChangeRules(List<Category> categories, CategoryStatus newStatus);
 
-    /**
-     * Prepares a list of categories for deletion by validating business rules
-     * and marking the category and its descendants as DELETED.
-     * @param categoryId The ID of the category to delete.
-     * @return A list of all categories that were marked for deletion.
-     */
-    List<Category> prepareForDeletion(CategoryId categoryId);
-
-    List<CategoryId> getAffectedCategories(CategoryId categoryId, CategoryStatus newStatus);
+    void validateDeletionRules(List<Category> categoriesToDelete);
 }

@@ -3,7 +3,6 @@ package com.project.young.productservice.dataaccess.repository;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -100,7 +99,4 @@ public interface CategoryJpaRepository extends JpaRepository<CategoryEntity, Lon
     Integer getMaxSubtreeDepthByIdAndStatusInNative(@Param("categoryId") Long categoryId,
                                                     @Param("statusList") String[] statusList);
 
-    @Modifying
-    @Query("UPDATE CategoryEntity c SET c.status = :status WHERE c.id IN :ids")
-    void updateStatusForIds(@Param("status") CategoryStatusEntity status, @Param("ids") List<Long> ids);
 }

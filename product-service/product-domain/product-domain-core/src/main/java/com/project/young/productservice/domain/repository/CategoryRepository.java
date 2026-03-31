@@ -9,9 +9,11 @@ import java.util.Optional;
 
 public interface CategoryRepository {
 
-    Category save(Category category);
+    Category insert(Category category);
 
-    List<Category> saveAll(List<Category> categoriesToDelete);
+    Category update(Category category);
+
+    void updateAll(List<Category> categoriesToUpdate);
 
     boolean existsByName(String name);
 
@@ -32,7 +34,5 @@ public interface CategoryRepository {
     int getDepth(CategoryId categoryId);
 
     int getMaxSubtreeDepthByIdAndStatusIn(CategoryId categoryId, List<CategoryStatus> statusList);
-
-    void updateStatusForIds(CategoryStatus status, List<CategoryId> categoryIdList);
 
 }
