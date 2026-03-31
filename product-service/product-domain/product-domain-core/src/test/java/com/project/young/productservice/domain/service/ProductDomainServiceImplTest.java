@@ -6,7 +6,6 @@ import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.domain.entity.Category;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.exception.ProductDomainException;
-import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import com.project.young.productservice.domain.repository.CategoryRepository;
 import com.project.young.productservice.domain.repository.ProductRepository;
 import com.project.young.productservice.domain.valueobject.CategoryStatus;
@@ -183,63 +182,23 @@ class ProductDomainServiceImplTest {
     }
 
     @Nested
-    @DisplayName("prepareForDeletion")
-    class PrepareForDeletionTests {
+    @DisplayName("validateDeletionRules")
+    class ValidateDeletionRulesTests {
 
         @Test
-        @DisplayName("productId가 null이면 ProductDomainException")
-        void prepareForDeletion_NullId_Throws() {
-            assertThatThrownBy(() -> productDomainService.prepareForDeletion(null))
+        @DisplayName("product가 null이면 ProductDomainException")
+        void validateDeletionRules_NullProduct_Throws() {
+            assertThatThrownBy(() -> productDomainService.validateDeletionRules(null))
                     .isInstanceOf(ProductDomainException.class)
-                    .hasMessageContaining("Product id must not be null");
-
-            verifyNoInteractions(productRepository);
+                    .hasMessageContaining("Product must not be null");
         }
 
         @Test
-        @DisplayName("대상이 없으면 ProductNotFoundException")
-        void prepareForDeletion_NotFound_Throws() {
-            ProductId id = new ProductId(UUID.randomUUID());
-            when(productRepository.findById(id)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> productDomainService.prepareForDeletion(id))
-                    .isInstanceOf(ProductNotFoundException.class)
-                    .hasMessageContaining("not found");
-
-            verify(productRepository).findById(id);
-            verify(productRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("이미 삭제된 상품이면 그대로 반환하고 save 호출 안 함")
-        void prepareForDeletion_AlreadyDeleted_ReturnsAsIs() {
-            ProductId id = new ProductId(UUID.randomUUID());
-            Product deleted = sampleProduct(ProductStatus.DELETED);
-
-            when(productRepository.findById(id)).thenReturn(Optional.of(deleted));
-
-            Product result = productDomainService.prepareForDeletion(id);
-
-            assertThat(result).isSameAs(deleted);
-            verify(productRepository).findById(id);
-            verify(productRepository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("ACTIVE 상품은 DELETED로 마킹 후 save")
-        void prepareForDeletion_ActiveProduct_SoftDeletesAndSaves() {
-            ProductId id = new ProductId(UUID.randomUUID());
-            Product active = sampleProduct(ProductStatus.ACTIVE);
-            Product deleted = sampleProduct(ProductStatus.DELETED);
-
-            when(productRepository.findById(id)).thenReturn(Optional.of(active));
-            when(productRepository.save(active)).thenReturn(deleted);
-
-            Product result = productDomainService.prepareForDeletion(id);
-
-            assertThat(result.getStatus()).isEqualTo(ProductStatus.DELETED);
-            verify(productRepository).findById(id);
-            verify(productRepository).save(active);
+        @DisplayName("정상 상품이면 통과")
+        void validateDeletionRules_ValidProduct_Allows() {
+            Product product = sampleProduct(ProductStatus.ACTIVE);
+            assertThatCode(() -> productDomainService.validateDeletionRules(product))
+                    .doesNotThrowAnyException();
         }
     }
 

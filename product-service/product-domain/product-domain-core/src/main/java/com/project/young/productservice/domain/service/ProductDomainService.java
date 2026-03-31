@@ -1,7 +1,6 @@
 package com.project.young.productservice.domain.service;
 
 import com.project.young.common.domain.valueobject.CategoryId;
-import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 
@@ -37,13 +36,10 @@ public interface ProductDomainService {
     void validateGlobalSkuUniqueness(String sku);
 
     /**
-     * Prepares a product for deletion by validating business rules
-     * and marking it as DELETED (soft delete).
-     * Throws a domain exception if the product cannot be deleted
-     * (e.g., active orders, constraints, etc.).
+     * Validates deletion rules for a product.
+     * Throws a domain exception if the product cannot be deleted.
      *
-     * @param productId id of the product to delete
-     * @return the product marked as DELETED
+     * @param product product to validate for deletion
      */
-    Product prepareForDeletion(ProductId productId);
+    void validateDeletionRules(Product product);
 }

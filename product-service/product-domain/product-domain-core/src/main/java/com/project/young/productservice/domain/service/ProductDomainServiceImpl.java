@@ -1,11 +1,9 @@
 package com.project.young.productservice.domain.service;
 
 import com.project.young.common.domain.valueobject.CategoryId;
-import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.domain.entity.Category;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.exception.ProductDomainException;
-import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import com.project.young.productservice.domain.repository.CategoryRepository;
 import com.project.young.productservice.domain.repository.ProductRepository;
 import com.project.young.productservice.domain.valueobject.CategoryStatus;
@@ -82,30 +80,16 @@ public class ProductDomainServiceImpl implements ProductDomainService {
     }
 
     @Override
-    public Product prepareForDeletion(ProductId productId) {
-        if (productId == null) {
-            throw new ProductDomainException("Product id must not be null.");
+    public void validateDeletionRules(Product product) {
+        if (product == null) {
+            throw new ProductDomainException("Product must not be null.");
         }
-
-        Product product = productRepository.findById(productId)
-                .orElseThrow(() ->
-                        new ProductNotFoundException("Product with id " + productId.getValue() + " not found.")
-                );
-
         if (product.isDeleted()) {
-            log.debug("Product {} is already deleted. Skipping deletion preparation.", productId.getValue());
-            return product;
+            return;
         }
-
         // TODO: 실제 비즈니스 규칙 추가
         // - 활성 주문에 포함된 상품이면 삭제 불가
         // - 재고/프로모션 등 연관 리소스 체크
-        log.debug("Validating deletion rules for product {}", productId.getValue());
-
-        product.markAsDeleted();
-        Product saved = productRepository.save(product);
-
-        log.info("Prepared product {} for deletion (soft delete).", productId.getValue());
-        return saved;
+        log.debug("Validating deletion rules for product {}", product.getId().getValue());
     }
 }

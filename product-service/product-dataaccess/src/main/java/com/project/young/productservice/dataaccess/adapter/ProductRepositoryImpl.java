@@ -33,31 +33,44 @@ public class ProductRepositoryImpl implements ProductRepository {
 
     @Override
     @Transactional
-    public Product save(Product product) {
+    public Product insert(Product product) {
         if (product == null) {
             throw new IllegalArgumentException("product must not be null.");
+        }
+        if (product.getId() == null) {
+            throw new IllegalArgumentException("product id must not be null for insert.");
         }
 
         CategoryEntity categoryRef = product.getCategoryId()
                 .map(id -> categoryJpaRepository.getReferenceById(id.getValue()))
                 .orElse(null);
 
-        if (product.getId() != null) {
-            UUID id = product.getId().getValue();
+        ProductEntity toSave = productDataAccessMapper.productToProductEntity(product, categoryRef);
+        ProductEntity saved = productJpaRepository.save(toSave);
+        return productDataAccessMapper.productEntityToProduct(saved);
+    }
 
-            ProductEntity current = productJpaRepository.findAggregateById(id)
-                    .orElseThrow(() -> new ProductNotFoundException("Product not found: " + id));
-
-            productDataAccessMapper.updateEntityFromDomain(product, current, categoryRef);
-
-            // 트랜잭션이 종료될 때 하이버네이트가 알아서 컬렉션의 변화를 감지 (더티 체킹에 저장 위임)
-            return productDataAccessMapper.productEntityToProduct(current);
-        } else {
-            ProductEntity toSave = productDataAccessMapper.productToProductEntity(product, categoryRef);
-            ProductEntity saved = productJpaRepository.save(toSave);
-
-            return productDataAccessMapper.productEntityToProduct(saved);
+    @Override
+    @Transactional
+    public Product update(Product product) {
+        if (product == null) {
+            throw new IllegalArgumentException("product must not be null.");
         }
+        if (product.getId() == null) {
+            throw new IllegalArgumentException("product id must not be null for update.");
+        }
+
+        CategoryEntity categoryRef = product.getCategoryId()
+                .map(id -> categoryJpaRepository.getReferenceById(id.getValue()))
+                .orElse(null);
+
+        UUID id = product.getId().getValue();
+        ProductEntity current = productJpaRepository.findAggregateById(id)
+                .orElseThrow(() -> new ProductNotFoundException("Product not found: " + id));
+        productDataAccessMapper.updateEntityFromDomain(product, current, categoryRef);
+
+        // Let dirty checking flush changes on commit.
+        return productDataAccessMapper.productEntityToProduct(current);
     }
 
     @Override

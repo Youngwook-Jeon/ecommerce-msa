@@ -118,7 +118,7 @@ class ProductApplicationServiceTest {
 
             when(idGenerator.generateId()).thenReturn(generatedId);
             when(productDataMapper.toDraftProduct(command, categoryId, generatedProductId)).thenReturn(toSave);
-            when(productRepository.save(toSave)).thenReturn(saved);
+            when(productRepository.insert(toSave)).thenReturn(saved);
             when(productDataMapper.toCreateProductResult(saved)).thenReturn(expected);
 
             // When
@@ -132,7 +132,7 @@ class ProductApplicationServiceTest {
             verify(productDomainService).validateCategoryForProduct(categoryId);
             verify(idGenerator).generateId();
             verify(productDataMapper).toDraftProduct(command, categoryId, generatedProductId);
-            verify(productRepository).save(toSave);
+            verify(productRepository).insert(toSave);
             verify(productDataMapper).toCreateProductResult(saved);
         }
 
@@ -171,7 +171,7 @@ class ProductApplicationServiceTest {
 
             when(idGenerator.generateId()).thenReturn(generatedId);
             when(productDataMapper.toDraftProduct(command, null, generatedProductId)).thenReturn(toSave);
-            when(productRepository.save(toSave)).thenReturn(toSave);
+            when(productRepository.insert(toSave)).thenReturn(toSave);
             when(productDataMapper.toCreateProductResult(toSave)).thenReturn(expected);
 
             // When
@@ -181,7 +181,7 @@ class ProductApplicationServiceTest {
             assertThat(result.id()).isEqualTo(generatedId);
             verify(idGenerator).generateId();
             verify(productDataMapper).toDraftProduct(command, null, generatedProductId);
-            verify(productRepository).save(toSave);
+            verify(productRepository).insert(toSave);
             verify(productDataMapper).toCreateProductResult(toSave);
         }
     }
@@ -218,7 +218,7 @@ class ProductApplicationServiceTest {
                     .isInstanceOf(ProductNotFoundException.class)
                     .hasMessageContaining("Product with id");
 
-            verify(productRepository, never()).save(any());
+            verify(productRepository, never()).update(any());
         }
 
         @Test
@@ -263,7 +263,7 @@ class ProductApplicationServiceTest {
                     .build();
 
             when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-            when(productRepository.save(product)).thenReturn(product);
+            when(productRepository.update(product)).thenReturn(product);
             when(productDataMapper.toUpdateProductResult(product)).thenReturn(expected);
 
             // When
@@ -272,7 +272,7 @@ class ProductApplicationServiceTest {
             // Then
             assertThat(result).isNotNull();
             assertThat(result.name()).isEqualTo("수정된 이름");
-            verify(productRepository).save(product);
+            verify(productRepository).update(product);
             verify(productDataMapper).toUpdateProductResult(product);
         }
 
@@ -315,7 +315,7 @@ class ProductApplicationServiceTest {
             );
 
             when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-            when(productRepository.save(product)).thenReturn(product);
+            when(productRepository.update(product)).thenReturn(product);
             when(productDataMapper.toUpdateProductResult(product)).thenReturn(
                     UpdateProductResult.builder()
                             .id(rawId)
@@ -334,7 +334,7 @@ class ProductApplicationServiceTest {
 
             assertThat(result.status()).isEqualTo(ProductStatus.INACTIVE);
             verify(productDomainService).validateStatusChangeRules(product, ProductStatus.INACTIVE);
-            verify(productRepository).save(product);
+            verify(productRepository).update(product);
         }
 
         @Test
@@ -367,7 +367,7 @@ class ProductApplicationServiceTest {
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Cannot publish product without at least one variant");
 
-            verify(productRepository, never()).save(any());
+            verify(productRepository, never()).update(any());
         }
     }
 
@@ -382,8 +382,8 @@ class ProductApplicationServiceTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Product ID for delete cannot be null.");
 
-            verify(productDomainService, never()).prepareForDeletion(any());
-            verify(productRepository, never()).save(any());
+            verify(productDomainService, never()).validateDeletionRules(any());
+            verify(productRepository, never()).update(any());
         }
 
         @Test
@@ -399,7 +399,7 @@ class ProductApplicationServiceTest {
                     "삭제상품",
                     "상품에 대한 설명입니다. 충분히 깁니다.",
                     new Money(new BigDecimal("1000")),
-                    ProductStatus.DELETED,
+                    ProductStatus.ACTIVE,
                     ConditionType.NEW,
                     "브랜드",
                     "url",
@@ -412,7 +412,8 @@ class ProductApplicationServiceTest {
                     .name("삭제상품")
                     .build();
 
-            when(productDomainService.prepareForDeletion(productId)).thenReturn(deleted);
+            when(productRepository.findById(productId)).thenReturn(Optional.of(deleted));
+            when(productRepository.update(deleted)).thenReturn(deleted);
             when(productDataMapper.toDeleteProductResult(deleted)).thenReturn(expected);
 
             // When
@@ -423,7 +424,8 @@ class ProductApplicationServiceTest {
             assertThat(result.id()).isEqualTo(rawId);
             assertThat(result.name()).isEqualTo("삭제상품");
 
-            verify(productDomainService).prepareForDeletion(productId);
+            verify(productDomainService).validateDeletionRules(deleted);
+            verify(productRepository).update(deleted);
             verify(productDataMapper).toDeleteProductResult(deleted);
         }
     }

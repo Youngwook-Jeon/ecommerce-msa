@@ -125,7 +125,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.save(product)).thenReturn(product);
+            when(productRepository.update(product)).thenReturn(product);
             UUID generatedProductOptionGroupId = UUID.randomUUID();
             UUID generatedProductOptionValueId = UUID.randomUUID();
             when(idGenerator.generateId()).thenReturn(generatedProductOptionGroupId, generatedProductOptionValueId);
@@ -139,7 +139,7 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(result.optionValueCount()).isEqualTo(1);
             assertThat(product.getOptionGroups()).hasSize(1);
 
-            verify(productRepository).save(product);
+            verify(productRepository).update(product);
         }
 
         @Test
@@ -180,7 +180,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Cannot add option groups after product is ACTIVE");
 
-            verify(productRepository, never()).save(any());
+            verify(productRepository, never()).update(any());
         }
 
         @Test
@@ -204,7 +204,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Product option values must not be empty");
 
-            verify(productRepository, never()).save(any());
+            verify(productRepository, never()).update(any());
         }
     }
 
@@ -241,7 +241,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Product option group not found");
 
-            verify(productRepository, never()).save(any());
+            verify(productRepository, never()).update(any());
         }
 
         @Test
@@ -271,7 +271,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.save(product)).thenReturn(product);
+            when(productRepository.update(product)).thenReturn(product);
             when(idGenerator.generateId()).thenReturn(generatedProductOptionValueId);
 
             AddProductOptionValueToGroupResult result =
@@ -282,7 +282,7 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(result.optionValueId()).isEqualTo(globalOptionValueId);
             assertThat(product.getOptionGroups().getFirst().getOptionValues()).hasSize(1);
 
-            verify(productRepository).save(product);
+            verify(productRepository).update(product);
         }
 
         @Test
@@ -322,13 +322,13 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.save(product)).thenReturn(product);
+            when(productRepository.update(product)).thenReturn(product);
             when(idGenerator.generateId()).thenReturn(UUID.randomUUID());
 
             assertThatCode(() -> productApplicationService.addProductOptionValue(productId, productOptionGroupId, command))
                     .doesNotThrowAnyException();
 
-            verify(productRepository).save(product);
+            verify(productRepository).update(product);
         }
     }
 
@@ -394,7 +394,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Failed to generate unique SKU after 5 attempts");
 
-            verify(productRepository, never()).save(any());
+            verify(productRepository, never()).update(any());
             verifyNoInteractions(productDomainService);
         }
 
@@ -436,7 +436,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.save(product)).thenReturn(product);
+            when(productRepository.update(product)).thenReturn(product);
             UUID generatedVariantId = UUID.randomUUID();
             when(idGenerator.generateId()).thenReturn(generatedVariantId);
 
@@ -449,7 +449,7 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(result.calculatedPrice()).isEqualByComparingTo(new BigDecimal("11000.00"));
             assertThat(product.getVariants()).hasSize(1);
 
-            verify(productRepository).save(product);
+            verify(productRepository).update(product);
             verifyNoInteractions(productDomainService);
         }
 
@@ -486,7 +486,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Cannot update a product that has been deleted");
 
-            verify(productRepository, never()).save(any());
+            verify(productRepository, never()).update(any());
             verifyNoInteractions(productDomainService);
         }
     }
@@ -545,7 +545,7 @@ class ProductApplicationServiceSubAggregateTest {
                             .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.save(product)).thenReturn(product);
+            when(productRepository.update(product)).thenReturn(product);
 
             ChangeProductOptionValuePriceDeltaResult result = productApplicationService
                     .changeProductOptionValuePriceDelta(productId, productOptionValueId, command);
@@ -554,7 +554,7 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(result.productOptionValueId()).isEqualTo(productOptionValueId);
             assertThat(result.priceDelta()).isEqualByComparingTo(new BigDecimal("2500.00"));
 
-            verify(productRepository).save(product);
+            verify(productRepository).update(product);
         }
     }
 
@@ -605,7 +605,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .isInstanceOf(ProductNotFoundException.class)
                     .hasMessageContaining("Product with id");
 
-            verify(productRepository, never()).save(any());
+            verify(productRepository, never()).update(any());
         }
 
         @Test
@@ -643,7 +643,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.save(product)).thenReturn(product);
+            when(productRepository.update(product)).thenReturn(product);
 
             UpdateProductVariantResult result = productApplicationService.updateProductVariant(productId, variantId, command);
 
@@ -652,7 +652,7 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(result.stockQuantity()).isEqualTo(0);
             assertThat(result.status()).isEqualTo(ProductStatus.INACTIVE);
 
-            verify(productRepository).save(product);
+            verify(productRepository).update(product);
         }
     }
 
@@ -698,14 +698,14 @@ class ProductApplicationServiceSubAggregateTest {
             );
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.save(product)).thenReturn(product);
+            when(productRepository.update(product)).thenReturn(product);
 
             DeleteProductVariantResult result = productApplicationService.deleteProductVariant(productId, variantId);
 
             assertThat(result.productId()).isEqualTo(productId);
             assertThat(result.productVariantId()).isEqualTo(variantId);
             assertThat(result.status()).isEqualTo(ProductStatus.DELETED);
-            verify(productRepository).save(product);
+            verify(productRepository).update(product);
         }
     }
 
@@ -757,7 +757,7 @@ class ProductApplicationServiceSubAggregateTest {
             );
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.save(product)).thenReturn(product);
+            when(productRepository.update(product)).thenReturn(product);
 
             DeactivateProductOptionValueResult result =
                     productApplicationService.deactivateProductOptionValue(productId, productOptionValueId);
@@ -766,7 +766,7 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(result.productOptionValueId()).isEqualTo(productOptionValueId);
             assertThat(result.active()).isFalse();
             assertThat(result.priceDelta()).isEqualByComparingTo(new BigDecimal("500.00"));
-            verify(productRepository).save(product);
+            verify(productRepository).update(product);
         }
     }
 }

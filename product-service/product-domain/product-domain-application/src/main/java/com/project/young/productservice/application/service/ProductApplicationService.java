@@ -54,7 +54,7 @@ public class ProductApplicationService {
         productDomainService.validateCategoryForProduct(categoryId);
         ProductId productId = new ProductId(idGenerator.generateId());
         Product newProduct = productDataMapper.toDraftProduct(command, categoryId, productId);
-        Product savedProduct = productRepository.save(newProduct);
+        Product savedProduct = productRepository.insert(newProduct);
 
         log.info("Product saved successfully with id: {}", savedProduct.getId().getValue());
 
@@ -81,7 +81,7 @@ public class ProductApplicationService {
         isModified |= applyMainImageUrlChange(product, command.getMainImageUrl());
 
         if (isModified) {
-            productRepository.save(product);
+            productRepository.update(product);
             log.info("Product updated successfully. id: {}", product.getId().getValue());
         }
 
@@ -104,7 +104,7 @@ public class ProductApplicationService {
         }
 
         if (applyStatusChange(product, command.getStatus())) {
-            productRepository.save(product);
+            productRepository.update(product);
             log.info("Product status updated. id: {}", product.getId().getValue());
         }
 
@@ -118,7 +118,14 @@ public class ProductApplicationService {
         ProductId productId = new ProductId(productIdValue);
         log.info("Attempting to soft-delete product with id: {}", productId.getValue());
 
-        Product deletedProduct = productDomainService.prepareForDeletion(productId);
+        Product product = findProductOrThrow(productId);
+        if (product.isDeleted()) {
+            log.info("Product already deleted. id: {}", productId.getValue());
+            return productDataMapper.toDeleteProductResult(product);
+        }
+        productDomainService.validateDeletionRules(product);
+        product.markAsDeleted();
+        Product deletedProduct = productRepository.update(product);
 
         log.info("Product deleted successfully. id: {}", deletedProduct.getId().getValue());
 
@@ -141,7 +148,7 @@ public class ProductApplicationService {
         ProductOptionGroup optionGroup = productDataMapper.toProductOptionGroup(command, productOptionGroupId, optionValues);
 
         product.addOptionGroup(optionGroup);
-        productRepository.save(product);
+        productRepository.update(product);
 
         return productDataMapper.toAddProductOptionGroupResult(product, optionGroup);
     }
@@ -163,7 +170,7 @@ public class ProductApplicationService {
         ProductOptionValue newValue = toProductOptionValue(command);
 
         product.addProductOptionValue(productOptionGroupId, newValue);
-        productRepository.save(product);
+        productRepository.update(product);
 
         return productDataMapper.toAddProductOptionValueToGroupResult(product, productOptionGroupId, newValue);
     }
@@ -216,7 +223,7 @@ public class ProductApplicationService {
             results.add(productDataMapper.toAddProductVariantResult(product, variant));
         }
 
-        productRepository.save(product);
+        productRepository.update(product);
 
         return results;
     }
@@ -238,7 +245,7 @@ public class ProductApplicationService {
         Money newPriceDelta = new Money(command.getPriceDelta());
 
         product.changeOptionValuePriceDelta(optionValueId, newPriceDelta);
-        productRepository.save(product);
+        productRepository.update(product);
 
         return productDataMapper.toChangeProductOptionValuePriceDeltaResult(product, optionValueId, newPriceDelta);
     }
@@ -258,7 +265,7 @@ public class ProductApplicationService {
 
         ProductVariantId variantId = new ProductVariantId(productVariantIdValue);
         ProductVariant updated = product.updateVariantDetails(variantId, command.getStockQuantity(), command.getStatus());
-        productRepository.save(product);
+        productRepository.update(product);
 
         return productDataMapper.toUpdateProductVariantResult(product, updated);
     }
@@ -273,7 +280,7 @@ public class ProductApplicationService {
         validateProductCanBeUpdated(product);
 
         ProductVariant deleted = product.deleteVariant(new ProductVariantId(productVariantIdValue));
-        productRepository.save(product);
+        productRepository.update(product);
 
         return productDataMapper.toDeleteProductVariantResult(product, deleted);
     }
@@ -288,7 +295,7 @@ public class ProductApplicationService {
         validateProductCanBeUpdated(product);
 
         ProductOptionValue deactivated = product.deactivateProductOptionValue(new ProductOptionValueId(productOptionValueIdValue));
-        productRepository.save(product);
+        productRepository.update(product);
 
         return productDataMapper.toDeactivateProductOptionValueResult(product, deactivated);
     }

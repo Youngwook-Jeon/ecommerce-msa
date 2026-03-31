@@ -44,13 +44,13 @@ class ProductRepositoryImplTest {
     private ProductRepositoryImpl productRepository;
 
     @Nested
-    @DisplayName("save 테스트")
+    @DisplayName("insert/update 테스트")
     class SaveTests {
 
         @Test
-        @DisplayName("null 상품 저장 시 예외 발생")
-        void save_NullProduct_ThrowsException() {
-            assertThatThrownBy(() -> productRepository.save(null))
+        @DisplayName("insert: null 상품 저장 시 예외 발생")
+        void insert_NullProduct_ThrowsException() {
+            assertThatThrownBy(() -> productRepository.insert(null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("product must not be null");
 
@@ -58,10 +58,11 @@ class ProductRepositoryImplTest {
         }
 
         @Test
-        @DisplayName("새 상품 저장 성공 (카테고리 없음)")
-        void save_NewProductWithoutCategory_Success() {
+        @DisplayName("insert: 새 상품 저장 성공 (카테고리 없음)")
+        void insert_NewProductWithoutCategory_Success() {
             // Given
             Product product = Product.builder()
+                    .productId(new ProductId(UUID.randomUUID()))
                     .categoryId(null)
                     .name("와이드핏 데님")
                     .description("브랜드A의 와이드핏 데님 상세 설명입니다.")
@@ -94,7 +95,7 @@ class ProductRepositoryImplTest {
             when(productDataAccessMapper.productEntityToProduct(savedEntity)).thenReturn(savedDomain);
 
             // When
-            Product result = productRepository.save(product);
+            Product result = productRepository.insert(product);
 
             // Then
             assertThat(result).isNotNull();
@@ -105,8 +106,8 @@ class ProductRepositoryImplTest {
         }
 
         @Test
-        @DisplayName("기존 상품 업데이트 성공 (카테고리 포함)")
-        void save_UpdateExistingProduct_Success() {
+        @DisplayName("update: 기존 상품 업데이트 성공 (카테고리 포함)")
+        void update_ExistingProduct_Success() {
             // Given
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
@@ -135,7 +136,7 @@ class ProductRepositoryImplTest {
             when(productDataAccessMapper.productEntityToProduct(existingEntity)).thenReturn(savedDomain);
 
             // When
-            Product result = productRepository.save(domainProduct);
+            Product result = productRepository.update(domainProduct);
 
             // Then
             assertThat(result).isNotNull();
@@ -149,8 +150,8 @@ class ProductRepositoryImplTest {
         }
 
         @Test
-        @DisplayName("존재하지 않는 상품 업데이트 시 ProductNotFoundException 발생")
-        void save_UpdateNonExistingProduct_ThrowsException() {
+        @DisplayName("update: 존재하지 않는 상품 업데이트 시 ProductNotFoundException 발생")
+        void update_NonExistingProduct_ThrowsException() {
             // Given
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
@@ -172,7 +173,7 @@ class ProductRepositoryImplTest {
             when(productJpaRepository.findAggregateById(rawId)).thenReturn(Optional.empty());
 
             // When & Then
-            assertThatThrownBy(() -> productRepository.save(domainProduct))
+            assertThatThrownBy(() -> productRepository.update(domainProduct))
                     .isInstanceOf(ProductNotFoundException.class)
                     .hasMessageContaining("Product not found");
 

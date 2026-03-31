@@ -31,29 +31,32 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
 
     @Override
     @Transactional
-    public OptionGroup save(OptionGroup optionGroup) {
+    public OptionGroup insert(OptionGroup optionGroup) {
         if (optionGroup == null) {
             throw new IllegalArgumentException("optionGroup must not be null.");
         }
-
-        if (optionGroup.getId() != null) {
-            UUID id = optionGroup.getId().getValue();
-            Optional<OptionGroupEntity> existingEntityOpt = optionGroupJpaRepository.findById(id);
-
-            if (existingEntityOpt.isPresent()) {
-                OptionGroupEntity current = existingEntityOpt.get();
-                mergeDomainIntoEntity(optionGroup, current);
-                return optionGroupDataAccessMapper.entityToDomain(current);
-            } else {
-                OptionGroupEntity toSave = optionGroupDataAccessMapper.domainToEntity(optionGroup);
-                OptionGroupEntity saved = optionGroupJpaRepository.save(toSave);
-                return optionGroupDataAccessMapper.entityToDomain(saved);
-            }
-        } else {
-            OptionGroupEntity toSave = optionGroupDataAccessMapper.domainToEntity(optionGroup);
-            OptionGroupEntity saved = optionGroupJpaRepository.save(toSave);
-            return optionGroupDataAccessMapper.entityToDomain(saved);
+        if (optionGroup.getId() == null) {
+            throw new IllegalArgumentException("optionGroup id must not be null for insert.");
         }
+        OptionGroupEntity toSave = optionGroupDataAccessMapper.domainToEntity(optionGroup);
+        OptionGroupEntity saved = optionGroupJpaRepository.save(toSave);
+        return optionGroupDataAccessMapper.entityToDomain(saved);
+    }
+
+    @Override
+    @Transactional
+    public OptionGroup update(OptionGroup optionGroup) {
+        if (optionGroup == null) {
+            throw new IllegalArgumentException("optionGroup must not be null.");
+        }
+        if (optionGroup.getId() == null) {
+            throw new IllegalArgumentException("optionGroup id must not be null for update.");
+        }
+        UUID id = optionGroup.getId().getValue();
+        OptionGroupEntity current = optionGroupJpaRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("OptionGroup not found: " + id));
+        mergeDomainIntoEntity(optionGroup, current);
+        return optionGroupDataAccessMapper.entityToDomain(current);
     }
 
     @Override

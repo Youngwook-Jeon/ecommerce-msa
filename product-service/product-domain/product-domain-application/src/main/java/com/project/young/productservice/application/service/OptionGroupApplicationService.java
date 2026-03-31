@@ -55,7 +55,7 @@ public class OptionGroupApplicationService {
 
         OptionGroupId newGroupId = new OptionGroupId(idGenerator.generateId());
         OptionGroup newGroup = optionGroupDataMapper.toOptionGroup(command, newGroupId);
-        OptionGroup saved = optionGroupRepository.save(newGroup);
+        OptionGroup saved = optionGroupRepository.insert(newGroup);
 
         log.info("Option group saved successfully with id: {}", saved.getId().getValue());
 
@@ -77,7 +77,7 @@ public class OptionGroupApplicationService {
         OptionValue newValue = optionGroupDataMapper.toOptionValue(command, newValueId);
 
         optionGroup.addOptionValue(newValue);
-        optionGroupRepository.save(optionGroup);
+        optionGroupRepository.update(optionGroup);
 
         log.info("Option value saved successfully with id: {} to group: {}", newValueId.getValue(), groupId.getValue());
 
@@ -102,7 +102,7 @@ public class OptionGroupApplicationService {
         isModified |= applyStatusChange(optionGroup, command.getStatus());
 
         if (isModified) {
-            optionGroupRepository.save(optionGroup);
+            optionGroupRepository.update(optionGroup);
             log.info("Option group updated successfully. id: {}", optionGroup.getId().getValue());
         }
 
@@ -125,7 +125,7 @@ public class OptionGroupApplicationService {
 
         validateOptionGroupCanBeModified(optionGroup);
         optionGroup.updateOptionValueDetails(valueId, command.getValue(), command.getDisplayName(), command.getSortOrder(), command.getStatus());
-        optionGroupRepository.save(optionGroup);
+        optionGroupRepository.update(optionGroup);
 
         log.info("Option value updated successfully. id: {}", valueId.getValue());
 
@@ -147,7 +147,7 @@ public class OptionGroupApplicationService {
 
         // 도메인 로직: 애그리거트 루트와 하위 옵션 값들을 연쇄적으로 소프트 삭제
         optionGroup.markAsDeleted();
-        optionGroupRepository.save(optionGroup);
+        optionGroupRepository.update(optionGroup);
 
         log.info("Option group soft-deleted successfully. id: {}", optionGroup.getId().getValue());
 
@@ -171,7 +171,7 @@ public class OptionGroupApplicationService {
 
         // 도메인 로직: 특정 옵션 값 하나만 비활성화 (소프트 삭제)
         optionGroup.deleteOptionValue(valueId);
-        optionGroupRepository.save(optionGroup);
+        optionGroupRepository.update(optionGroup);
 
         log.info("Option value soft-deleted successfully. id: {}", valueId.getValue());
 

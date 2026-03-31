@@ -101,7 +101,7 @@ class OptionGroupApplicationServiceTest {
                     .hasMessageContaining("COLOR");
 
             verify(optionGroupDomainService).isValidOptionGroupName("COLOR");
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
             verify(optionGroupDataMapper, never()).toOptionGroup(any(), any());
         }
 
@@ -138,7 +138,7 @@ class OptionGroupApplicationServiceTest {
             when(optionGroupDomainService.isValidOptionGroupName("SIZE")).thenReturn(true);
             when(idGenerator.generateId()).thenReturn(generatedId);
             when(optionGroupDataMapper.toOptionGroup(command, newGroupId)).thenReturn(toSave);
-            when(optionGroupRepository.save(toSave)).thenReturn(saved);
+            when(optionGroupRepository.insert(toSave)).thenReturn(saved);
             when(optionGroupDataMapper.toCreateOptionGroupResult(saved)).thenReturn(expected);
 
             CreateOptionGroupResult result = optionGroupApplicationService.createOptionGroup(command);
@@ -149,7 +149,7 @@ class OptionGroupApplicationServiceTest {
 
             verify(optionGroupDomainService).isValidOptionGroupName("SIZE");
             verify(idGenerator).generateId();
-            verify(optionGroupRepository).save(toSave);
+            verify(optionGroupRepository).insert(toSave);
             verify(optionGroupDataMapper).toCreateOptionGroupResult(saved);
         }
     }
@@ -176,7 +176,7 @@ class OptionGroupApplicationServiceTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Add option value command cannot be null");
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -195,7 +195,7 @@ class OptionGroupApplicationServiceTest {
                     .isInstanceOf(OptionGroupNotFoundException.class)
                     .hasMessageContaining("Option group not found");
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -215,7 +215,7 @@ class OptionGroupApplicationServiceTest {
                     .isInstanceOf(OptionDomainException.class)
                     .hasMessageContaining("Cannot modify an option group that has been deleted");
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -248,7 +248,7 @@ class OptionGroupApplicationServiceTest {
             when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(optionGroup));
             when(idGenerator.generateId()).thenReturn(valueId);
             when(optionGroupDataMapper.toOptionValue(command, new OptionValueId(valueId))).thenReturn(newValue);
-            when(optionGroupRepository.save(optionGroup)).thenReturn(optionGroup);
+            when(optionGroupRepository.update(optionGroup)).thenReturn(optionGroup);
             when(optionGroupDataMapper.toAddOptionValueResult(newValue)).thenReturn(expected);
 
             AddOptionValueResult result = optionGroupApplicationService.addOptionValue(groupId, command);
@@ -257,7 +257,7 @@ class OptionGroupApplicationServiceTest {
             assertThat(result.id()).isEqualTo(valueId);
             assertThat(result.value()).isEqualTo("BLUE");
 
-            verify(optionGroupRepository).save(optionGroup);
+            verify(optionGroupRepository).update(optionGroup);
             verify(optionGroupDataMapper).toAddOptionValueResult(newValue);
         }
     }
@@ -273,7 +273,7 @@ class OptionGroupApplicationServiceTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid option group update request");
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -292,7 +292,7 @@ class OptionGroupApplicationServiceTest {
                     .isInstanceOf(OptionGroupNotFoundException.class)
                     .hasMessageContaining("Option group not found");
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -312,7 +312,7 @@ class OptionGroupApplicationServiceTest {
                     .isInstanceOf(OptionDomainException.class)
                     .hasMessageContaining("Cannot modify an option group that has been deleted");
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -333,7 +333,7 @@ class OptionGroupApplicationServiceTest {
                     .isInstanceOf(DuplicateOptionGroupNameException.class)
                     .hasMessageContaining("DUPLICATE");
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -349,7 +349,7 @@ class OptionGroupApplicationServiceTest {
             OptionGroup optionGroup = activeGroup(rawId, List.of());
             when(optionGroupRepository.findById(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
             when(optionGroupDomainService.isValidOptionGroupName("NEWNAME")).thenReturn(true);
-            when(optionGroupRepository.save(optionGroup)).thenReturn(optionGroup);
+            when(optionGroupRepository.update(optionGroup)).thenReturn(optionGroup);
 
             UpdateOptionGroupResult expected = UpdateOptionGroupResult.builder()
                     .id(rawId)
@@ -365,7 +365,7 @@ class OptionGroupApplicationServiceTest {
             assertThat(result.displayName()).isEqualTo("새노출명");
             assertThat(result.status()).isEqualTo(OptionStatus.INACTIVE);
 
-            verify(optionGroupRepository).save(optionGroup);
+            verify(optionGroupRepository).update(optionGroup);
             verify(optionGroupDataMapper).toUpdateOptionGroupResult(optionGroup);
         }
 
@@ -393,7 +393,7 @@ class OptionGroupApplicationServiceTest {
             UpdateOptionGroupResult result = optionGroupApplicationService.updateOptionGroup(rawId, command);
 
             assertThat(result.status()).isEqualTo(OptionStatus.ACTIVE);
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
             verify(optionGroupDataMapper).toUpdateOptionGroupResult(optionGroup);
         }
     }
@@ -426,7 +426,7 @@ class OptionGroupApplicationServiceTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid option value update request");
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -446,7 +446,7 @@ class OptionGroupApplicationServiceTest {
             assertThatThrownBy(() -> optionGroupApplicationService.updateOptionValue(groupId, valueId, command))
                     .isInstanceOf(OptionGroupNotFoundException.class);
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -482,7 +482,7 @@ class OptionGroupApplicationServiceTest {
             );
 
             when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(optionGroup));
-            when(optionGroupRepository.save(optionGroup)).thenReturn(optionGroup);
+            when(optionGroupRepository.update(optionGroup)).thenReturn(optionGroup);
             when(optionGroupDataMapper.toUpdateOptionValueResult(existing)).thenReturn(expected);
 
             UpdateOptionValueResult result = optionGroupApplicationService.updateOptionValue(groupId, valueId, command);
@@ -491,7 +491,7 @@ class OptionGroupApplicationServiceTest {
             assertThat(result.sortOrder()).isEqualTo(3);
             assertThat(result.status()).isEqualTo(OptionStatus.INACTIVE);
 
-            verify(optionGroupRepository).save(optionGroup);
+            verify(optionGroupRepository).update(optionGroup);
             verify(optionGroupDataMapper).toUpdateOptionValueResult(existing);
         }
     }
@@ -507,7 +507,7 @@ class OptionGroupApplicationServiceTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Option group ID for delete cannot be null");
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -519,7 +519,7 @@ class OptionGroupApplicationServiceTest {
             assertThatThrownBy(() -> optionGroupApplicationService.deleteOptionGroup(rawId))
                     .isInstanceOf(OptionGroupNotFoundException.class);
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -534,7 +534,7 @@ class OptionGroupApplicationServiceTest {
                     .build();
 
             when(optionGroupRepository.findById(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
-            when(optionGroupRepository.save(any(OptionGroup.class))).thenAnswer(inv -> inv.getArgument(0));
+            when(optionGroupRepository.update(any(OptionGroup.class))).thenAnswer(inv -> inv.getArgument(0));
             when(optionGroupDataMapper.toDeleteOptionGroupResult(any(OptionGroup.class))).thenReturn(expected);
 
             DeleteOptionGroupResult result = optionGroupApplicationService.deleteOptionGroup(rawId);
@@ -542,7 +542,7 @@ class OptionGroupApplicationServiceTest {
             assertThat(result.id()).isEqualTo(rawId);
             assertThat(result.name()).isEqualTo("COLOR");
 
-            verify(optionGroupRepository).save(any(OptionGroup.class));
+            verify(optionGroupRepository).update(any(OptionGroup.class));
             verify(optionGroupDataMapper).toDeleteOptionGroupResult(any(OptionGroup.class));
         }
     }
@@ -564,7 +564,7 @@ class OptionGroupApplicationServiceTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("IDs for deleting an option value cannot be null");
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -577,7 +577,7 @@ class OptionGroupApplicationServiceTest {
             assertThatThrownBy(() -> optionGroupApplicationService.deleteOptionValue(groupId, valueId))
                     .isInstanceOf(OptionGroupNotFoundException.class);
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -592,7 +592,7 @@ class OptionGroupApplicationServiceTest {
                     .isInstanceOf(OptionDomainException.class)
                     .hasMessageContaining("Cannot modify an option group that has been deleted");
 
-            verify(optionGroupRepository, never()).save(any());
+            verify(optionGroupRepository, never()).update(any());
         }
 
         @Test
@@ -618,7 +618,7 @@ class OptionGroupApplicationServiceTest {
                     .build();
 
             when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(optionGroup));
-            when(optionGroupRepository.save(optionGroup)).thenReturn(optionGroup);
+            when(optionGroupRepository.update(optionGroup)).thenReturn(optionGroup);
             when(optionGroupDataMapper.toDeleteOptionValueResult(existing)).thenReturn(expected);
 
             DeleteOptionValueResult result = optionGroupApplicationService.deleteOptionValue(groupId, valueId);
@@ -627,7 +627,7 @@ class OptionGroupApplicationServiceTest {
             assertThat(result.value()).isEqualTo("GREEN");
             assertThat(existing.getStatus()).isEqualTo(OptionStatus.DELETED);
 
-            verify(optionGroupRepository).save(optionGroup);
+            verify(optionGroupRepository).update(optionGroup);
             verify(optionGroupDataMapper).toDeleteOptionValueResult(existing);
         }
     }

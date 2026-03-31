@@ -7,7 +7,9 @@ import java.util.Optional;
 
 public interface OptionGroupRepository {
 
-    OptionGroup save(OptionGroup optionGroup);
+    OptionGroup insert(OptionGroup optionGroup);
+
+    OptionGroup update(OptionGroup optionGroup);
 
     Optional<OptionGroup> findById(OptionGroupId optionGroupId);
 

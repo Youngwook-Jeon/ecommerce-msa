@@ -44,13 +44,13 @@ class OptionGroupRepositoryImplTest {
     }
 
     @Nested
-    @DisplayName("save")
+    @DisplayName("insert/update")
     class SaveTests {
 
         @Test
-        @DisplayName("null OptionGroup이면 IllegalArgumentException")
-        void save_NullOptionGroup_ThrowsException() {
-            assertThatThrownBy(() -> optionGroupRepository.save(null))
+        @DisplayName("insert: null OptionGroup이면 IllegalArgumentException")
+        void insert_NullOptionGroup_ThrowsException() {
+            assertThatThrownBy(() -> optionGroupRepository.insert(null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("optionGroup must not be null");
 
@@ -58,8 +58,8 @@ class OptionGroupRepositoryImplTest {
         }
 
         @Test
-        @DisplayName("ID는 있으나 DB에 없으면 domainToEntity로 신규 저장")
-        void save_NewIdNotInDatabase_UsesDomainToEntity() {
+        @DisplayName("insert: domainToEntity로 신규 저장")
+        void insert_WithId_UsesDomainToEntity() {
             UUID groupId = UUID.randomUUID();
             OptionGroup domain = OptionGroup.reconstitute(
                     new OptionGroupId(groupId),
@@ -69,21 +69,19 @@ class OptionGroupRepositoryImplTest {
                     List.of()
             );
 
-            when(optionGroupJpaRepository.findById(groupId)).thenReturn(Optional.empty());
             when(optionGroupJpaRepository.save(any(OptionGroupEntity.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
-            OptionGroup saved = optionGroupRepository.save(domain);
+            OptionGroup saved = optionGroupRepository.insert(domain);
 
             assertThat(saved.getId().getValue()).isEqualTo(groupId);
             assertThat(saved.getName()).isEqualTo("COLOR");
-            verify(optionGroupJpaRepository).findById(groupId);
             verify(optionGroupJpaRepository).save(any(OptionGroupEntity.class));
         }
 
         @Test
-        @DisplayName("기존 행이 있으면 merge 후 dirty checking으로 반영한다")
-        void save_ExistingRow_MergesAndSaves() {
+        @DisplayName("update: 기존 행이 있으면 merge 후 dirty checking으로 반영한다")
+        void update_ExistingRow_MergesAndTracksDirty() {
             UUID groupId = UUID.randomUUID();
             UUID existingValueId = UUID.randomUUID();
             UUID newValueId = UUID.randomUUID();
@@ -130,7 +128,7 @@ class OptionGroupRepositoryImplTest {
 
             when(optionGroupJpaRepository.findById(groupId)).thenReturn(Optional.of(existingEntity));
 
-            OptionGroup result = optionGroupRepository.save(domain);
+            OptionGroup result = optionGroupRepository.update(domain);
 
             assertThat(result.getName()).isEqualTo("COLOR_NEW");
             assertThat(result.getDisplayName()).isEqualTo("색상(변경)");
@@ -141,6 +139,7 @@ class OptionGroupRepositoryImplTest {
             assertThat(existingValEntity.getSortOrder()).isEqualTo(3);
             assertThat(existingValEntity.getStatus()).isEqualTo(OptionStatusEntity.INACTIVE);
 
+            verify(optionGroupJpaRepository).findById(groupId);
             verify(optionGroupJpaRepository, never()).save(any());
         }
     }
