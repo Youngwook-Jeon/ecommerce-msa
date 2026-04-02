@@ -3,6 +3,7 @@ package com.project.young.productservice.application.service;
 import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.application.dto.command.AddOptionValueCommand;
+import com.project.young.productservice.application.dto.command.AddOptionValuesCommand;
 import com.project.young.productservice.application.dto.command.CreateOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.UpdateOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.UpdateOptionValueCommand;
@@ -155,43 +156,62 @@ class OptionGroupApplicationServiceTest {
     }
 
     @Nested
-    @DisplayName("addOptionValue")
-    class AddOptionValueTests {
+    @DisplayName("addOptionValues")
+    class AddOptionValuesTests {
 
         @Test
         @DisplayName("groupId 또는 command가 null이면 IllegalArgumentException")
-        void addOptionValue_InvalidRequest_ThrowsException() {
-            AddOptionValueCommand command = AddOptionValueCommand.builder()
-                    .value("RED")
-                    .displayName("빨강")
-                    .sortOrder(0)
+        void addOptionValues_InvalidRequest_ThrowsException() {
+            AddOptionValuesCommand command = AddOptionValuesCommand.builder()
+                    .optionValues(List.of(
+                            AddOptionValueCommand.builder()
+                                    .value("RED")
+                                    .displayName("빨강")
+                                    .sortOrder(0)
+                                    .build()
+                    ))
                     .build();
 
-            assertThatThrownBy(() -> optionGroupApplicationService.addOptionValue(null, command))
+            assertThatThrownBy(() -> optionGroupApplicationService.addOptionValues(null, command))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Add option value command cannot be null");
+                    .hasMessageContaining("Add option values command cannot be null");
 
             UUID groupId = UUID.randomUUID();
-            assertThatThrownBy(() -> optionGroupApplicationService.addOptionValue(groupId, null))
+            assertThatThrownBy(() -> optionGroupApplicationService.addOptionValues(groupId, null))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("Add option value command cannot be null");
+                    .hasMessageContaining("Add option values command cannot be null");
+        }
 
-            verify(optionGroupRepository, never()).update(any());
+        @Test
+        @DisplayName("옵션 값이 비어 있으면 IllegalArgumentException")
+        void addOptionValues_EmptyValues_ThrowsException() {
+            UUID groupId = UUID.randomUUID();
+            AddOptionValuesCommand command = AddOptionValuesCommand.builder()
+                    .optionValues(List.of())
+                    .build();
+
+            assertThatThrownBy(() -> optionGroupApplicationService.addOptionValues(groupId, command))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("At least one option value");
         }
 
         @Test
         @DisplayName("그룹이 없으면 OptionGroupNotFoundException")
-        void addOptionValue_NotFound_ThrowsException() {
+        void addOptionValues_NotFound_ThrowsException() {
             UUID groupId = UUID.randomUUID();
-            AddOptionValueCommand command = AddOptionValueCommand.builder()
-                    .value("RED")
-                    .displayName("빨강")
-                    .sortOrder(0)
+            AddOptionValuesCommand command = AddOptionValuesCommand.builder()
+                    .optionValues(List.of(
+                            AddOptionValueCommand.builder()
+                                    .value("RED")
+                                    .displayName("빨강")
+                                    .sortOrder(0)
+                                    .build()
+                    ))
                     .build();
 
             when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> optionGroupApplicationService.addOptionValue(groupId, command))
+            assertThatThrownBy(() -> optionGroupApplicationService.addOptionValues(groupId, command))
                     .isInstanceOf(OptionGroupNotFoundException.class)
                     .hasMessageContaining("Option group not found");
 
@@ -200,18 +220,22 @@ class OptionGroupApplicationServiceTest {
 
         @Test
         @DisplayName("삭제된 그룹이면 OptionDomainException")
-        void addOptionValue_DeletedGroup_ThrowsException() {
+        void addOptionValues_DeletedGroup_ThrowsException() {
             UUID groupId = UUID.randomUUID();
-            AddOptionValueCommand command = AddOptionValueCommand.builder()
-                    .value("RED")
-                    .displayName("빨강")
-                    .sortOrder(0)
+            AddOptionValuesCommand command = AddOptionValuesCommand.builder()
+                    .optionValues(List.of(
+                            AddOptionValueCommand.builder()
+                                    .value("RED")
+                                    .displayName("빨강")
+                                    .sortOrder(0)
+                                    .build()
+                    ))
                     .build();
 
             OptionGroup deleted = deletedGroup(groupId);
             when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(deleted));
 
-            assertThatThrownBy(() -> optionGroupApplicationService.addOptionValue(groupId, command))
+            assertThatThrownBy(() -> optionGroupApplicationService.addOptionValues(groupId, command))
                     .isInstanceOf(OptionDomainException.class)
                     .hasMessageContaining("Cannot modify an option group that has been deleted");
 
@@ -219,46 +243,73 @@ class OptionGroupApplicationServiceTest {
         }
 
         @Test
-        @DisplayName("정상 추가 시 save 후 AddOptionValueResult 반환")
-        void addOptionValue_Success() {
+        @DisplayName("여러 옵션 값을 한 번에 추가하고 update는 1번만 호출")
+        void addOptionValues_Success() {
             UUID groupId = UUID.randomUUID();
-            UUID valueId = UUID.randomUUID();
-            AddOptionValueCommand command = AddOptionValueCommand.builder()
+            UUID valueId1 = UUID.randomUUID();
+            UUID valueId2 = UUID.randomUUID();
+
+            AddOptionValueCommand cmd1 = AddOptionValueCommand.builder()
                     .value("BLUE")
                     .displayName("파랑")
                     .sortOrder(1)
                     .build();
+            AddOptionValueCommand cmd2 = AddOptionValueCommand.builder()
+                    .value("GREEN")
+                    .displayName("초록")
+                    .sortOrder(2)
+                    .build();
 
-            List<OptionValue> values = new ArrayList<>();
-            OptionGroup optionGroup = activeGroup(groupId, values);
+            AddOptionValuesCommand bulkCommand = AddOptionValuesCommand.builder()
+                    .optionValues(List.of(cmd1, cmd2))
+                    .build();
 
-            OptionValue newValue = OptionValue.reconstitute(
-                    new OptionValueId(valueId),
+            OptionGroup optionGroup = activeGroup(groupId, new ArrayList<>());
+
+            OptionValue newValue1 = OptionValue.reconstitute(
+                    new OptionValueId(valueId1),
                     "BLUE",
                     "파랑",
                     1,
                     OptionStatus.ACTIVE
             );
+            OptionValue newValue2 = OptionValue.reconstitute(
+                    new OptionValueId(valueId2),
+                    "GREEN",
+                    "초록",
+                    2,
+                    OptionStatus.ACTIVE
+            );
 
-            AddOptionValueResult expected = AddOptionValueResult.builder()
-                    .id(valueId)
+            AddOptionValueResult expected1 = AddOptionValueResult.builder()
+                    .id(valueId1)
                     .value("BLUE")
+                    .build();
+            AddOptionValueResult expected2 = AddOptionValueResult.builder()
+                    .id(valueId2)
+                    .value("GREEN")
                     .build();
 
             when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(optionGroup));
-            when(idGenerator.generateId()).thenReturn(valueId);
-            when(optionGroupDataMapper.toOptionValue(command, new OptionValueId(valueId))).thenReturn(newValue);
+            when(idGenerator.generateId()).thenReturn(valueId1, valueId2);
+
+            when(optionGroupDataMapper.toOptionValue(cmd1, new OptionValueId(valueId1))).thenReturn(newValue1);
+            when(optionGroupDataMapper.toOptionValue(cmd2, new OptionValueId(valueId2))).thenReturn(newValue2);
+
+            when(optionGroupDataMapper.toAddOptionValueResult(newValue1)).thenReturn(expected1);
+            when(optionGroupDataMapper.toAddOptionValueResult(newValue2)).thenReturn(expected2);
+
             when(optionGroupRepository.update(optionGroup)).thenReturn(optionGroup);
-            when(optionGroupDataMapper.toAddOptionValueResult(newValue)).thenReturn(expected);
 
-            AddOptionValueResult result = optionGroupApplicationService.addOptionValue(groupId, command);
+            List<AddOptionValueResult> results = optionGroupApplicationService.addOptionValues(groupId, bulkCommand);
 
-            assertThat(result).isNotNull();
-            assertThat(result.id()).isEqualTo(valueId);
-            assertThat(result.value()).isEqualTo("BLUE");
+            assertThat(results).hasSize(2);
+            assertThat(results.get(0).id()).isEqualTo(valueId1);
+            assertThat(results.get(1).id()).isEqualTo(valueId2);
 
             verify(optionGroupRepository).update(optionGroup);
-            verify(optionGroupDataMapper).toAddOptionValueResult(newValue);
+            verify(optionGroupDataMapper).toAddOptionValueResult(newValue1);
+            verify(optionGroupDataMapper).toAddOptionValueResult(newValue2);
         }
     }
 

@@ -1,6 +1,6 @@
 package com.project.young.productservice.web.controller;
 
-import com.project.young.productservice.application.dto.command.AddOptionValueCommand;
+import com.project.young.productservice.application.dto.command.AddOptionValuesCommand;
 import com.project.young.productservice.application.dto.command.CreateOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.UpdateOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.UpdateOptionValueCommand;
@@ -59,13 +59,13 @@ public class OptionGroupController {
 
     @PostMapping("/{groupId}/option-values")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<AddOptionValueResponse> addValue(
+    public ResponseEntity<AddOptionValuesResponse> addValues(
             @PathVariable("groupId") UUID groupId,
-            @Valid @RequestBody AddOptionValueCommand command) {
-        log.info("A post request to add Option Value to Group id: {}", groupId);
+            @Valid @RequestBody AddOptionValuesCommand command) {
+        log.info("A post request to add multiple Option Values to Group id: {}", groupId);
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(optionGroupResponseMapper.toAddOptionValueResponse(
-                        optionGroupApplicationService.addOptionValue(groupId, command)));
+                .body(optionGroupResponseMapper.toAddOptionValuesResponse(
+                        optionGroupApplicationService.addOptionValues(groupId, command)));
     }
 
     @PutMapping("/{groupId}/option-values/{valueId}")

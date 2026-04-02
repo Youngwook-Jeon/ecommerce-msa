@@ -6,6 +6,9 @@ import com.project.young.productservice.web.dto.*;
 import com.project.young.productservice.web.message.OptionGroupResponseMessageFactory;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
+import java.util.List;
+
 @Component
 public class OptionGroupResponseMapper {
 
@@ -31,6 +34,15 @@ public class OptionGroupResponseMapper {
                 .id(result.id())
                 .value(result.value())
                 .message(messageFactory.valueAdded())
+                .build();
+    }
+
+    public AddOptionValuesResponse toAddOptionValuesResponse(List<AddOptionValueResult> results) {
+        Objects.requireNonNull(results, "results must not be null");
+        return AddOptionValuesResponse.builder()
+                .optionValues(results.stream()
+                        .map(this::toAddOptionValueResponse)
+                        .toList())
                 .build();
     }
 

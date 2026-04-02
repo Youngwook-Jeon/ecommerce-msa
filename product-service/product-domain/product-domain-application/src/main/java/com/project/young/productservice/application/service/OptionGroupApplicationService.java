@@ -2,6 +2,7 @@ package com.project.young.productservice.application.service;
 
 import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
+import com.project.young.productservice.application.dto.command.AddOptionValuesCommand;
 import com.project.young.productservice.application.dto.command.AddOptionValueCommand;
 import com.project.young.productservice.application.dto.command.CreateOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.UpdateOptionGroupCommand;
@@ -21,6 +22,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -63,25 +66,33 @@ public class OptionGroupApplicationService {
     }
 
     @Transactional
-    public AddOptionValueResult addOptionValue(UUID optionGroupIdValue, AddOptionValueCommand command) {
-        validateAddRequest(optionGroupIdValue, command);
+    public List<AddOptionValueResult> addOptionValues(UUID optionGroupIdValue, AddOptionValuesCommand command) {
+        validateAddValuesRequest(optionGroupIdValue, command);
         OptionGroupId groupId = new OptionGroupId(optionGroupIdValue);
 
-        log.info("Attempting to add option value to group: {}", groupId.getValue());
+        log.info("Attempting to add option values to group: {}", groupId.getValue());
         OptionGroup optionGroup = optionGroupRepository.findById(groupId)
                 .orElseThrow(() -> new OptionGroupNotFoundException("Option group not found."));
 
         validateOptionGroupCanBeModified(optionGroup);
 
-        OptionValueId newValueId = new OptionValueId(idGenerator.generateId());
-        OptionValue newValue = optionGroupDataMapper.toOptionValue(command, newValueId);
+        List<AddOptionValueResult> results = new ArrayList<>();
 
-        optionGroup.addOptionValue(newValue);
+        for (AddOptionValueCommand valueCommand : command.getOptionValues()) {
+            if (valueCommand == null) {
+                throw new IllegalArgumentException("Option value command must not be null.");
+            }
+
+            OptionValueId newValueId = new OptionValueId(idGenerator.generateId());
+            OptionValue newValue = optionGroupDataMapper.toOptionValue(valueCommand, newValueId);
+
+            optionGroup.addOptionValue(newValue);
+            results.add(optionGroupDataMapper.toAddOptionValueResult(newValue));
+        }
+
         optionGroupRepository.update(optionGroup);
 
-        log.info("Option value saved successfully with id: {} to group: {}", newValueId.getValue(), groupId.getValue());
-
-        return optionGroupDataMapper.toAddOptionValueResult(newValue);
+        return results;
     }
 
     @Transactional
@@ -186,9 +197,12 @@ public class OptionGroupApplicationService {
         }
     }
 
-    private void validateAddRequest(UUID optionGroupIdValue, AddOptionValueCommand command) {
+    private void validateAddValuesRequest(UUID optionGroupIdValue, AddOptionValuesCommand command) {
         if (optionGroupIdValue == null || command == null) {
-            throw new IllegalArgumentException("Add option value command cannot be null");
+            throw new IllegalArgumentException("Add option values command cannot be null");
+        }
+        if (command.getOptionValues() == null || command.getOptionValues().isEmpty()) {
+            throw new IllegalArgumentException("At least one option value is required");
         }
     }
 
