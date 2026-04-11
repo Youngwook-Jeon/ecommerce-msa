@@ -11,7 +11,7 @@ public interface CategoryRepository {
 
     Category insert(Category category);
 
-    Category update(Category category);
+    void update(Category category);
 
     void updateAll(List<Category> categoriesToUpdate);
 

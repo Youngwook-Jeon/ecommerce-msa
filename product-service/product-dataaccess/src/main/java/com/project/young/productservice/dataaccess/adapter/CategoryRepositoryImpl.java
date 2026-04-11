@@ -2,6 +2,7 @@ package com.project.young.productservice.dataaccess.adapter;
 
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
+import com.project.young.productservice.dataaccess.mapper.CategoryAggregateMapper;
 import com.project.young.productservice.dataaccess.mapper.CategoryDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.domain.entity.Category;
@@ -9,6 +10,7 @@ import com.project.young.productservice.domain.exception.CategoryNotFoundExcepti
 import com.project.young.productservice.domain.repository.CategoryRepository;
 import com.project.young.productservice.domain.valueobject.CategoryStatus;
 
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,10 +23,17 @@ public class CategoryRepositoryImpl implements CategoryRepository {
 
     private final CategoryJpaRepository categoryJpaRepository;
     private final CategoryDataAccessMapper categoryDataAccessMapper;
+    private final CategoryAggregateMapper categoryAggregateMapper;
+    private final EntityManager entityManager;
 
-    public CategoryRepositoryImpl(CategoryJpaRepository categoryJpaRepository, CategoryDataAccessMapper categoryDataAccessMapper) {
+    public CategoryRepositoryImpl(CategoryJpaRepository categoryJpaRepository,
+                                  CategoryDataAccessMapper categoryDataAccessMapper,
+                                  CategoryAggregateMapper categoryAggregateMapper,
+                                  EntityManager entityManager) {
         this.categoryJpaRepository = categoryJpaRepository;
         this.categoryDataAccessMapper = categoryDataAccessMapper;
+        this.categoryAggregateMapper = categoryAggregateMapper;
+        this.entityManager = entityManager;
     }
 
     @Override
@@ -37,14 +46,14 @@ public class CategoryRepositoryImpl implements CategoryRepository {
         final CategoryEntity parentRef = category.getParentId().isPresent()
                 ? categoryJpaRepository.getReferenceById(category.getParentId().get().getValue())
                 : null;
-        CategoryEntity toSave = categoryDataAccessMapper.categoryToCategoryEntity(category, parentRef);
-        CategoryEntity saved = categoryJpaRepository.save(toSave);
-        return categoryDataAccessMapper.categoryEntityToCategory(saved);
+        CategoryEntity toPersist = categoryDataAccessMapper.categoryToCategoryEntity(category, parentRef);
+        entityManager.persist(toPersist);
+        return categoryAggregateMapper.toCategory(toPersist);
     }
 
     @Override
     @Transactional
-    public Category update(Category category) {
+    public void update(Category category) {
         if (category == null) {
             throw new IllegalArgumentException("category must not be null.");
         }
@@ -61,7 +70,7 @@ public class CategoryRepositoryImpl implements CategoryRepository {
         current.setName(category.getName());
         current.setStatus(categoryDataAccessMapper.toEntityStatus(category.getStatus()));
         current.setParent(parentRef);
-        return categoryDataAccessMapper.categoryEntityToCategory(current);
+        // Let dirty checking flush changes on commit.
     }
 
     @Override
@@ -77,7 +86,6 @@ public class CategoryRepositoryImpl implements CategoryRepository {
             throw new IllegalArgumentException("categories must not contain null elements.");
         }
 
-        // 업데이트가 필요한 기존 엔티티들의 ID를 수집
         List<Long> existingIds = categories.stream()
                 .filter(c -> c.getId() != null)
                 .map(c -> c.getId().getValue())
@@ -96,7 +104,6 @@ public class CategoryRepositoryImpl implements CategoryRepository {
             }
             categoryDataAccessMapper.updateEntityFromDomain(domainCategory, entity);
 
-            // 부모 관계는 getReferenceById를 사용해 공통으로 처리
             if (domainCategory.getParentId().isPresent()) {
                 CategoryEntity parentRef = categoryJpaRepository.getReferenceById(domainCategory.getParentId().get().getValue());
                 entity.setParent(parentRef);
@@ -138,7 +145,7 @@ public class CategoryRepositoryImpl implements CategoryRepository {
             throw new IllegalArgumentException("CategoryId object can not be null.");
         }
         return categoryJpaRepository.findById(categoryId.getValue())
-                .map(categoryDataAccessMapper::categoryEntityToCategory);
+                .map(categoryAggregateMapper::toCategory);
     }
 
     @Override
@@ -160,7 +167,7 @@ public class CategoryRepositoryImpl implements CategoryRepository {
         List<CategoryEntity> foundEntities = categoryJpaRepository.findAllById(ids);
 
         return foundEntities.stream()
-                .map(categoryDataAccessMapper::categoryEntityToCategory)
+                .map(categoryAggregateMapper::toCategory)
                 .collect(Collectors.toList());
     }
 
@@ -173,7 +180,7 @@ public class CategoryRepositoryImpl implements CategoryRepository {
         List<CategoryEntity> subTreeEntities = categoryJpaRepository.findSubTreeByIdNative(categoryId.getValue());
 
         return subTreeEntities.stream()
-                .map(categoryDataAccessMapper::categoryEntityToCategory)
+                .map(categoryAggregateMapper::toCategory)
                 .collect(Collectors.toList());
     }
 
@@ -194,7 +201,7 @@ public class CategoryRepositoryImpl implements CategoryRepository {
                 categoryJpaRepository.findSubTreeByIdAndStatusInNative(categoryId.getValue(), statusNames);
 
         return subTreeEntities.stream()
-                .map(categoryDataAccessMapper::categoryEntityToCategory)
+                .map(categoryAggregateMapper::toCategory)
                 .collect(Collectors.toList());
     }
 
@@ -207,7 +214,7 @@ public class CategoryRepositoryImpl implements CategoryRepository {
         List<CategoryEntity> ancestorEntities = categoryJpaRepository.findAncestorsByIdNative(categoryId.getValue());
 
         return ancestorEntities.stream()
-                .map(categoryDataAccessMapper::categoryEntityToCategory)
+                .map(categoryAggregateMapper::toCategory)
                 .collect(Collectors.toList());
     }
 

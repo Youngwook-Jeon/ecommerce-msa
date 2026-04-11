@@ -253,7 +253,7 @@ class CategoryApplicationServiceTest {
 
             when(categoryRepository.findById(id)).thenReturn(Optional.of(main));
             when(categoryDomainService.isCategoryNameUniqueForUpdate("수정된 이름", id)).thenReturn(true);
-            when(categoryRepository.update(main)).thenReturn(main);
+            doNothing().when(categoryRepository).update(main);
             when(categoryDataMapper.toUpdateCategoryResult(main)).thenReturn(expected);
 
             // When

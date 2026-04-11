@@ -1,30 +1,15 @@
 package com.project.young.productservice.dataaccess.mapper;
 
-import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.domain.entity.Category;
 import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.Objects;
 
 @Component
 public class CategoryDataAccessMapper {
-
-    public Category categoryEntityToCategory(CategoryEntity categoryEntity) {
-        Objects.requireNonNull(categoryEntity, "categoryEntity must not be null.");
-
-        CategoryId parentId = toParentId(categoryEntity);
-
-        // Use the 'reconstitute' factory method instead of the builder
-        return Category.reconstitute(
-                new CategoryId(categoryEntity.getId()),
-                categoryEntity.getName(),
-                parentId,
-                toDomainStatus(categoryEntity.getStatus()));
-    }
 
     public CategoryEntity categoryToCategoryEntity(Category category, CategoryEntity parentEntity) {
         Objects.requireNonNull(category, "category must not be null.");
@@ -62,10 +47,5 @@ public class CategoryDataAccessMapper {
         Objects.requireNonNull(entityStatus, "entityStatus must not be null.");
 
         return CategoryStatus.valueOf(entityStatus.name());
-    }
-
-    private CategoryId toParentId(CategoryEntity categoryEntity) {
-        CategoryEntity parent = categoryEntity.getParent();
-        return (parent != null) ? new CategoryId(parent.getId()) : null;
     }
 }
