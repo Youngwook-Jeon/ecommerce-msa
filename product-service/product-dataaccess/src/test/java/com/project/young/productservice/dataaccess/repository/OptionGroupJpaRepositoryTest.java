@@ -106,7 +106,7 @@ class OptionGroupJpaRepositoryTest {
             optionGroupJpaRepository.saveAndFlush(group);
             testEntityManager.clear();
 
-            Optional<OptionGroupEntity> found = optionGroupJpaRepository.findById(groupId);
+            Optional<OptionGroupEntity> found = optionGroupJpaRepository.findAggregateById(groupId);
 
             assertThat(found).isPresent();
             OptionGroupEntity loaded = found.orElseThrow();

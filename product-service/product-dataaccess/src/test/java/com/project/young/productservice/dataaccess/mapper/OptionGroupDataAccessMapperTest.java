@@ -22,67 +22,6 @@ class OptionGroupDataAccessMapperTest {
     private final OptionGroupDataAccessMapper mapper = new OptionGroupDataAccessMapper();
 
     @Test
-    @DisplayName("entityToDomain: 엔티티를 도메인으로 올바르게 매핑한다")
-    void entityToDomain_Success() {
-        UUID groupId = UUID.randomUUID();
-        UUID valueId = UUID.randomUUID();
-
-        OptionGroupEntity entity = OptionGroupEntity.builder()
-                .id(groupId)
-                .name("COLOR")
-                .displayName("색상")
-                .status(OptionStatusEntity.ACTIVE)
-                .optionValues(new ArrayList<>())
-                .build();
-
-        OptionValueEntity valueEntity = OptionValueEntity.builder()
-                .id(valueId)
-                .value("RED")
-                .displayName("빨강")
-                .sortOrder(1)
-                .status(OptionStatusEntity.INACTIVE)
-                .build();
-        entity.addOptionValue(valueEntity);
-
-        OptionGroup domain = mapper.entityToDomain(entity);
-
-        assertThat(domain.getId()).isEqualTo(new OptionGroupId(groupId));
-        assertThat(domain.getName()).isEqualTo("COLOR");
-        assertThat(domain.getDisplayName()).isEqualTo("색상");
-        assertThat(domain.getStatus()).isEqualTo(OptionStatus.ACTIVE);
-        assertThat(domain.getOptionValues()).hasSize(1);
-        assertThat(domain.getOptionValues().get(0).getId()).isEqualTo(new OptionValueId(valueId));
-        assertThat(domain.getOptionValues().get(0).getValue()).isEqualTo("RED");
-        assertThat(domain.getOptionValues().get(0).getDisplayName()).isEqualTo("빨강");
-        assertThat(domain.getOptionValues().get(0).getSortOrder()).isEqualTo(1);
-        assertThat(domain.getOptionValues().get(0).getStatus()).isEqualTo(OptionStatus.INACTIVE);
-    }
-
-    @Test
-    @DisplayName("entityToDomain: 엔티티가 null이면 NullPointerException")
-    void entityToDomain_NullEntity_ThrowsNpe() {
-        assertThatThrownBy(() -> mapper.entityToDomain(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("entity must not be null");
-    }
-
-    @Test
-    @DisplayName("entityToDomain: 엔티티 ID가 null이면 NullPointerException")
-    void entityToDomain_NullEntityId_ThrowsNpe() {
-        OptionGroupEntity entity = OptionGroupEntity.builder()
-                .id(null)
-                .name("COLOR")
-                .displayName("색상")
-                .status(OptionStatusEntity.ACTIVE)
-                .optionValues(new ArrayList<>())
-                .build();
-
-        assertThatThrownBy(() -> mapper.entityToDomain(entity))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("entity ID must not be null");
-    }
-
-    @Test
     @DisplayName("domainToEntity: 도메인을 엔티티로 올바르게 매핑한다")
     void domainToEntity_Success() {
         UUID groupId = UUID.randomUUID();

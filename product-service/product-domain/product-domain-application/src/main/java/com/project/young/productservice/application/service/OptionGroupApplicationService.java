@@ -58,11 +58,11 @@ public class OptionGroupApplicationService {
 
         OptionGroupId newGroupId = new OptionGroupId(idGenerator.generateId());
         OptionGroup newGroup = optionGroupDataMapper.toOptionGroup(command, newGroupId);
-        OptionGroup saved = optionGroupRepository.insert(newGroup);
+        optionGroupRepository.insert(newGroup);
 
-        log.info("Option group saved successfully with id: {}", saved.getId().getValue());
+        log.info("Option group saved successfully with id: {}", newGroup.getId().getValue());
 
-        return optionGroupDataMapper.toCreateOptionGroupResult(saved);
+        return optionGroupDataMapper.toCreateOptionGroupResult(newGroup);
     }
 
     @Transactional

@@ -3,11 +3,13 @@ package com.project.young.productservice.dataaccess.adapter;
 import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.productservice.dataaccess.entity.OptionGroupEntity;
 import com.project.young.productservice.dataaccess.entity.OptionValueEntity;
+import com.project.young.productservice.dataaccess.mapper.OptionGroupAggregateMapper;
 import com.project.young.productservice.dataaccess.mapper.OptionGroupDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepository;
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.OptionValue;
 import com.project.young.productservice.domain.repository.OptionGroupRepository;
+import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,30 +24,35 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
 
     private final OptionGroupJpaRepository optionGroupJpaRepository;
     private final OptionGroupDataAccessMapper optionGroupDataAccessMapper;
+    private final OptionGroupAggregateMapper optionGroupAggregateMapper;
+    private final EntityManager entityManager;
 
     public OptionGroupRepositoryImpl(OptionGroupJpaRepository optionGroupJpaRepository,
-                                     OptionGroupDataAccessMapper optionGroupDataAccessMapper) {
+                                     OptionGroupDataAccessMapper optionGroupDataAccessMapper,
+                                     OptionGroupAggregateMapper optionGroupAggregateMapper,
+                                     EntityManager entityManager) {
         this.optionGroupJpaRepository = optionGroupJpaRepository;
         this.optionGroupDataAccessMapper = optionGroupDataAccessMapper;
+        this.optionGroupAggregateMapper = optionGroupAggregateMapper;
+        this.entityManager = entityManager;
     }
 
     @Override
     @Transactional
-    public OptionGroup insert(OptionGroup optionGroup) {
+    public void insert(OptionGroup optionGroup) {
         if (optionGroup == null) {
             throw new IllegalArgumentException("optionGroup must not be null.");
         }
         if (optionGroup.getId() == null) {
             throw new IllegalArgumentException("optionGroup id must not be null for insert.");
         }
-        OptionGroupEntity toSave = optionGroupDataAccessMapper.domainToEntity(optionGroup);
-        OptionGroupEntity saved = optionGroupJpaRepository.save(toSave);
-        return optionGroupDataAccessMapper.entityToDomain(saved);
+        OptionGroupEntity toPersist = optionGroupDataAccessMapper.domainToEntity(optionGroup);
+        entityManager.persist(toPersist);
     }
 
     @Override
     @Transactional
-    public OptionGroup update(OptionGroup optionGroup) {
+    public void update(OptionGroup optionGroup) {
         if (optionGroup == null) {
             throw new IllegalArgumentException("optionGroup must not be null.");
         }
@@ -56,7 +63,7 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
         OptionGroupEntity current = optionGroupJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("OptionGroup not found: " + id));
         mergeDomainIntoEntity(optionGroup, current);
-        return optionGroupDataAccessMapper.entityToDomain(current);
+        // Let dirty checking flush changes on commit.
     }
 
     @Override
@@ -65,8 +72,8 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
             throw new IllegalArgumentException("optionGroupId must not be null.");
         }
 
-        return optionGroupJpaRepository.findById(optionGroupId.getValue())
-                .map(optionGroupDataAccessMapper::entityToDomain);
+        return optionGroupJpaRepository.findAggregateById(optionGroupId.getValue())
+                .map(optionGroupAggregateMapper::toOptionGroup);
     }
 
     @Override
@@ -82,7 +89,6 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
         entity.setDisplayName(domain.getDisplayName());
         entity.setStatus(optionGroupDataAccessMapper.toEntityStatus(domain.getStatus()));
 
-        // 자식 객체(OptionValue) 병합을 위한 도메인 Map 생성
         Map<UUID, OptionValue> domainValuesMap = domain.getOptionValues().stream()
                 .collect(Collectors.toMap(
                         v -> v.getId().getValue(),
@@ -92,7 +98,6 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
                         }
                 ));
 
-        // 기존 엔티티 리스트를 순회하며 업데이트
         for (OptionValueEntity valEntity : entity.getOptionValues()) {
             OptionValue domainVal = domainValuesMap.get(valEntity.getId());
 
@@ -106,7 +111,6 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
             }
         }
 
-        // Map에 남아있는 값들은 새롭게 추가된 자식들
         for (OptionValue newDomainVal : domainValuesMap.values()) {
             OptionValueEntity newValEntity = optionGroupDataAccessMapper.optionValueDomainToEntity(newDomainVal);
             entity.addOptionValue(newValEntity);

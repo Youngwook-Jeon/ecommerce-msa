@@ -14,9 +14,8 @@ public interface OptionGroupJpaRepository extends JpaRepository<OptionGroupEntit
 
     boolean existsByName(String name);
 
-    @Override
     @EntityGraph(attributePaths = {"optionValues"})
-    Optional<OptionGroupEntity> findById(@NonNull UUID id);
+    Optional<OptionGroupEntity> findAggregateById(@NonNull UUID id);
 
     @EntityGraph(attributePaths = {"optionValues"})
     List<OptionGroupEntity> findAllByStatusOrderByNameAsc(OptionStatusEntity status);

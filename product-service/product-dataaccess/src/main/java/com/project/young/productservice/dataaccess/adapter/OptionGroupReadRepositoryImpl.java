@@ -61,7 +61,7 @@ public class OptionGroupReadRepositoryImpl implements OptionGroupReadRepository 
 
     @Override
     public Optional<ReadOptionGroupView> findAdminOptionGroupById(OptionGroupId optionGroupId) {
-        return optionGroupJpaRepository.findById(optionGroupId.getValue())
+        return optionGroupJpaRepository.findAggregateById(optionGroupId.getValue())
                 .map(this::toAdminOptionGroupView);
     }
 

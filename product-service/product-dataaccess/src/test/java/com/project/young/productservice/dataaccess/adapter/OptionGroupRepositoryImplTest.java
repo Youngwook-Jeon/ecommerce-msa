@@ -5,11 +5,13 @@ import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.dataaccess.entity.OptionGroupEntity;
 import com.project.young.productservice.dataaccess.entity.OptionValueEntity;
 import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
+import com.project.young.productservice.dataaccess.mapper.OptionGroupAggregateMapper;
 import com.project.young.productservice.dataaccess.mapper.OptionGroupDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepository;
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.OptionValue;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -33,14 +35,23 @@ class OptionGroupRepositoryImplTest {
     @Mock
     private OptionGroupJpaRepository optionGroupJpaRepository;
 
-    private OptionGroupDataAccessMapper optionGroupDataAccessMapper;
+    @Mock
+    private EntityManager entityManager;
 
+    private OptionGroupDataAccessMapper optionGroupDataAccessMapper;
+    private OptionGroupAggregateMapper optionGroupAggregateMapper;
     private OptionGroupRepositoryImpl optionGroupRepository;
 
     @BeforeEach
     void setUp() {
         optionGroupDataAccessMapper = new OptionGroupDataAccessMapper();
-        optionGroupRepository = new OptionGroupRepositoryImpl(optionGroupJpaRepository, optionGroupDataAccessMapper);
+        optionGroupAggregateMapper = new OptionGroupAggregateMapper();
+        optionGroupRepository = new OptionGroupRepositoryImpl(
+                optionGroupJpaRepository,
+                optionGroupDataAccessMapper,
+                optionGroupAggregateMapper,
+                entityManager
+        );
     }
 
     @Nested
@@ -54,12 +65,12 @@ class OptionGroupRepositoryImplTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("optionGroup must not be null");
 
-            verifyNoInteractions(optionGroupJpaRepository);
+            verifyNoInteractions(optionGroupJpaRepository, entityManager);
         }
 
         @Test
-        @DisplayName("insert: domainToEntity로 신규 저장")
-        void insert_WithId_UsesDomainToEntity() {
+        @DisplayName("insert: domainToEntity 후 EntityManager.persist 호출")
+        void insert_WithId_PersistsEntity() {
             UUID groupId = UUID.randomUUID();
             OptionGroup domain = OptionGroup.reconstitute(
                     new OptionGroupId(groupId),
@@ -69,14 +80,12 @@ class OptionGroupRepositoryImplTest {
                     List.of()
             );
 
-            when(optionGroupJpaRepository.save(any(OptionGroupEntity.class)))
-                    .thenAnswer(invocation -> invocation.getArgument(0));
+            optionGroupRepository.insert(domain);
 
-            OptionGroup saved = optionGroupRepository.insert(domain);
-
-            assertThat(saved.getId().getValue()).isEqualTo(groupId);
-            assertThat(saved.getName()).isEqualTo("COLOR");
-            verify(optionGroupJpaRepository).save(any(OptionGroupEntity.class));
+            assertThat(domain.getId().getValue()).isEqualTo(groupId);
+            assertThat(domain.getName()).isEqualTo("COLOR");
+            verify(entityManager).persist(any(OptionGroupEntity.class));
+            verify(optionGroupJpaRepository, never()).save(any());
         }
 
         @Test
@@ -128,12 +137,12 @@ class OptionGroupRepositoryImplTest {
 
             when(optionGroupJpaRepository.findById(groupId)).thenReturn(Optional.of(existingEntity));
 
-            OptionGroup result = optionGroupRepository.update(domain);
+            optionGroupRepository.update(domain);
 
-            assertThat(result.getName()).isEqualTo("COLOR_NEW");
-            assertThat(result.getDisplayName()).isEqualTo("색상(변경)");
-            assertThat(result.getStatus()).isEqualTo(OptionStatus.INACTIVE);
-            assertThat(result.getOptionValues()).hasSize(2);
+            assertThat(domain.getName()).isEqualTo("COLOR_NEW");
+            assertThat(domain.getDisplayName()).isEqualTo("색상(변경)");
+            assertThat(domain.getStatus()).isEqualTo(OptionStatus.INACTIVE);
+            assertThat(domain.getOptionValues()).hasSize(2);
 
             assertThat(existingValEntity.getDisplayName()).isEqualTo("진한 빨강");
             assertThat(existingValEntity.getSortOrder()).isEqualTo(3);
@@ -170,7 +179,7 @@ class OptionGroupRepositoryImplTest {
                     .optionValues(new ArrayList<>())
                     .build();
 
-            when(optionGroupJpaRepository.findById(groupId)).thenReturn(Optional.of(entity));
+            when(optionGroupJpaRepository.findAggregateById(groupId)).thenReturn(Optional.of(entity));
 
             Optional<OptionGroup> found = optionGroupRepository.findById(new OptionGroupId(groupId));
 
@@ -182,7 +191,7 @@ class OptionGroupRepositoryImplTest {
         @DisplayName("없으면 Optional.empty()")
         void findById_NotFound_ReturnsEmpty() {
             UUID groupId = UUID.randomUUID();
-            when(optionGroupJpaRepository.findById(groupId)).thenReturn(Optional.empty());
+            when(optionGroupJpaRepository.findAggregateById(groupId)).thenReturn(Optional.empty());
 
             Optional<OptionGroup> found = optionGroupRepository.findById(new OptionGroupId(groupId));
 

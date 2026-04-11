@@ -123,14 +123,6 @@ class OptionGroupApplicationServiceTest {
                     .displayName("사이즈")
                     .build();
 
-            OptionGroup saved = OptionGroup.reconstitute(
-                    newGroupId,
-                    "SIZE",
-                    "사이즈",
-                    OptionStatus.ACTIVE,
-                    List.of()
-            );
-
             CreateOptionGroupResult expected = CreateOptionGroupResult.builder()
                     .id(generatedId)
                     .name("SIZE")
@@ -139,8 +131,8 @@ class OptionGroupApplicationServiceTest {
             when(optionGroupDomainService.isValidOptionGroupName("SIZE")).thenReturn(true);
             when(idGenerator.generateId()).thenReturn(generatedId);
             when(optionGroupDataMapper.toOptionGroup(command, newGroupId)).thenReturn(toSave);
-            when(optionGroupRepository.insert(toSave)).thenReturn(saved);
-            when(optionGroupDataMapper.toCreateOptionGroupResult(saved)).thenReturn(expected);
+            doNothing().when(optionGroupRepository).insert(toSave);
+            when(optionGroupDataMapper.toCreateOptionGroupResult(toSave)).thenReturn(expected);
 
             CreateOptionGroupResult result = optionGroupApplicationService.createOptionGroup(command);
 
@@ -151,7 +143,7 @@ class OptionGroupApplicationServiceTest {
             verify(optionGroupDomainService).isValidOptionGroupName("SIZE");
             verify(idGenerator).generateId();
             verify(optionGroupRepository).insert(toSave);
-            verify(optionGroupDataMapper).toCreateOptionGroupResult(saved);
+            verify(optionGroupDataMapper).toCreateOptionGroupResult(toSave);
         }
     }
 
@@ -299,7 +291,7 @@ class OptionGroupApplicationServiceTest {
             when(optionGroupDataMapper.toAddOptionValueResult(newValue1)).thenReturn(expected1);
             when(optionGroupDataMapper.toAddOptionValueResult(newValue2)).thenReturn(expected2);
 
-            when(optionGroupRepository.update(optionGroup)).thenReturn(optionGroup);
+            doNothing().when(optionGroupRepository).update(optionGroup);
 
             List<AddOptionValueResult> results = optionGroupApplicationService.addOptionValues(groupId, bulkCommand);
 
@@ -400,7 +392,7 @@ class OptionGroupApplicationServiceTest {
             OptionGroup optionGroup = activeGroup(rawId, List.of());
             when(optionGroupRepository.findById(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
             when(optionGroupDomainService.isValidOptionGroupName("NEWNAME")).thenReturn(true);
-            when(optionGroupRepository.update(optionGroup)).thenReturn(optionGroup);
+            doNothing().when(optionGroupRepository).update(optionGroup);
 
             UpdateOptionGroupResult expected = UpdateOptionGroupResult.builder()
                     .id(rawId)
@@ -533,7 +525,7 @@ class OptionGroupApplicationServiceTest {
             );
 
             when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(optionGroup));
-            when(optionGroupRepository.update(optionGroup)).thenReturn(optionGroup);
+            doNothing().when(optionGroupRepository).update(optionGroup);
             when(optionGroupDataMapper.toUpdateOptionValueResult(existing)).thenReturn(expected);
 
             UpdateOptionValueResult result = optionGroupApplicationService.updateOptionValue(groupId, valueId, command);
@@ -585,7 +577,7 @@ class OptionGroupApplicationServiceTest {
                     .build();
 
             when(optionGroupRepository.findById(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
-            when(optionGroupRepository.update(any(OptionGroup.class))).thenAnswer(inv -> inv.getArgument(0));
+            doNothing().when(optionGroupRepository).update(any(OptionGroup.class));
             when(optionGroupDataMapper.toDeleteOptionGroupResult(any(OptionGroup.class))).thenReturn(expected);
 
             DeleteOptionGroupResult result = optionGroupApplicationService.deleteOptionGroup(rawId);
@@ -669,7 +661,7 @@ class OptionGroupApplicationServiceTest {
                     .build();
 
             when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(optionGroup));
-            when(optionGroupRepository.update(optionGroup)).thenReturn(optionGroup);
+            doNothing().when(optionGroupRepository).update(optionGroup);
             when(optionGroupDataMapper.toDeleteOptionValueResult(existing)).thenReturn(expected);
 
             DeleteOptionValueResult result = optionGroupApplicationService.deleteOptionValue(groupId, valueId);
