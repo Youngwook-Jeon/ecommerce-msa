@@ -54,11 +54,11 @@ public class ProductApplicationService {
         productDomainService.validateCategoryForProduct(categoryId);
         ProductId productId = new ProductId(idGenerator.generateId());
         Product newProduct = productDataMapper.toDraftProduct(command, categoryId, productId);
-        Product savedProduct = productRepository.insert(newProduct);
+        productRepository.insert(newProduct);
 
-        log.info("Product saved successfully with id: {}", savedProduct.getId().getValue());
+        log.info("Product saved successfully with id: {}", newProduct.getId().getValue());
 
-        return productDataMapper.toCreateProductResult(savedProduct);
+        return productDataMapper.toCreateProductResult(newProduct);
     }
 
     @Transactional
@@ -125,11 +125,11 @@ public class ProductApplicationService {
         }
         productDomainService.validateDeletionRules(product);
         product.markAsDeleted();
-        Product deletedProduct = productRepository.update(product);
+        productRepository.update(product);
 
-        log.info("Product deleted successfully. id: {}", deletedProduct.getId().getValue());
+        log.info("Product deleted successfully. id: {}", product.getId().getValue());
 
-        return productDataMapper.toDeleteProductResult(deletedProduct);
+        return productDataMapper.toDeleteProductResult(product);
     }
 
     @Transactional

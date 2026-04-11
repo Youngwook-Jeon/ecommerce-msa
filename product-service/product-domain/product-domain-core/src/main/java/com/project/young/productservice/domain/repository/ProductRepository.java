@@ -7,9 +7,9 @@ import java.util.Optional;
 
 public interface ProductRepository {
 
-    Product insert(Product product);
+    void insert(Product product);
 
-    Product update(Product product);
+    void update(Product product);
 
     Optional<Product> findById(ProductId productId);
 

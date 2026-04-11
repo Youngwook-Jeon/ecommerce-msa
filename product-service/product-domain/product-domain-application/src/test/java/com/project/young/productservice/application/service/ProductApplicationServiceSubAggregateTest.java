@@ -125,7 +125,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.update(product)).thenReturn(product);
+            doNothing().when(productRepository).update(product);
             UUID generatedProductOptionGroupId = UUID.randomUUID();
             UUID generatedProductOptionValueId = UUID.randomUUID();
             when(idGenerator.generateId()).thenReturn(generatedProductOptionGroupId, generatedProductOptionValueId);
@@ -271,7 +271,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.update(product)).thenReturn(product);
+            doNothing().when(productRepository).update(product);
             when(idGenerator.generateId()).thenReturn(generatedProductOptionValueId);
 
             AddProductOptionValueToGroupResult result =
@@ -322,7 +322,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.update(product)).thenReturn(product);
+            doNothing().when(productRepository).update(product);
             when(idGenerator.generateId()).thenReturn(UUID.randomUUID());
 
             assertThatCode(() -> productApplicationService.addProductOptionValue(productId, productOptionGroupId, command))
@@ -436,7 +436,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.update(product)).thenReturn(product);
+            doNothing().when(productRepository).update(product);
             UUID generatedVariantId = UUID.randomUUID();
             when(idGenerator.generateId()).thenReturn(generatedVariantId);
 
@@ -545,7 +545,7 @@ class ProductApplicationServiceSubAggregateTest {
                             .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.update(product)).thenReturn(product);
+            doNothing().when(productRepository).update(product);
 
             ChangeProductOptionValuePriceDeltaResult result = productApplicationService
                     .changeProductOptionValuePriceDelta(productId, productOptionValueId, command);
@@ -643,7 +643,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.update(product)).thenReturn(product);
+            doNothing().when(productRepository).update(product);
 
             UpdateProductVariantResult result = productApplicationService.updateProductVariant(productId, variantId, command);
 
@@ -698,7 +698,7 @@ class ProductApplicationServiceSubAggregateTest {
             );
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.update(product)).thenReturn(product);
+            doNothing().when(productRepository).update(product);
 
             DeleteProductVariantResult result = productApplicationService.deleteProductVariant(productId, variantId);
 
@@ -757,7 +757,7 @@ class ProductApplicationServiceSubAggregateTest {
             );
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
-            when(productRepository.update(product)).thenReturn(product);
+            doNothing().when(productRepository).update(product);
 
             DeactivateProductOptionValueResult result =
                     productApplicationService.deactivateProductOptionValue(productId, productOptionValueId);

@@ -5,6 +5,7 @@ import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.mapper.ProductAggregateMapper;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
@@ -12,6 +13,7 @@ import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -40,6 +42,12 @@ class ProductRepositoryImplTest {
     @Mock
     private ProductDataAccessMapper productDataAccessMapper;
 
+    @Mock
+    private ProductAggregateMapper productAggregateMapper;
+
+    @Mock
+    private EntityManager entityManager;
+
     @InjectMocks
     private ProductRepositoryImpl productRepository;
 
@@ -54,13 +62,12 @@ class ProductRepositoryImplTest {
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("product must not be null");
 
-            verifyNoInteractions(productJpaRepository, categoryJpaRepository, productDataAccessMapper);
+            verifyNoInteractions(productJpaRepository, categoryJpaRepository, productDataAccessMapper, entityManager);
         }
 
         @Test
         @DisplayName("insert: 새 상품 저장 성공 (카테고리 없음)")
         void insert_NewProductWithoutCategory_Success() {
-            // Given
             Product product = Product.builder()
                     .productId(new ProductId(UUID.randomUUID()))
                     .categoryId(null)
@@ -73,42 +80,21 @@ class ProductRepositoryImplTest {
                     .mainImageUrl("https://example.com/image.jpg")
                     .build();
 
-            ProductEntity toSaveEntity = mock(ProductEntity.class);
-            ProductEntity savedEntity = mock(ProductEntity.class);
-            Product savedDomain = Product.reconstitute(
-                    new ProductId(UUID.randomUUID()),
-                    null,
-                    "와이드핏 데님",
-                    "와이드핏 데님 상세 설명입니다.",
-                    new Money(new BigDecimal("99000")),
-                    ProductStatus.ACTIVE,
-                    ConditionType.NEW,
-                    "브랜드A",
-                    "https://example.com/image.jpg",
-                    new ArrayList<>(),
-                    new ArrayList<>()
-            );
+            ProductEntity toPersistEntity = mock(ProductEntity.class);
 
             when(productDataAccessMapper.productToProductEntity(eq(product), isNull()))
-                    .thenReturn(toSaveEntity);
-            when(productJpaRepository.save(toSaveEntity)).thenReturn(savedEntity);
-            when(productDataAccessMapper.productEntityToProduct(savedEntity)).thenReturn(savedDomain);
+                    .thenReturn(toPersistEntity);
 
-            // When
-            Product result = productRepository.insert(product);
+            productRepository.insert(product);
 
-            // Then
-            assertThat(result).isNotNull();
-            assertThat(result.getName()).isEqualTo("와이드핏 데님");
             verify(productDataAccessMapper).productToProductEntity(eq(product), isNull());
-            verify(productJpaRepository).save(toSaveEntity);
-            verify(productDataAccessMapper).productEntityToProduct(savedEntity);
+            verify(entityManager).persist(toPersistEntity);
+            verify(productJpaRepository, never()).save(any());
         }
 
         @Test
         @DisplayName("update: 기존 상품 업데이트 성공 (카테고리 포함)")
         void update_ExistingProduct_Success() {
-            // Given
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
             CategoryId categoryId = new CategoryId(10L);
@@ -129,30 +115,21 @@ class ProductRepositoryImplTest {
 
             ProductEntity existingEntity = mock(ProductEntity.class);
             CategoryEntity categoryRef = mock(CategoryEntity.class);
-            Product savedDomain = domainProduct; // 단순히 동일 객체를 반환한다고 가정
 
-            when(productJpaRepository.findAggregateById(rawId)).thenReturn(Optional.of(existingEntity));
+            when(productJpaRepository.findById(rawId)).thenReturn(Optional.of(existingEntity));
             when(categoryJpaRepository.getReferenceById(10L)).thenReturn(categoryRef);
-            when(productDataAccessMapper.productEntityToProduct(existingEntity)).thenReturn(savedDomain);
 
-            // When
-            Product result = productRepository.update(domainProduct);
+            productRepository.update(domainProduct);
 
-            // Then
-            assertThat(result).isNotNull();
-            assertThat(result.getName()).isEqualTo("업데이트된 이름");
-
-            verify(productJpaRepository).findAggregateById(rawId);
+            verify(productJpaRepository).findById(rawId);
             verify(categoryJpaRepository).getReferenceById(10L);
             verify(productDataAccessMapper).updateEntityFromDomain(domainProduct, existingEntity, categoryRef);
             verify(productJpaRepository, never()).save(any());
-            verify(productDataAccessMapper).productEntityToProduct(existingEntity);
         }
 
         @Test
         @DisplayName("update: 존재하지 않는 상품 업데이트 시 ProductNotFoundException 발생")
         void update_NonExistingProduct_ThrowsException() {
-            // Given
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
 
@@ -170,14 +147,13 @@ class ProductRepositoryImplTest {
                     new ArrayList<>()
             );
 
-            when(productJpaRepository.findAggregateById(rawId)).thenReturn(Optional.empty());
+            when(productJpaRepository.findById(rawId)).thenReturn(Optional.empty());
 
-            // When & Then
             assertThatThrownBy(() -> productRepository.update(domainProduct))
                     .isInstanceOf(ProductNotFoundException.class)
                     .hasMessageContaining("Product not found");
 
-            verify(productJpaRepository).findAggregateById(rawId);
+            verify(productJpaRepository).findById(rawId);
             verify(productJpaRepository, never()).save(any());
         }
     }
@@ -189,7 +165,6 @@ class ProductRepositoryImplTest {
         @Test
         @DisplayName("ID로 상품 조회 성공")
         void findById_Success() {
-            // Given
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
 
@@ -209,31 +184,26 @@ class ProductRepositoryImplTest {
             );
 
             when(productJpaRepository.findAggregateById(rawId)).thenReturn(Optional.of(entity));
-            when(productDataAccessMapper.productEntityToProduct(entity)).thenReturn(domainProduct);
+            when(productAggregateMapper.toProduct(entity)).thenReturn(domainProduct);
 
-            // When
             Optional<Product> result = productRepository.findById(productId);
 
-            // Then
             assertThat(result).isPresent();
             assertThat(result.get().getName()).isEqualTo("이름");
             verify(productJpaRepository).findAggregateById(rawId);
-            verify(productDataAccessMapper).productEntityToProduct(entity);
+            verify(productAggregateMapper).toProduct(entity);
         }
 
         @Test
         @DisplayName("존재하지 않는 ID로 조회 시 빈 Optional 반환")
         void findById_NotFound_ReturnsEmpty() {
-            // Given
             UUID rawId = UUID.randomUUID();
             ProductId productId = new ProductId(rawId);
 
             when(productJpaRepository.findAggregateById(rawId)).thenReturn(Optional.empty());
 
-            // When
             Optional<Product> result = productRepository.findById(productId);
 
-            // Then
             assertThat(result).isEmpty();
             verify(productJpaRepository).findAggregateById(rawId);
         }
@@ -249,4 +219,3 @@ class ProductRepositoryImplTest {
         }
     }
 }
-

@@ -38,86 +38,6 @@ class ProductDataAccessMapperTest {
     private final ProductDataAccessMapper mapper = new ProductDataAccessMapper();
 
     @Nested
-    @DisplayName("Entity -> Domain")
-    class EntityToDomain {
-        @Test
-        @DisplayName("하위 aggregate(Set)까지 도메인으로 매핑한다")
-        void productEntityToProduct_withChildren_success() {
-            UUID productId = UUID.randomUUID();
-            UUID pogId = UUID.randomUUID();
-            UUID povId = UUID.randomUUID();
-            UUID variantId = UUID.randomUUID();
-            UUID selectedPovId = UUID.randomUUID();
-
-            CategoryEntity categoryEntity = category(1L, "의류");
-
-            ProductOptionValueEntity povEntity = ProductOptionValueEntity.builder()
-                    .id(povId)
-                    .optionValueId(UUID.randomUUID())
-                    .priceDelta(new BigDecimal("5000"))
-                    .isDefault(true)
-                    .isActive(true)
-                    .build();
-
-            ProductOptionGroupEntity pogEntity = ProductOptionGroupEntity.builder()
-                    .id(pogId)
-                    .optionGroupId(UUID.randomUUID())
-                    .stepOrder(1)
-                    .isRequired(true)
-                    .optionValues(Set.of(povEntity))
-                    .build();
-            povEntity.setProductOptionGroup(pogEntity);
-
-            VariantOptionValueEntity selectedEntity = VariantOptionValueEntity.builder()
-                    .id(UUID.randomUUID())
-                    .productOptionValueId(selectedPovId)
-                    .build();
-
-            ProductVariantEntity variantEntity = ProductVariantEntity.builder()
-                    .id(variantId)
-                    .sku("SKU-001")
-                    .stockQuantity(10)
-                    .status(ProductStatusEntity.ACTIVE)
-                    .calculatedPrice(new BigDecimal("105000"))
-                    .selectedOptionValues(Set.of(selectedEntity))
-                    .build();
-            selectedEntity.setVariant(variantEntity);
-
-            ProductEntity productEntity = ProductEntity.builder()
-                    .id(productId)
-                    .category(categoryEntity)
-                    .name("와이드핏 데님")
-                    .description("desc")
-                    .basePrice(new BigDecimal("100000"))
-                    .status(ProductStatusEntity.ACTIVE)
-                    .conditionType(ConditionTypeEntity.NEW)
-                    .brand("브랜드A")
-                    .mainImageUrl("https://example.com/image.jpg")
-                    .optionGroups(Set.of(pogEntity))
-                    .variants(Set.of(variantEntity))
-                    .build();
-            pogEntity.setProduct(productEntity);
-            variantEntity.setProduct(productEntity);
-
-            Product product = mapper.productEntityToProduct(productEntity);
-
-            assertThat(product.getId()).isEqualTo(new ProductId(productId));
-            assertThat(product.getCategoryId()).contains(new CategoryId(1L));
-            assertThat(product.getOptionGroups()).hasSize(1);
-            assertThat(product.getVariants()).hasSize(1);
-
-            ProductOptionGroup mappedGroup = product.getOptionGroups().get(0);
-            assertThat(mappedGroup.getId()).isEqualTo(new ProductOptionGroupId(pogId));
-            assertThat(mappedGroup.getOptionValues()).hasSize(1);
-
-            ProductVariant mappedVariant = product.getVariants().get(0);
-            assertThat(mappedVariant.getId()).isEqualTo(new ProductVariantId(variantId));
-            assertThat(mappedVariant.getSelectedOptionValues())
-                    .containsExactlyInAnyOrder(new ProductOptionValueId(selectedPovId));
-        }
-    }
-
-    @Nested
     @DisplayName("Domain -> Entity")
     class DomainToEntity {
         @Test
@@ -332,11 +252,8 @@ class ProductDataAccessMapperTest {
     }
 
     @Test
-    @DisplayName("null 입력 검증: productEntityToProduct/productToProductEntity/updateEntityFromDomain")
+    @DisplayName("null 입력 검증: productToProductEntity/updateEntityFromDomain")
     void nullGuards() {
-        assertThatThrownBy(() -> mapper.productEntityToProduct(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessageContaining("productEntity");
         assertThatThrownBy(() -> mapper.productToProductEntity(null, category(1L, "x")))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("product");

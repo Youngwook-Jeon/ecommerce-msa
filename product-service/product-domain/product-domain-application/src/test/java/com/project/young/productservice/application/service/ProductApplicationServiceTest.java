@@ -83,7 +83,11 @@ class ProductApplicationServiceTest {
 
             CategoryId categoryId = new CategoryId(1L);
 
+            UUID generatedId = UUID.randomUUID();
+            ProductId generatedProductId = new ProductId(generatedId);
+
             Product toSave = Product.builder()
+                    .productId(generatedProductId)
                     .categoryId(categoryId)
                     .name("상품")
                     .description("상품에 대한 설명입니다. 충분히 깁니다.")
@@ -94,46 +98,29 @@ class ProductApplicationServiceTest {
                     .status(ProductStatus.DRAFT)
                     .build();
 
-            UUID savedId = UUID.randomUUID();
-            Product saved = Product.reconstitute(
-                    new ProductId(savedId),
-                    categoryId,
-                    "상품",
-                    "상품에 대한 설명입니다. 충분히 깁니다.",
-                    new Money(new BigDecimal("10000")),
-                    ProductStatus.DRAFT,
-                    ConditionType.NEW,
-                    "브랜드",
-                    "url",
-                    List.of(),
-                    List.of()
-            );
-
             CreateProductResult expected = CreateProductResult.builder()
-                    .id(savedId)
+                    .id(generatedId)
                     .name("상품")
                     .build();
-            UUID generatedId = UUID.randomUUID();
-            ProductId generatedProductId = new ProductId(generatedId);
 
             when(idGenerator.generateId()).thenReturn(generatedId);
             when(productDataMapper.toDraftProduct(command, categoryId, generatedProductId)).thenReturn(toSave);
-            when(productRepository.insert(toSave)).thenReturn(saved);
-            when(productDataMapper.toCreateProductResult(saved)).thenReturn(expected);
+            doNothing().when(productRepository).insert(toSave);
+            when(productDataMapper.toCreateProductResult(toSave)).thenReturn(expected);
 
             // When
             CreateProductResult result = productApplicationService.createProduct(command);
 
             // Then
             assertThat(result).isNotNull();
-            assertThat(result.id()).isEqualTo(savedId);
+            assertThat(result.id()).isEqualTo(generatedId);
             assertThat(result.name()).isEqualTo("상품");
 
             verify(productDomainService).validateCategoryForProduct(categoryId);
             verify(idGenerator).generateId();
             verify(productDataMapper).toDraftProduct(command, categoryId, generatedProductId);
             verify(productRepository).insert(toSave);
-            verify(productDataMapper).toCreateProductResult(saved);
+            verify(productDataMapper).toCreateProductResult(toSave);
         }
 
         @Test
@@ -171,7 +158,7 @@ class ProductApplicationServiceTest {
 
             when(idGenerator.generateId()).thenReturn(generatedId);
             when(productDataMapper.toDraftProduct(command, null, generatedProductId)).thenReturn(toSave);
-            when(productRepository.insert(toSave)).thenReturn(toSave);
+            doNothing().when(productRepository).insert(toSave);
             when(productDataMapper.toCreateProductResult(toSave)).thenReturn(expected);
 
             // When
@@ -263,7 +250,7 @@ class ProductApplicationServiceTest {
                     .build();
 
             when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-            when(productRepository.update(product)).thenReturn(product);
+            doNothing().when(productRepository).update(product);
             when(productDataMapper.toUpdateProductResult(product)).thenReturn(expected);
 
             // When
@@ -315,7 +302,7 @@ class ProductApplicationServiceTest {
             );
 
             when(productRepository.findById(productId)).thenReturn(Optional.of(product));
-            when(productRepository.update(product)).thenReturn(product);
+            doNothing().when(productRepository).update(product);
             when(productDataMapper.toUpdateProductResult(product)).thenReturn(
                     UpdateProductResult.builder()
                             .id(rawId)
@@ -413,7 +400,7 @@ class ProductApplicationServiceTest {
                     .build();
 
             when(productRepository.findById(productId)).thenReturn(Optional.of(deleted));
-            when(productRepository.update(deleted)).thenReturn(deleted);
+            doNothing().when(productRepository).update(deleted);
             when(productDataMapper.toDeleteProductResult(deleted)).thenReturn(expected);
 
             // When
