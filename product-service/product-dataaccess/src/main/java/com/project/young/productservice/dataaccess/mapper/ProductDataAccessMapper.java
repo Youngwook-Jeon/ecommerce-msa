@@ -3,12 +3,14 @@ package com.project.young.productservice.dataaccess.mapper;
 import com.project.young.common.domain.valueobject.*;
 import com.project.young.productservice.dataaccess.entity.*;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
+import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.entity.ProductOptionGroup;
 import com.project.young.productservice.domain.entity.ProductOptionValue;
 import com.project.young.productservice.domain.entity.ProductVariant;
 import com.project.young.productservice.domain.valueobject.ConditionType;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.springframework.stereotype.Component;
 
@@ -75,6 +77,7 @@ public class ProductDataAccessMapper {
             groupEntity.setOptionGroupId(domainGroup.getOptionGroupId().getValue());
             groupEntity.setStepOrder(domainGroup.getStepOrder());
             groupEntity.setRequired(domainGroup.isRequired());
+            groupEntity.setStatus(toEntityOptionStatus(domainGroup.getStatus()));
 
             mergeOptionValues(domainGroup, groupEntity);
         }
@@ -95,7 +98,7 @@ public class ProductDataAccessMapper {
             valueEntity.setOptionValueId(domainValue.getOptionValueId().getValue());
             valueEntity.setPriceDelta(domainValue.getPriceDelta().getAmount());
             valueEntity.setDefault(domainValue.isDefault());
-            valueEntity.setActive(domainValue.isActive());
+            valueEntity.setStatus(toEntityOptionStatus(domainValue.getStatus()));
         }
     }
 
@@ -161,5 +164,13 @@ public class ProductDataAccessMapper {
 
     public ConditionType toDomainConditionType(ConditionTypeEntity entityConditionType) {
         return ConditionType.valueOf(entityConditionType.name());
+    }
+
+    public OptionStatusEntity toEntityOptionStatus(OptionStatus domainStatus) {
+        return OptionStatusEntity.valueOf(domainStatus.name());
+    }
+
+    public OptionStatus toDomainOptionStatus(OptionStatusEntity entityStatus) {
+        return OptionStatus.valueOf(entityStatus.name());
     }
 }

@@ -2,8 +2,11 @@ package com.project.young.productservice.dataaccess.entity;
 
 import com.fasterxml.uuid.Generators;
 import com.fasterxml.uuid.impl.TimeBasedEpochGenerator;
+import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -53,6 +56,12 @@ public class ProductOptionGroupEntity {
     private boolean isRequired;
 
     @Builder.Default
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20, columnDefinition = "option_status")
+    private OptionStatusEntity status = OptionStatusEntity.ACTIVE;
+
+    @Builder.Default
     @OneToMany(mappedBy = "productOptionGroup", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     private Set<ProductOptionValueEntity> optionValues = new HashSet<>();
 
@@ -77,6 +86,14 @@ public class ProductOptionGroupEntity {
         }
         this.optionValues.add(optionValue);
         optionValue.setProductOptionGroup(this);
+    }
+
+    public boolean isActive() {
+        return this.status == OptionStatusEntity.ACTIVE;
+    }
+
+    public void setActive(boolean active) {
+        this.status = active ? OptionStatusEntity.ACTIVE : OptionStatusEntity.INACTIVE;
     }
 
     @Override

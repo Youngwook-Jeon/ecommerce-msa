@@ -12,6 +12,7 @@ import com.project.young.productservice.dataaccess.entity.ProductVariantEntity;
 import com.project.young.productservice.dataaccess.entity.VariantOptionValueEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
+import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
@@ -216,7 +217,7 @@ class ProductReadRepositoryImplTest {
                     .optionValueId(UUID.randomUUID())
                     .priceDelta(new BigDecimal("1500"))
                     .isDefault(true)
-                    .isActive(true)
+                    .status(OptionStatusEntity.ACTIVE)
                     .build();
             ProductOptionGroupEntity optionGroup = ProductOptionGroupEntity.builder()
                     .id(UUID.randomUUID())

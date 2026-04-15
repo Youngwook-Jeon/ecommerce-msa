@@ -15,6 +15,7 @@ import com.project.young.productservice.dataaccess.entity.ProductOptionValueEnti
 import com.project.young.productservice.dataaccess.entity.ProductVariantEntity;
 import com.project.young.productservice.dataaccess.entity.VariantOptionValueEntity;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
+import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.entity.ProductOptionGroup;
@@ -123,7 +124,7 @@ class ProductDataAccessMapperTest {
                     .optionValueId(UUID.randomUUID())
                     .priceDelta(new BigDecimal("1000"))
                     .isDefault(false)
-                    .isActive(true)
+                    .status(OptionStatusEntity.ACTIVE)
                     .build();
 
             ProductOptionGroupEntity existingGroup = ProductOptionGroupEntity.builder()

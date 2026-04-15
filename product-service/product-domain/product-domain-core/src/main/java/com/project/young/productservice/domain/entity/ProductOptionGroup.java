@@ -5,6 +5,7 @@ import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.common.domain.valueobject.ProductOptionGroupId;
 import com.project.young.productservice.domain.exception.ProductDomainException;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 
 import lombok.Getter;
 
@@ -23,6 +24,9 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
     // 고객이 반드시 선택해야 하는 필수 옵션인지 여부
     private boolean isRequired;
 
+    // 이 상품에서 옵션 그룹의 로컬 상태
+    private OptionStatus status;
+
     // 하위 옵션 값 컬렉션 (ProductOptionValue)
     private final List<ProductOptionValue> optionValues;
 
@@ -35,14 +39,16 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
         this.optionGroupId = builder.optionGroupId;
         this.stepOrder = builder.stepOrder;
         this.isRequired = builder.isRequired;
+        this.status = builder.status != null ? builder.status : OptionStatus.ACTIVE;
         this.optionValues = builder.optionValues != null ? builder.optionValues : new ArrayList<>();
     }
 
-    private ProductOptionGroup(ProductOptionGroupId id, OptionGroupId optionGroupId, int stepOrder, boolean isRequired, List<ProductOptionValue> optionValues) {
+    private ProductOptionGroup(ProductOptionGroupId id, OptionGroupId optionGroupId, int stepOrder, boolean isRequired, OptionStatus status, List<ProductOptionValue> optionValues) {
         super.setId(id);
         this.optionGroupId = optionGroupId;
         this.stepOrder = stepOrder;
         this.isRequired = isRequired;
+        this.status = status != null ? status : OptionStatus.ACTIVE;
         this.optionValues = optionValues != null ? new ArrayList<>(optionValues) : new ArrayList<>();
     }
 
@@ -64,6 +70,34 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
 
     void changeRequiredStatus(boolean isRequired) {
         this.isRequired = isRequired;
+    }
+
+    void changeStatus(OptionStatus newStatus) {
+        if (newStatus == null) {
+            throw new ProductDomainException("Option group status cannot be null.");
+        }
+        if (!this.status.canTransitionTo(newStatus)) {
+            throw new ProductDomainException("Invalid option group status transition: " + this.status + " -> " + newStatus);
+        }
+        this.status = newStatus;
+    }
+
+    void deactivateGroup() {
+        if (this.status == OptionStatus.DELETED) {
+            return;
+        }
+        this.status = OptionStatus.INACTIVE;
+    }
+
+    void activateGroup() {
+        if (this.status == OptionStatus.DELETED) {
+            throw new ProductDomainException("Cannot activate a deleted option group.");
+        }
+        this.status = OptionStatus.ACTIVE;
+    }
+
+    public boolean isActive() {
+        return this.status != null && this.status.isActive();
     }
 
     void addOptionValue(ProductOptionValue newValue) {
@@ -100,8 +134,12 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
     // ========================================================================
     // FOR PERSISTENCE MAPPING ONLY
     // ========================================================================
+    public static ProductOptionGroup reconstitute(ProductOptionGroupId id, OptionGroupId optionGroupId, int stepOrder, boolean isRequired, OptionStatus status, List<ProductOptionValue> optionValues) {
+        return new ProductOptionGroup(id, optionGroupId, stepOrder, isRequired, status, optionValues);
+    }
+
     public static ProductOptionGroup reconstitute(ProductOptionGroupId id, OptionGroupId optionGroupId, int stepOrder, boolean isRequired, List<ProductOptionValue> optionValues) {
-        return new ProductOptionGroup(id, optionGroupId, stepOrder, isRequired, optionValues);
+        return new ProductOptionGroup(id, optionGroupId, stepOrder, isRequired, OptionStatus.ACTIVE, optionValues);
     }
 
     // ========================================================================
@@ -112,6 +150,7 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
         private OptionGroupId optionGroupId;
         private int stepOrder;
         private boolean isRequired = true; // 기본값: 필수 옵션
+        private OptionStatus status = OptionStatus.ACTIVE;
         private List<ProductOptionValue> optionValues = new ArrayList<>();
 
         public Builder id(ProductOptionGroupId id) {
@@ -136,6 +175,16 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
 
         public Builder optionValues(List<ProductOptionValue> optionValues) {
             this.optionValues = optionValues;
+            return this;
+        }
+
+        public Builder status(OptionStatus status) {
+            this.status = status;
+            return this;
+        }
+
+        public Builder isActive(boolean isActive) {
+            this.status = isActive ? OptionStatus.ACTIVE : OptionStatus.INACTIVE;
             return this;
         }
 

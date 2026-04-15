@@ -2,8 +2,11 @@ package com.project.young.productservice.dataaccess.entity;
 
 import com.fasterxml.uuid.Generators;
 import com.fasterxml.uuid.impl.TimeBasedEpochGenerator;
+import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
@@ -50,8 +53,11 @@ public class ProductOptionValueEntity {
     @Column(name = "is_default", nullable = false)
     private boolean isDefault;
 
-    @Column(name = "is_active", nullable = false)
-    private boolean isActive;
+    @Builder.Default
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20, columnDefinition = "option_status")
+    private OptionStatusEntity status = OptionStatusEntity.ACTIVE;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -66,6 +72,14 @@ public class ProductOptionValueEntity {
         if (this.id == null) {
             this.id = UUID_GENERATOR.generate();
         }
+    }
+
+    public boolean isActive() {
+        return this.status == OptionStatusEntity.ACTIVE;
+    }
+
+    public void setActive(boolean active) {
+        this.status = active ? OptionStatusEntity.ACTIVE : OptionStatusEntity.INACTIVE;
     }
 
     @Override

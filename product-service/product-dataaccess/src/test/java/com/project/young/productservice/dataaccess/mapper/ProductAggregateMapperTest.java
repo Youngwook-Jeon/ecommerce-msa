@@ -3,6 +3,7 @@ package com.project.young.productservice.dataaccess.mapper;
 import com.project.young.common.domain.valueobject.*;
 import com.project.young.productservice.dataaccess.entity.*;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
+import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.entity.ProductOptionGroup;
@@ -40,7 +41,7 @@ class ProductAggregateMapperTest {
                     .optionValueId(UUID.randomUUID())
                     .priceDelta(new BigDecimal("5000"))
                     .isDefault(true)
-                    .isActive(true)
+                    .status(OptionStatusEntity.ACTIVE)
                     .build();
 
             ProductOptionGroupEntity pogEntity = ProductOptionGroupEntity.builder()

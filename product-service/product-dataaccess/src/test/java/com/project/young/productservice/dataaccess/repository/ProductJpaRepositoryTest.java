@@ -122,7 +122,7 @@ class ProductJpaRepositoryTest {
                     .optionValueId(referencedOptionValueId)
                     .priceDelta(new BigDecimal("1500"))
                     .isDefault(true)
-                    .isActive(true)
+                    .status(OptionStatusEntity.ACTIVE)
                     .build();
             optionGroup.addOptionValue(optionValue);
             product.addOptionGroup(optionGroup);
@@ -432,7 +432,7 @@ class ProductJpaRepositoryTest {
                     .optionValueId(globalOptionValue.getId())
                     .priceDelta(new BigDecimal("2000"))
                     .isDefault(true)
-                    .isActive(true)
+                    .status(OptionStatusEntity.ACTIVE)
                     .build();
             optionGroup.addOptionValue(optionValue);
             product.addOptionGroup(optionGroup);
@@ -521,7 +521,7 @@ class ProductJpaRepositoryTest {
                             .optionValueId(globalValue.getId())
                             .priceDelta(new BigDecimal("500"))
                             .isDefault(valueIndex == 0)
-                            .isActive(true)
+                            .status(OptionStatusEntity.ACTIVE)
                             .build();
                     pog.addOptionValue(pov);
                 }

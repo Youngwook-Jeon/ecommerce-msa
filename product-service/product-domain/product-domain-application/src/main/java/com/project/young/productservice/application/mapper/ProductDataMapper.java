@@ -26,6 +26,7 @@ import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.entity.ProductOptionGroup;
 import com.project.young.productservice.domain.entity.ProductOptionValue;
 import com.project.young.productservice.domain.entity.ProductVariant;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.springframework.stereotype.Component;
 
@@ -105,7 +106,7 @@ public class ProductDataMapper {
                 .optionValueId(new OptionValueId(command.getOptionValueId()))
                 .priceDelta(new Money(command.getPriceDelta()))
                 .isDefault(command.isDefault())
-                .isActive(command.isActive())
+                .status(command.isActive() ? OptionStatus.ACTIVE : OptionStatus.INACTIVE)
                 .build();
     }
 
@@ -122,6 +123,7 @@ public class ProductDataMapper {
                 .optionGroupId(new OptionGroupId(command.getOptionGroupId()))
                 .stepOrder(command.getStepOrder())
                 .isRequired(command.isRequired())
+                .status(OptionStatus.ACTIVE)
                 .optionValues(optionValues)
                 .build();
     }

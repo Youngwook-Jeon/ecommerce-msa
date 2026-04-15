@@ -3,12 +3,14 @@ package com.project.young.productservice.dataaccess.mapper;
 import com.project.young.common.domain.valueobject.*;
 import com.project.young.productservice.dataaccess.entity.*;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
+import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.entity.ProductOptionGroup;
 import com.project.young.productservice.domain.entity.ProductOptionValue;
 import com.project.young.productservice.domain.entity.ProductVariant;
 import com.project.young.productservice.domain.valueobject.ConditionType;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.springframework.stereotype.Component;
 
@@ -62,6 +64,7 @@ public class ProductAggregateMapper {
                 new OptionGroupId(entity.getOptionGroupId()),
                 entity.getStepOrder(),
                 entity.isRequired(),
+                toDomainOptionStatus(entity.getStatus()),
                 optionValues
         );
     }
@@ -72,7 +75,7 @@ public class ProductAggregateMapper {
                 new OptionValueId(entity.getOptionValueId()),
                 new Money(entity.getPriceDelta()),
                 entity.isDefault(),
-                entity.isActive()
+                toDomainOptionStatus(entity.getStatus())
         );
     }
 
@@ -106,5 +109,9 @@ public class ProductAggregateMapper {
 
     private ConditionType toDomainConditionType(ConditionTypeEntity entityConditionType) {
         return ConditionType.valueOf(entityConditionType.name());
+    }
+
+    private OptionStatus toDomainOptionStatus(OptionStatusEntity entityStatus) {
+        return OptionStatus.valueOf(entityStatus.name());
     }
 }

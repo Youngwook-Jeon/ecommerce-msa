@@ -5,6 +5,7 @@ import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.common.domain.valueobject.ProductOptionValueId;
 import com.project.young.productservice.domain.exception.ProductDomainException;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 
 import lombok.Getter;
 
@@ -20,8 +21,8 @@ public class ProductOptionValue extends BaseEntity<ProductOptionValueId> {
     // 프론트엔드에서 기본으로 선택되어 있을지 여부
     private boolean isDefault;
 
-    // 이 상품에서 현재 해당 옵션을 판매(노출) 중인지 여부 (로컬 소프트 삭제/비활성화)
-    private boolean isActive;
+    // 이 상품에서의 로컬 상태 (글로벌 상태와 별개로 관리)
+    private OptionStatus status;
 
     public static Builder builder() {
         return new Builder();
@@ -32,15 +33,15 @@ public class ProductOptionValue extends BaseEntity<ProductOptionValueId> {
         this.optionValueId = builder.optionValueId;
         this.priceDelta = builder.priceDelta != null ? builder.priceDelta : Money.ZERO;
         this.isDefault = builder.isDefault;
-        this.isActive = builder.isActive;
+        this.status = builder.status != null ? builder.status : OptionStatus.ACTIVE;
     }
 
-    private ProductOptionValue(ProductOptionValueId id, OptionValueId optionValueId, Money priceDelta, boolean isDefault, boolean isActive) {
+    private ProductOptionValue(ProductOptionValueId id, OptionValueId optionValueId, Money priceDelta, boolean isDefault, OptionStatus status) {
         super.setId(id);
         this.optionValueId = optionValueId;
         this.priceDelta = priceDelta;
         this.isDefault = isDefault;
-        this.isActive = isActive;
+        this.status = status != null ? status : OptionStatus.ACTIVE;
     }
 
     // ========================================================================
@@ -56,12 +57,32 @@ public class ProductOptionValue extends BaseEntity<ProductOptionValueId> {
         this.isDefault = isDefault;
     }
 
+    void changeStatus(OptionStatus newStatus) {
+        if (newStatus == null) {
+            throw new ProductDomainException("Option status cannot be null.");
+        }
+        if (!this.status.canTransitionTo(newStatus)) {
+            throw new ProductDomainException("Invalid option status transition: " + this.status + " -> " + newStatus);
+        }
+        this.status = newStatus;
+    }
+
     void deactivateLocalOption() {
-        this.isActive = false;
+        if (this.status == OptionStatus.DELETED) {
+            return;
+        }
+        this.status = OptionStatus.INACTIVE;
     }
 
     void activateLocalOption() {
-        this.isActive = true;
+        if (this.status == OptionStatus.DELETED) {
+            throw new ProductDomainException("Cannot activate a deleted option value.");
+        }
+        this.status = OptionStatus.ACTIVE;
+    }
+
+    public boolean isActive() {
+        return this.status != null && this.status.isActive();
     }
 
     // ========================================================================
@@ -77,8 +98,18 @@ public class ProductOptionValue extends BaseEntity<ProductOptionValueId> {
     // ========================================================================
     // FOR PERSISTENCE MAPPING ONLY
     // ========================================================================
+    public static ProductOptionValue reconstitute(ProductOptionValueId id, OptionValueId optionValueId, Money priceDelta, boolean isDefault, OptionStatus status) {
+        return new ProductOptionValue(id, optionValueId, priceDelta, isDefault, status);
+    }
+
     public static ProductOptionValue reconstitute(ProductOptionValueId id, OptionValueId optionValueId, Money priceDelta, boolean isDefault, boolean isActive) {
-        return new ProductOptionValue(id, optionValueId, priceDelta, isDefault, isActive);
+        return new ProductOptionValue(
+                id,
+                optionValueId,
+                priceDelta,
+                isDefault,
+                isActive ? OptionStatus.ACTIVE : OptionStatus.INACTIVE
+        );
     }
 
     // ========================================================================
@@ -89,7 +120,7 @@ public class ProductOptionValue extends BaseEntity<ProductOptionValueId> {
         private OptionValueId optionValueId;
         private Money priceDelta = Money.ZERO;
         private boolean isDefault = false;
-        private boolean isActive = true;
+        private OptionStatus status = OptionStatus.ACTIVE;
 
         public Builder id(ProductOptionValueId id) {
             this.id = id;
@@ -111,8 +142,13 @@ public class ProductOptionValue extends BaseEntity<ProductOptionValueId> {
             return this;
         }
 
+        public Builder status(OptionStatus status) {
+            this.status = status;
+            return this;
+        }
+
         public Builder isActive(boolean isActive) {
-            this.isActive = isActive;
+            this.status = isActive ? OptionStatus.ACTIVE : OptionStatus.INACTIVE;
             return this;
         }
 
