@@ -26,6 +26,20 @@ import static org.assertj.core.api.Assertions.*;
 class ProductTest {
 
     @Test
+    @DisplayName("builder: status를 별도로 지정하지 않으면 기본은 DRAFT 상태")
+    void builder_DefaultStatus_Draft() {
+        Product product = Product.builder()
+                .name("상품")
+                .description("적당히 긴 유효한 설명입니다. 20자 이상.")
+                .basePrice(new Money(new BigDecimal("10000")))
+                .brand("브랜드")
+                .mainImageUrl("https://example.com/image.jpg")
+                .conditionType(ConditionType.NEW)
+                .build();
+        assertThat(product.getStatus()).isEqualTo(ProductStatus.DRAFT);
+    }
+
+    @Test
     @DisplayName("builder: name이 blank면 예외")
     void builder_BlankName_Throws() {
         assertThatThrownBy(() -> Product.builder()

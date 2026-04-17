@@ -394,7 +394,7 @@ public class Product extends AggregateRoot<ProductId> {
         private String name;
         private String description;
         private Money basePrice;
-        private ProductStatus status = ProductStatus.ACTIVE;
+        private ProductStatus status = ProductStatus.DRAFT;
         private ConditionType conditionType;
         private String brand;
         private String mainImageUrl;

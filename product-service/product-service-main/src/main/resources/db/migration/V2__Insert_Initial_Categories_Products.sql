@@ -9,7 +9,8 @@ INSERT INTO categories (id, name, parent_id, status)
 VALUES (4, 'Laptops', 1, 'ACTIVE'),     -- Child of Electronics
        (5, 'Smartphones', 1, 'ACTIVE'), -- Child of Electronics
        (6, 'Fiction', 2, 'ACTIVE'),     -- Child of Books
-       (7, 'Non-Fiction', 2, 'ACTIVE'); -- Child of Books
+       (7, 'Non-Fiction', 2, 'ACTIVE');
+-- Child of Books
 
 -- Insert Grandchild Category
 INSERT INTO categories (id, name, parent_id, status)
@@ -18,230 +19,137 @@ VALUES (8, 'Science Fiction', 6, 'ACTIVE');
 -- Update the sequence after manual ID insertion.
 SELECT setval('categories_id_seq', (SELECT MAX(id) FROM categories));
 
--- ============================================================================
--- Sample products (205 total). id, created_at, updated_at use table defaults.
--- ============================================================================
-INSERT INTO products (category_id, name, description, base_price, status, condition_type, brand, main_image_url)
-VALUES
--- Category 1: Electronics (26)
-(1, 'Wireless Bluetooth Earbuds', 'Noise-cancelling wireless earbuds with 24h battery', 79.99, 'ACTIVE', 'NEW', 'SoundMax', 'https://example.com/images/product-001.jpg'),
-(1, 'USB-C Multi-Port Hub', '7-in-1 adapter with HDMI and SD card reader', 49.99, 'ACTIVE', 'NEW', 'TechLink', 'https://example.com/images/product-002.jpg'),
-(1, 'Smart Fitness Watch', 'GPS, heart rate, sleep tracking, 5ATM water resistant', 129.99, 'ACTIVE', 'NEW', 'FitGear', 'https://example.com/images/product-003.jpg'),
-(1, 'Mechanical Keyboard', 'RGB backlit, Cherry MX switches', 89.99, 'ACTIVE', 'NEW', 'KeyPro', 'https://example.com/images/product-004.jpg'),
-(1, 'Wireless Mouse', 'Ergonomic, 16000 DPI, 70-day battery', 39.99, 'ACTIVE', 'NEW', 'ClickTech', 'https://example.com/images/product-005.jpg'),
-(1, 'Portable Power Bank 20000mAh', 'Dual USB-C, fast charging', 45.99, 'ACTIVE', 'NEW', 'PowerGo', 'https://example.com/images/product-006.jpg'),
-(1, 'Bluetooth Speaker', 'Waterproof, 12h playtime', 59.99, 'ACTIVE', 'NEW', 'BassBox', 'https://example.com/images/product-007.jpg'),
-(1, 'Webcam 1080p', 'Auto-focus, built-in mic', 69.99, 'ACTIVE', 'NEW', 'CamPro', 'https://example.com/images/product-008.jpg'),
-(1, 'Tablet Stand Aluminum', 'Adjustable angle, foldable', 24.99, 'ACTIVE', 'NEW', 'DeskGear', 'https://example.com/images/product-009.jpg'),
-(1, 'HDMI Cable 2m', '4K 60Hz, braided', 14.99, 'ACTIVE', 'NEW', 'CablePro', 'https://example.com/images/product-010.jpg'),
-(1, 'USB Flash Drive 128GB', 'USB 3.2, metal body', 19.99, 'ACTIVE', 'NEW', 'DataStore', 'https://example.com/images/product-011.jpg'),
-(1, 'Screen Cleaner Kit', 'Microfiber cloth and spray', 9.99, 'ACTIVE', 'NEW', 'CleanTech', 'https://example.com/images/product-012.jpg'),
-(1, 'Laptop Cooling Pad', '5 fans, adjustable height', 34.99, 'ACTIVE', 'NEW', 'CoolMax', 'https://example.com/images/product-013.jpg'),
-(1, 'Noise Cancelling Headphones', 'Over-ear, 30h battery', 149.99, 'ACTIVE', 'NEW', 'SoundMax', 'https://example.com/images/product-014.jpg'),
-(1, 'Smart Home Hub', 'Voice control, Zigbee and Z-Wave', 99.99, 'ACTIVE', 'NEW', 'HomeConnect', 'https://example.com/images/product-015.jpg'),
-(1, 'LED Desk Lamp', 'Dimmable, USB charging port', 29.99, 'ACTIVE', 'NEW', 'BrightLife', 'https://example.com/images/product-016.jpg'),
-(1, 'External SSD 500GB', 'USB 3.2 Gen 2, portable', 59.99, 'ACTIVE', 'NEW', 'DataStore', 'https://example.com/images/product-017.jpg'),
-(1, 'Gaming Headset', '7.1 surround, detachable mic', 79.99, 'ACTIVE', 'NEW', 'GameAudio', 'https://example.com/images/product-018.jpg'),
-(1, 'Streaming Microphone', 'Cardioid, USB plug-and-play', 89.99, 'ACTIVE', 'NEW', 'StreamPro', 'https://example.com/images/product-019.jpg'),
-(1, 'Ring Light 10"', 'Dimmable, tripod included', 44.99, 'ACTIVE', 'NEW', 'StudioLight', 'https://example.com/images/product-020.jpg'),
-(1, 'Smart Plug WiFi', 'App control, energy monitoring', 18.99, 'ACTIVE', 'NEW', 'HomeConnect', 'https://example.com/images/product-021.jpg'),
-(1, 'Cable Organizer Box', 'Desk cable management', 16.99, 'ACTIVE', 'NEW', 'DeskGear', 'https://example.com/images/product-022.jpg'),
-(1, 'Wireless Charging Pad', 'Qi 15W, LED indicator', 27.99, 'ACTIVE', 'NEW', 'PowerGo', 'https://example.com/images/product-023.jpg'),
-(1, 'Monitor Arm Mount', 'Single arm, VESA 100x100', 54.99, 'ACTIVE', 'NEW', 'DeskGear', 'https://example.com/images/product-024.jpg'),
-(1, 'E-reader 6"', 'Front light, 8GB storage', 99.99, 'ACTIVE', 'NEW', 'ReadEasy', 'https://example.com/images/product-025.jpg'),
-(1, 'Digital Photo Frame 10"', 'WiFi, cloud sync', 119.99, 'ACTIVE', 'NEW', 'FrameTech', 'https://example.com/images/product-026.jpg'),
--- Category 2: Books (26)
-(2, 'Introduction to Algorithms', 'Classic CS algorithms and data structures', 89.99, 'ACTIVE', 'NEW', 'MIT Press', 'https://example.com/images/product-027.jpg'),
-(2, 'Clean Code', 'A handbook of agile software craftsmanship', 44.99, 'ACTIVE', 'NEW', 'Prentice Hall', 'https://example.com/images/product-028.jpg'),
-(2, 'The Pragmatic Programmer', 'Your journey to mastery', 49.99, 'ACTIVE', 'NEW', 'Addison-Wesley', 'https://example.com/images/product-029.jpg'),
-(2, 'Designing Data-Intensive Applications', 'The big ideas behind reliable systems', 54.99, 'ACTIVE', 'NEW', 'O''Reilly', 'https://example.com/images/product-030.jpg'),
-(2, 'Atomic Habits', 'Tiny changes, remarkable results', 27.99, 'ACTIVE', 'NEW', 'Avery', 'https://example.com/images/product-031.jpg'),
-(2, 'Deep Work', 'Rules for focused success', 28.99, 'ACTIVE', 'NEW', 'Grand Central', 'https://example.com/images/product-032.jpg'),
-(2, 'The Lean Startup', 'How to build a sustainable business', 18.99, 'ACTIVE', 'NEW', 'Crown', 'https://example.com/images/product-033.jpg'),
-(2, 'Zero to One', 'Notes on startups and the future', 16.99, 'ACTIVE', 'NEW', 'Crown', 'https://example.com/images/product-034.jpg'),
-(2, 'Sapiens', 'A brief history of humankind', 22.99, 'ACTIVE', 'NEW', 'Harper', 'https://example.com/images/product-035.jpg'),
-(2, 'Homo Deus', 'A brief history of tomorrow', 18.99, 'ACTIVE', 'NEW', 'Harper', 'https://example.com/images/product-036.jpg'),
-(2, 'Thinking, Fast and Slow', 'Understanding how we think', 17.99, 'ACTIVE', 'NEW', 'Farrar, Straus and Giroux', 'https://example.com/images/product-037.jpg'),
-(2, 'The Psychology of Money', 'Timeless lessons on wealth', 16.99, 'ACTIVE', 'NEW', 'Harriman House', 'https://example.com/images/product-038.jpg'),
-(2, 'How to Win Friends', 'Influence people and build relationships', 14.99, 'ACTIVE', 'NEW', 'Simon & Schuster', 'https://example.com/images/product-039.jpg'),
-(2, 'The 7 Habits of Highly Effective People', 'Powerful lessons in personal change', 15.99, 'ACTIVE', 'NEW', 'Simon & Schuster', 'https://example.com/images/product-040.jpg'),
-(2, 'Getting Things Done', 'The art of stress-free productivity', 17.99, 'ACTIVE', 'NEW', 'Penguin', 'https://example.com/images/product-041.jpg'),
-(2, 'The Art of War', 'Ancient strategy and leadership', 9.99, 'ACTIVE', 'NEW', 'Various', 'https://example.com/images/product-042.jpg'),
-(2, 'Meditations', 'Marcus Aurelius, Stoic philosophy', 12.99, 'ACTIVE', 'NEW', 'Penguin', 'https://example.com/images/product-043.jpg'),
-(2, 'The Almanack of Naval Ravikant', 'Wealth and happiness', 14.99, 'ACTIVE', 'NEW', 'Magazine', 'https://example.com/images/product-044.jpg'),
-(2, 'Influence', 'The psychology of persuasion', 18.99, 'ACTIVE', 'NEW', 'Harper Business', 'https://example.com/images/product-045.jpg'),
-(2, 'Never Split the Difference', 'Negotiating as if your life depended on it', 17.99, 'ACTIVE', 'NEW', 'Harper Business', 'https://example.com/images/product-046.jpg'),
-(2, 'Start with Why', 'How great leaders inspire action', 16.99, 'ACTIVE', 'NEW', 'Portfolio', 'https://example.com/images/product-047.jpg'),
-(2, 'Good to Great', 'Why some companies make the leap', 18.99, 'ACTIVE', 'NEW', 'Harper Business', 'https://example.com/images/product-048.jpg'),
-(2, 'The Innovator''s Dilemma', 'When new technologies cause great firms to fail', 17.99, 'ACTIVE', 'NEW', 'Harvard Business Review', 'https://example.com/images/product-049.jpg'),
-(2, 'Built to Last', 'Successful habits of visionary companies', 16.99, 'ACTIVE', 'NEW', 'Harper Business', 'https://example.com/images/product-050.jpg'),
-(2, 'The E-Myth Revisited', 'Why most small businesses fail', 17.99, 'ACTIVE', 'NEW', 'Harper Business', 'https://example.com/images/product-051.jpg'),
-(2, 'Rich Dad Poor Dad', 'What the rich teach their kids about money', 16.99, 'ACTIVE', 'NEW', 'Plata', 'https://example.com/images/product-052.jpg'),
-(2, 'The Richest Man in Babylon', 'Ancient secrets of wealth', 12.99, 'ACTIVE', 'NEW', 'Penguin', 'https://example.com/images/product-053.jpg');
+DO
+$$
+DECLARE
+    -- 글로벌 식별자 변수
+v_color_group UUID;
+    v_storage_group
+UUID;
+    v_val_black
+UUID;
+    v_val_white
+UUID;
+    v_val_256
+UUID;
+    v_val_512
+UUID;
 
-INSERT INTO products (category_id, name, description, base_price, status, condition_type, brand, main_image_url)
-VALUES
--- Category 3: Clothing (25)
-(3, 'Classic Cotton T-Shirt', '100% cotton, unisex', 19.99, 'ACTIVE', 'NEW', 'BasicWear', 'https://example.com/images/product-054.jpg'),
-(3, 'Slim Fit Chinos', 'Stretch cotton, multiple colors', 49.99, 'ACTIVE', 'NEW', 'UrbanStyle', 'https://example.com/images/product-055.jpg'),
-(3, 'Hooded Sweatshirt', 'Fleece lining, kangaroo pocket', 44.99, 'ACTIVE', 'NEW', 'ComfortZone', 'https://example.com/images/product-056.jpg'),
-(3, 'Running Shorts', 'Lightweight, moisture-wicking', 29.99, 'ACTIVE', 'NEW', 'RunFast', 'https://example.com/images/product-057.jpg'),
-(3, 'Leather Belt', 'Genuine leather, brass buckle', 34.99, 'ACTIVE', 'NEW', 'LeatherCraft', 'https://example.com/images/product-058.jpg'),
-(3, 'Wool Blend Socks 3-Pack', 'Cushioned sole, breathable', 14.99, 'ACTIVE', 'NEW', 'FootComfort', 'https://example.com/images/product-059.jpg'),
-(3, 'Denim Jacket', 'Classic fit, medium wash', 69.99, 'ACTIVE', 'NEW', 'DenimCo', 'https://example.com/images/product-060.jpg'),
-(3, 'Polo Shirt', 'Pique cotton, logo embroidered', 39.99, 'ACTIVE', 'NEW', 'PoloLife', 'https://example.com/images/product-061.jpg'),
-(3, 'Winter Beanie', 'Acrylic knit, one size', 12.99, 'ACTIVE', 'NEW', 'WarmHead', 'https://example.com/images/product-062.jpg'),
-(3, 'Sports Bra', 'High support, racerback', 24.99, 'ACTIVE', 'NEW', 'FitGear', 'https://example.com/images/product-063.jpg'),
-(3, 'Yoga Leggings', 'High waist, 4-way stretch', 34.99, 'ACTIVE', 'NEW', 'FlexWear', 'https://example.com/images/product-064.jpg'),
-(3, 'Canvas Sneakers', 'Low-top, rubber sole', 54.99, 'ACTIVE', 'NEW', 'StreetStep', 'https://example.com/images/product-065.jpg'),
-(3, 'Blazer Navy', 'Notched lapel, two-button', 129.99, 'ACTIVE', 'NEW', 'OfficeStyle', 'https://example.com/images/product-066.jpg'),
-(3, 'Scarf Wool Blend', 'Plain weave, 60x180cm', 29.99, 'ACTIVE', 'NEW', 'ScarfStyle', 'https://example.com/images/product-067.jpg'),
-(3, 'Gloves Touchscreen', 'Knit, fingertip conductive', 19.99, 'ACTIVE', 'NEW', 'WinterGear', 'https://example.com/images/product-068.jpg'),
-(3, 'Ankle Socks 6-Pack', 'Cotton, assorted colors', 11.99, 'ACTIVE', 'NEW', 'FootComfort', 'https://example.com/images/product-069.jpg'),
-(3, 'Linen Shirt', 'Short sleeve, relaxed fit', 45.99, 'ACTIVE', 'NEW', 'SummerWear', 'https://example.com/images/product-070.jpg'),
-(3, 'Jogger Pants', 'Tapered leg, elastic waist', 39.99, 'ACTIVE', 'NEW', 'ComfortZone', 'https://example.com/images/product-071.jpg'),
-(3, 'V-Neck Sweater', 'Merino blend, machine wash', 59.99, 'ACTIVE', 'NEW', 'KnitCo', 'https://example.com/images/product-072.jpg'),
-(3, 'Baseball Cap', 'Adjustable strap, embroidered', 22.99, 'ACTIVE', 'NEW', 'CapWorld', 'https://example.com/images/product-073.jpg'),
-(3, 'Swim Trunks', 'Quick-dry, mesh lining', 34.99, 'ACTIVE', 'NEW', 'BeachWear', 'https://example.com/images/product-074.jpg'),
-(3, 'Dress Shirt White', 'Non-iron, spread collar', 49.99, 'ACTIVE', 'NEW', 'OfficeStyle', 'https://example.com/images/product-075.jpg'),
-(3, 'Cargo Pants', 'Multi-pocket, cotton twill', 52.99, 'ACTIVE', 'NEW', 'OutdoorGear', 'https://example.com/images/product-076.jpg'),
-(3, 'Flannel Shirt', 'Brushed cotton, plaid', 42.99, 'ACTIVE', 'NEW', 'RusticWear', 'https://example.com/images/product-077.jpg'),
-(3, 'Windbreaker Jacket', 'Lightweight, packable', 54.99, 'ACTIVE', 'NEW', 'OutdoorGear', 'https://example.com/images/product-078.jpg'),
--- Category 4: Laptops (26)
-(4, 'Ultrabook 14" FHD', 'Intel i5, 8GB RAM, 256GB SSD', 699.99, 'ACTIVE', 'NEW', 'TechPro', 'https://example.com/images/product-079.jpg'),
-(4, 'Gaming Laptop 15.6"', 'RTX 4060, 16GB, 512GB NVMe', 1299.99, 'ACTIVE', 'NEW', 'GameRig', 'https://example.com/images/product-080.jpg'),
-(4, 'Business Laptop 13"', 'i7, 16GB, 512GB, Windows Pro', 999.99, 'ACTIVE', 'NEW', 'BizBook', 'https://example.com/images/product-081.jpg'),
-(4, 'Chromebook 11"', '4GB RAM, 32GB eMMC', 249.99, 'ACTIVE', 'NEW', 'CloudBook', 'https://example.com/images/product-082.jpg'),
-(4, 'MacBook Style 14"', 'M-series equivalent, 16GB unified', 1099.99, 'ACTIVE', 'NEW', 'FruitBook', 'https://example.com/images/product-083.jpg'),
-(4, '2-in-1 Convertible 15"', 'Touch, pen included, 12GB', 749.99, 'ACTIVE', 'NEW', 'FlexBook', 'https://example.com/images/product-084.jpg'),
-(4, 'Budget Laptop 15.6"', 'Ryzen 5, 8GB, 256GB', 449.99, 'ACTIVE', 'NEW', 'ValuePC', 'https://example.com/images/product-085.jpg'),
-(4, 'Workstation 17"', 'Xeon, 32GB ECC, 1TB SSD', 1899.99, 'ACTIVE', 'NEW', 'ProWork', 'https://example.com/images/product-086.jpg'),
-(4, 'Student Laptop', 'Lightweight, all-day battery', 499.99, 'ACTIVE', 'NEW', 'EduTech', 'https://example.com/images/product-087.jpg'),
-(4, 'Thin & Light 13"', 'Under 1kg, USB-C only', 899.99, 'ACTIVE', 'NEW', 'SlimBook', 'https://example.com/images/product-088.jpg'),
-(4, 'Refurbished Business Laptop', 'i5, 8GB, 256GB, 1yr warranty', 399.99, 'ACTIVE', 'REFURBISHED', 'BizBook', 'https://example.com/images/product-089.jpg'),
-(4, 'Gaming Laptop RTX 4070', '17" 144Hz, 32GB, 1TB', 1699.99, 'ACTIVE', 'NEW', 'GameRig', 'https://example.com/images/product-090.jpg'),
-(4, 'Netbook 10"', 'Entry-level, 4GB, 64GB', 199.99, 'ACTIVE', 'NEW', 'MiniPC', 'https://example.com/images/product-091.jpg'),
-(4, 'Creator Laptop', 'OLED 4K, i9, 32GB, 1TB', 2199.99, 'ACTIVE', 'NEW', 'CreatorPro', 'https://example.com/images/product-092.jpg'),
-(4, 'Open Box Ultrabook', 'Minor box damage, full warranty', 599.99, 'ACTIVE', 'OPEN_BOX', 'TechPro', 'https://example.com/images/product-093.jpg'),
-(4, 'Used Laptop i3', 'Good condition, 8GB, 128GB', 279.99, 'ACTIVE', 'USED', 'ValuePC', 'https://example.com/images/product-094.jpg'),
-(4, 'Laptop Stand Aluminum', 'Adjustable height, cooling', 49.99, 'ACTIVE', 'NEW', 'DeskGear', 'https://example.com/images/product-095.jpg'),
-(4, 'Laptop Sleeve 14"', 'Neoprene, padded', 24.99, 'ACTIVE', 'NEW', 'CarryAll', 'https://example.com/images/product-096.jpg'),
-(4, 'USB-C Docking Station', 'Dual monitor, Ethernet, 85W PD', 149.99, 'ACTIVE', 'NEW', 'TechLink', 'https://example.com/images/product-097.jpg'),
-(4, 'Laptop Bag 15"', 'Water-resistant, laptop compartment', 59.99, 'ACTIVE', 'NEW', 'CarryAll', 'https://example.com/images/product-098.jpg'),
-(4, 'External Webcam 1080p', 'For desktop or laptop', 64.99, 'ACTIVE', 'NEW', 'CamPro', 'https://example.com/images/product-099.jpg'),
-(4, 'Portable Monitor 15.6"', 'USB-C powered, 1080p', 199.99, 'ACTIVE', 'NEW', 'PortaScreen', 'https://example.com/images/product-100.jpg'),
-(4, 'Laptop RAM 16GB DDR4', 'SODIMM, 3200MHz', 54.99, 'ACTIVE', 'NEW', 'MemoryPro', 'https://example.com/images/product-101.jpg'),
-(4, 'NVMe SSD 1TB', 'Gen4, up to 7000MB/s', 89.99, 'ACTIVE', 'NEW', 'DataStore', 'https://example.com/images/product-102.jpg'),
-(4, 'Keyboard Cover 13"', 'Silicone, spill protection', 14.99, 'ACTIVE', 'NEW', 'DeskGear', 'https://example.com/images/product-103.jpg'),
-(4, 'Laptop Privacy Screen', '14" filter, reduce glare', 44.99, 'ACTIVE', 'NEW', 'PrivacyView', 'https://example.com/images/product-104.jpg');
+    -- 루프 내 로컬 식별자 변수
+    v_product_id
+UUID;
+    v_pog_color
+UUID;
+    v_pog_storage
+UUID;
+    v_pov_black
+UUID;
+    v_pov_white
+UUID;
+    v_pov_256
+UUID;
+    v_pov_512
+UUID;
+    v_variant_1
+UUID;
+    v_variant_2
+UUID;
 
-INSERT INTO products (category_id, name, description, base_price, status, condition_type, brand, main_image_url)
-VALUES
--- Category 5: Smartphones (26)
-(5, 'Smartphone Pro 128GB', '6.5" AMOLED,  triple camera', 599.99, 'ACTIVE', 'NEW', 'MegaPhone', 'https://example.com/images/product-105.jpg'),
-(5, 'Budget Phone 64GB', '6.2" LCD, dual camera, 5000mAh', 199.99, 'ACTIVE', 'NEW', 'ValueMobile', 'https://example.com/images/product-106.jpg'),
-(5, 'Flagship 256GB', 'Snapdragon 8 Gen 2, 200MP main', 899.99, 'ACTIVE', 'NEW', 'MegaPhone', 'https://example.com/images/product-107.jpg'),
-(5, 'Refurbished Smartphone', 'Grade A, 12-month warranty', 349.99, 'ACTIVE', 'REFURBISHED', 'MegaPhone', 'https://example.com/images/product-108.jpg'),
-(5, 'Foldable Phone', '7.6" inner display, IPX8', 1499.99, 'ACTIVE', 'NEW', 'FoldTech', 'https://example.com/images/product-109.jpg'),
-(5, 'Gaming Phone', '144Hz display, cooling system', 699.99, 'ACTIVE', 'NEW', 'GameMobile', 'https://example.com/images/product-110.jpg'),
-(5, 'Compact Phone 6"', 'Lightweight, one-handed use', 449.99, 'ACTIVE', 'NEW', 'MiniMobile', 'https://example.com/images/product-111.jpg'),
-(5, '5G Mid-Range', '6.4" 90Hz, 5000mAh, 128GB', 329.99, 'ACTIVE', 'NEW', 'ValueMobile', 'https://example.com/images/product-112.jpg'),
-(5, 'Used Smartphone', 'Good condition, unlocked', 179.99, 'ACTIVE', 'USED', 'ValueMobile', 'https://example.com/images/product-113.jpg'),
-(5, 'Phone Case Clear', 'TPU, shock-absorbing', 14.99, 'ACTIVE', 'NEW', 'CasePro', 'https://example.com/images/product-114.jpg'),
-(5, 'Screen Protector Glass', 'Tempered glass, easy install', 9.99, 'ACTIVE', 'NEW', 'ScreenGuard', 'https://example.com/images/product-115.jpg'),
-(5, 'Car Phone Mount', 'Magnetic, vent or dash', 19.99, 'ACTIVE', 'NEW', 'CarGear', 'https://example.com/images/product-116.jpg'),
-(5, 'Wireless Earbuds Pro', 'ANC, 30h total, case', 129.99, 'ACTIVE', 'NEW', 'SoundMax', 'https://example.com/images/product-117.jpg'),
-(5, 'Fast Charger 65W', 'USB-C PD, GaN', 39.99, 'ACTIVE', 'NEW', 'PowerGo', 'https://example.com/images/product-118.jpg'),
-(5, 'Phone Gimbal', 'Stabilization for video', 89.99, 'ACTIVE', 'NEW', 'VideoPro', 'https://example.com/images/product-119.jpg'),
-(5, 'PopSocket Grip', 'Collapsible, adhesive', 12.99, 'ACTIVE', 'NEW', 'GripTech', 'https://example.com/images/product-120.jpg'),
-(5, 'Phone Stand Desk', 'Adjustable angle, aluminum', 24.99, 'ACTIVE', 'NEW', 'DeskGear', 'https://example.com/images/product-121.jpg'),
-(5, 'OTG Cable USB-C', 'Phone to USB-A adapter', 8.99, 'ACTIVE', 'NEW', 'CablePro', 'https://example.com/images/product-122.jpg'),
-(5, 'Selfie Ring Light', 'Clip-on, 3 brightness levels', 18.99, 'ACTIVE', 'NEW', 'StudioLight', 'https://example.com/images/product-123.jpg'),
-(5, 'Mobile Lens Kit', 'Wide angle and macro', 29.99, 'ACTIVE', 'NEW', 'LensPro', 'https://example.com/images/product-124.jpg'),
-(5, 'Battery Case 5000mAh', 'Extends battery life', 49.99, 'ACTIVE', 'NEW', 'PowerGo', 'https://example.com/images/product-125.jpg'),
-(5, 'Smartphone 512GB', 'Pro model, max storage', 1099.99, 'ACTIVE', 'NEW', 'MegaPhone', 'https://example.com/images/product-126.jpg'),
-(5, 'Open Box Phone', 'Unopened return, full warranty', 519.99, 'ACTIVE', 'OPEN_BOX', 'MegaPhone', 'https://example.com/images/product-127.jpg'),
-(5, 'Discontinued Model', 'Last stock, great price', 299.99, 'DISCONTINUED', 'NEW', 'ValueMobile', 'https://example.com/images/product-128.jpg'),
-(5, 'Kids Phone', 'Parental controls, durable', 99.99, 'ACTIVE', 'NEW', 'SafePhone', 'https://example.com/images/product-129.jpg'),
-(5, 'Senior Phone', 'Large buttons, simple UI', 79.99, 'ACTIVE', 'NEW', 'EasyPhone', 'https://example.com/images/product-130.jpg'),
--- Category 6: Fiction (26)
-(6, 'The Great Gatsby', 'F. Scott Fitzgerald classic', 12.99, 'ACTIVE', 'NEW', 'Scribner', 'https://example.com/images/product-131.jpg'),
-(6, '1984', 'George Orwell dystopian novel', 11.99, 'ACTIVE', 'NEW', 'Signet', 'https://example.com/images/product-132.jpg'),
-(6, 'To Kill a Mockingbird', 'Harper Lee masterpiece', 14.99, 'ACTIVE', 'NEW', 'Harper Perennial', 'https://example.com/images/product-133.jpg'),
-(6, 'Pride and Prejudice', 'Jane Austen romance', 9.99, 'ACTIVE', 'NEW', 'Penguin', 'https://example.com/images/product-134.jpg'),
-(6, 'The Catcher in the Rye', 'J.D. Salinger coming-of-age', 13.99, 'ACTIVE', 'NEW', 'Little, Brown', 'https://example.com/images/product-135.jpg'),
-(6, 'Harry Potter Box Set', 'All 7 books, paperback', 59.99, 'ACTIVE', 'NEW', 'Scholastic', 'https://example.com/images/product-136.jpg'),
-(6, 'The Hobbit', 'J.R.R. Tolkien fantasy', 14.99, 'ACTIVE', 'NEW', 'Del Rey', 'https://example.com/images/product-137.jpg'),
-(6, 'Lord of the Rings Set', 'Three-volume paperback', 29.99, 'ACTIVE', 'NEW', 'Del Rey', 'https://example.com/images/product-138.jpg'),
-(6, 'Dune', 'Frank Herbert sci-fi epic', 17.99, 'ACTIVE', 'NEW', 'Ace', 'https://example.com/images/product-139.jpg'),
-(6, 'The Da Vinci Code', 'Dan Brown thriller', 16.99, 'ACTIVE', 'NEW', 'Anchor', 'https://example.com/images/product-140.jpg'),
-(6, 'Gone Girl', 'Gillian Flynn psychological thriller', 15.99, 'ACTIVE', 'NEW', 'Crown', 'https://example.com/images/product-141.jpg'),
-(6, 'The Girl on the Train', 'Paula Hawkins mystery', 14.99, 'ACTIVE', 'NEW', 'Riverhead', 'https://example.com/images/product-142.jpg'),
-(6, 'Where the Crawdads Sing', 'Delia Owens bestseller', 17.99, 'ACTIVE', 'NEW', 'Putnam', 'https://example.com/images/product-143.jpg'),
-(6, 'The Silent Patient', 'Alex Michaelides thriller', 16.99, 'ACTIVE', 'NEW', 'Celadon', 'https://example.com/images/product-144.jpg'),
-(6, 'Project Hail Mary', 'Andy Weir sci-fi', 18.99, 'ACTIVE', 'NEW', 'Ballantine', 'https://example.com/images/product-145.jpg'),
-(6, 'The Midnight Library', 'Matt Haig fiction', 16.99, 'ACTIVE', 'NEW', 'Viking', 'https://example.com/images/product-146.jpg'),
-(6, 'Klara and the Sun', 'Kazuo Ishiguro', 16.99, 'ACTIVE', 'NEW', 'Knopf', 'https://example.com/images/product-147.jpg'),
-(6, 'The Seven Husbands of Evelyn Hugo', 'Taylor Jenkins Reid', 16.99, 'ACTIVE', 'NEW', 'Washington Square', 'https://example.com/images/product-148.jpg'),
-(6, 'Normal People', 'Sally Rooney', 16.99, 'ACTIVE', 'NEW', 'Hogarth', 'https://example.com/images/product-149.jpg'),
-(6, 'The Vanishing Half', 'Brit Bennett', 17.99, 'ACTIVE', 'NEW', 'Riverhead', 'https://example.com/images/product-150.jpg'),
-(6, 'Pachinko', 'Min Jin Lee', 17.99, 'ACTIVE', 'NEW', 'Grand Central', 'https://example.com/images/product-151.jpg'),
-(6, 'A Gentleman in Moscow', 'Amor Towles', 17.99, 'ACTIVE', 'NEW', 'Viking', 'https://example.com/images/product-152.jpg'),
-(6, 'The Lincoln Highway', 'Amor Towles', 18.99, 'ACTIVE', 'NEW', 'Viking', 'https://example.com/images/product-153.jpg'),
-(6, 'Lessons in Chemistry', 'Bonnie Garmus', 17.99, 'ACTIVE', 'NEW', 'Doubleday', 'https://example.com/images/product-154.jpg'),
-(6, 'Tomorrow, and Tomorrow, and Tomorrow', 'Gabrielle Zevin', 18.99, 'ACTIVE', 'NEW', 'Knopf', 'https://example.com/images/product-155.jpg'),
-(6, 'Demon Copperhead', 'Barbara Kingsolver', 18.99, 'ACTIVE', 'NEW', 'Harper', 'https://example.com/images/product-156.jpg');
+    -- 달러 기준 가격 변수 (DECIMAL 12,2)
+    v_base_price
+DECIMAL(12, 2);
+    v_delta_512
+DECIMAL(12, 2) := 100.00; -- 512GB 업그레이드 시 $100.00 추가
+BEGIN
+    -- ========================================================================
+    -- 1. 글로벌 옵션 사전(Dictionary) 세팅
+    -- ========================================================================
+INSERT INTO option_groups (name, display_name)
+VALUES ('Color', 'Color') RETURNING id
+INTO v_color_group;
+INSERT INTO option_groups (name, display_name)
+VALUES ('Storage', 'Storage') RETURNING id
+INTO v_storage_group;
 
+INSERT INTO option_values (option_group_id, value, display_name, sort_order)
+VALUES (v_color_group, 'BLACK', 'Midnight Black', 1) RETURNING id
+INTO v_val_black;
+INSERT INTO option_values (option_group_id, value, display_name, sort_order)
+VALUES (v_color_group, 'WHITE', 'Starlight White', 2) RETURNING id
+INTO v_val_white;
+INSERT INTO option_values (option_group_id, value, display_name, sort_order)
+VALUES (v_storage_group, '256GB', '256GB', 1) RETURNING id
+INTO v_val_256;
+INSERT INTO option_values (option_group_id, value, display_name, sort_order)
+VALUES (v_storage_group, '512GB', '512GB', 2) RETURNING id
+INTO v_val_512;
+
+-- ========================================================================
+-- 2. 205개 DRAFT 상품 및 연관 하위 데이터 일괄 생성
+-- ========================================================================
+FOR i IN 1..205 LOOP
+
+        -- [가격 계산] $199.99 부터 시작해서 상품마다 $10.00 씩 증가
+        v_base_price := 199.99 + (i * 10.00);
+
+        -- [상품 생성] DRAFT 상태로 생성
 INSERT INTO products (category_id, name, description, base_price, status, condition_type, brand, main_image_url)
-VALUES
--- Category 7: Non-Fiction (26)
-(7, 'Educated', 'A memoir by Tara Westover', 17.99, 'ACTIVE', 'NEW', 'Random House', 'https://example.com/images/product-157.jpg'),
-(7, 'Becoming', 'Michelle Obama memoir', 18.99, 'ACTIVE', 'NEW', 'Crown', 'https://example.com/images/product-158.jpg'),
-(7, 'Sapiens Illustrated', 'Graphic adaptation', 24.99, 'ACTIVE', 'NEW', 'Harper', 'https://example.com/images/product-159.jpg'),
-(7, 'The Body', 'Bill Bryson guide to the human body', 18.99, 'ACTIVE', 'NEW', 'Doubleday', 'https://example.com/images/product-160.jpg'),
-(7, 'A Short History of Nearly Everything', 'Bill Bryson science', 17.99, 'ACTIVE', 'NEW', 'Broadway', 'https://example.com/images/product-161.jpg'),
-(7, 'The Splendid and the Vile', 'Churchill in WWII', 18.99, 'ACTIVE', 'NEW', 'Crown', 'https://example.com/images/product-162.jpg'),
-(7, 'Killers of the Flower Moon', 'David Grann true crime', 17.99, 'ACTIVE', 'NEW', 'Doubleday', 'https://example.com/images/product-163.jpg'),
-(7, 'The Wager', 'Shipwreck and survival', 18.99, 'ACTIVE', 'NEW', 'Doubleday', 'https://example.com/images/product-164.jpg'),
-(7, 'Outlive', 'The science of longevity', 22.99, 'ACTIVE', 'NEW', 'Harmony', 'https://example.com/images/product-165.jpg'),
-(7, 'I Will Teach You to Be Rich', 'Ramit Sethi personal finance', 17.99, 'ACTIVE', 'NEW', 'Workman', 'https://example.com/images/product-166.jpg'),
-(7, 'The Four Agreements', 'Don Miguel Ruiz wisdom', 12.99, 'ACTIVE', 'NEW', 'Amber-Allen', 'https://example.com/images/product-167.jpg'),
-(7, 'Man''s Search for Meaning', 'Viktor Frankl', 13.99, 'ACTIVE', 'NEW', 'Beacon', 'https://example.com/images/product-168.jpg'),
-(7, 'When Breath Becomes Air', 'Paul Kalanithi memoir', 16.99, 'ACTIVE', 'NEW', 'Random House', 'https://example.com/images/product-169.jpg'),
-(7, 'The Immortal Life of Henrietta Lacks', 'Rebecca Skloot', 17.99, 'ACTIVE', 'NEW', 'Crown', 'https://example.com/images/product-170.jpg'),
-(7, 'Bad Blood', 'Theranos scandal', 18.99, 'ACTIVE', 'NEW', 'Knopf', 'https://example.com/images/product-171.jpg'),
-(7, 'Hidden Figures', 'Women of NASA', 16.99, 'ACTIVE', 'NEW', 'William Morrow', 'https://example.com/images/product-172.jpg'),
-(7, 'The Wright Brothers', 'David McCullough', 17.99, 'ACTIVE', 'NEW', 'Simon & Schuster', 'https://example.com/images/product-173.jpg'),
-(7, 'Into the Wild', 'Jon Krakauer', 15.99, 'ACTIVE', 'NEW', 'Anchor', 'https://example.com/images/product-174.jpg'),
-(7, 'The Devil in the White City', 'Erik Larson', 17.99, 'ACTIVE', 'NEW', 'Vintage', 'https://example.com/images/product-175.jpg'),
-(7, 'Born a Crime', 'Trevor Noah memoir', 17.99, 'ACTIVE', 'NEW', 'Spiegel & Grau', 'https://example.com/images/product-176.jpg'),
-(7, 'Can''t Hurt Me', 'David Goggins', 18.99, 'ACTIVE', 'NEW', 'Lioncrest', 'https://example.com/images/product-177.jpg'),
-(7, 'The Subtle Art of Not Giving a F*ck', 'Mark Manson', 16.99, 'ACTIVE', 'NEW', 'Harper', 'https://example.com/images/product-178.jpg'),
-(7, 'Quiet', 'The power of introverts', 17.99, 'ACTIVE', 'NEW', 'Crown', 'https://example.com/images/product-179.jpg'),
-(7, 'Grit', 'Angela Duckworth', 17.99, 'ACTIVE', 'NEW', 'Scribner', 'https://example.com/images/product-180.jpg'),
-(7, 'Range', 'Why generalists triumph', 28.99, 'ACTIVE', 'NEW', 'Riverhead', 'https://example.com/images/product-181.jpg'),
-(7, 'The Making of the Atomic Bomb', 'Richard Rhodes', 24.99, 'ACTIVE', 'NEW', 'Simon & Schuster', 'https://example.com/images/product-182.jpg'),
--- Category 8: Science Fiction (23)
-(8, 'Foundation', 'Isaac Asimov', 15.99, 'ACTIVE', 'NEW', 'Bantam', 'https://example.com/images/product-183.jpg'),
-(8, 'Dune Messiah', 'Frank Herbert', 16.99, 'ACTIVE', 'NEW', 'Ace', 'https://example.com/images/product-184.jpg'),
-(8, 'Children of Dune', 'Frank Herbert', 16.99, 'ACTIVE', 'NEW', 'Ace', 'https://example.com/images/product-185.jpg'),
-(8, 'Ender''s Game', 'Orson Scott Card', 14.99, 'ACTIVE', 'NEW', 'Tor', 'https://example.com/images/product-186.jpg'),
-(8, 'Speaker for the Dead', 'Orson Scott Card', 15.99, 'ACTIVE', 'NEW', 'Tor', 'https://example.com/images/product-187.jpg'),
-(8, 'The Martian', 'Andy Weir', 16.99, 'ACTIVE', 'NEW', 'Broadway', 'https://example.com/images/product-188.jpg'),
-(8, 'Artemis', 'Andy Weir', 16.99, 'ACTIVE', 'NEW', 'Ballantine', 'https://example.com/images/product-189.jpg'),
-(8, 'Neuromancer', 'William Gibson', 15.99, 'ACTIVE', 'NEW', 'Ace', 'https://example.com/images/product-190.jpg'),
-(8, 'Snow Crash', 'Neal Stephenson', 16.99, 'ACTIVE', 'NEW', 'Del Rey', 'https://example.com/images/product-191.jpg'),
-(8, 'The Left Hand of Darkness', 'Ursula K. Le Guin', 15.99, 'ACTIVE', 'NEW', 'Ace', 'https://example.com/images/product-192.jpg'),
-(8, 'The Dispossessed', 'Ursula K. Le Guin', 16.99, 'ACTIVE', 'NEW', 'Harper Voyager', 'https://example.com/images/product-193.jpg'),
-(8, 'Hyperion', 'Dan Simmons', 17.99, 'ACTIVE', 'NEW', 'Del Rey', 'https://example.com/images/product-194.jpg'),
-(8, 'The Fall of Hyperion', 'Dan Simmons', 17.99, 'ACTIVE', 'NEW', 'Del Rey', 'https://example.com/images/product-195.jpg'),
-(8, 'Blindsight', 'Peter Watts', 15.99, 'ACTIVE', 'NEW', 'Tor', 'https://example.com/images/product-196.jpg'),
-(8, 'Leviathan Wakes', 'The Expanse book 1', 16.99, 'ACTIVE', 'NEW', 'Orbit', 'https://example.com/images/product-197.jpg'),
-(8, 'Caliban''s War', 'The Expanse book 2', 16.99, 'ACTIVE', 'NEW', 'Orbit', 'https://example.com/images/product-198.jpg'),
-(8, 'Red Rising', 'Pierce Brown', 16.99, 'ACTIVE', 'NEW', 'Del Rey', 'https://example.com/images/product-199.jpg'),
-(8, 'Golden Son', 'Pierce Brown', 16.99, 'ACTIVE', 'NEW', 'Del Rey', 'https://example.com/images/product-200.jpg'),
-(8, 'Morning Star', 'Pierce Brown', 16.99, 'ACTIVE', 'NEW', 'Del Rey', 'https://example.com/images/product-201.jpg'),
-(8, 'The Three-Body Problem', 'Liu Cixin', 18.99, 'ACTIVE', 'NEW', 'Tor', 'https://example.com/images/product-202.jpg'),
-(8, 'The Dark Forest', 'Liu Cixin', 18.99, 'ACTIVE', 'NEW', 'Tor', 'https://example.com/images/product-203.jpg'),
-(8, 'Death''s End', 'Liu Cixin', 18.99, 'ACTIVE', 'NEW', 'Tor', 'https://example.com/images/product-204.jpg'),
-(8, 'Project Hail Mary', 'Andy Weir standalone', 18.99, 'ACTIVE', 'NEW', 'Ballantine', 'https://example.com/images/product-205.jpg');
+VALUES ((i % 5) + 4, -- 기존에 등록된 4~8번 하위 카테고리 순환 배치
+        'Virtual DRAFT Model ' || i,
+        'Automatically generated test DRAFT product description. Model Number: ' || i,
+        v_base_price,
+        'DRAFT',
+        'NEW',
+        CASE WHEN i % 3 = 0 THEN 'Apple' WHEN i % 3 = 1 THEN 'Samsung' ELSE 'Sony' END,
+        'https://dummyimage.com/600x400/000/fff&text=Product+' || i) RETURNING id
+INTO v_product_id;
+
+-- [상품 옵션 그룹] 색상, 용량 필수 옵션으로 추가
+INSERT INTO product_option_groups (product_id, option_group_id, step_order, is_required)
+VALUES (v_product_id, v_color_group, 1, true) RETURNING id
+INTO v_pog_color;
+
+INSERT INTO product_option_groups (product_id, option_group_id, step_order, is_required)
+VALUES (v_product_id, v_storage_group, 2, true) RETURNING id
+INTO v_pog_storage;
+
+-- [상품 옵션 밸류]
+INSERT INTO product_option_values (product_option_group_id, option_value_id, price_delta)
+VALUES (v_pog_color, v_val_black, 0.00) RETURNING id
+INTO v_pov_black;
+
+INSERT INTO product_option_values (product_option_group_id, option_value_id, price_delta)
+VALUES (v_pog_color, v_val_white, 0.00) RETURNING id
+INTO v_pov_white;
+
+INSERT INTO product_option_values (product_option_group_id, option_value_id, price_delta)
+VALUES (v_pog_storage, v_val_256, 0.00) RETURNING id
+INTO v_pov_256;
+
+INSERT INTO product_option_values (product_option_group_id, option_value_id, price_delta)
+VALUES (v_pog_storage, v_val_512, v_delta_512) RETURNING id
+INTO v_pov_512;
+-- 512GB는 $100.00 추가
+
+-- [상품 변형 생성 1] 블랙 + 256GB (DRAFT) - 기본 가격
+INSERT INTO product_variants (product_id, sku, stock_quantity, status, calculated_price)
+VALUES (v_product_id, 'SKU-DRAFT-' || i || '-BLK-256', 100, 'DRAFT', v_base_price) RETURNING id
+INTO v_variant_1;
+
+INSERT INTO variant_option_values (variant_id, product_option_value_id)
+VALUES (v_variant_1, v_pov_black);
+INSERT INTO variant_option_values (variant_id, product_option_value_id)
+VALUES (v_variant_1, v_pov_256);
+
+-- [상품 변형 생성 2] 화이트 + 512GB (DRAFT) - 기본 가격 + $100.00
+INSERT INTO product_variants (product_id, sku, stock_quantity, status, calculated_price)
+VALUES (v_product_id, 'SKU-DRAFT-' || i || '-WHT-512', 50, 'DRAFT', v_base_price + v_delta_512) RETURNING id
+INTO v_variant_2;
+
+INSERT INTO variant_option_values (variant_id, product_option_value_id)
+VALUES (v_variant_2, v_pov_white);
+INSERT INTO variant_option_values (variant_id, product_option_value_id)
+VALUES (v_variant_2, v_pov_512);
+
+END LOOP;
+END $$;

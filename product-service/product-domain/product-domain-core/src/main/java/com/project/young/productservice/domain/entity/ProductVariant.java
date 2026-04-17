@@ -176,7 +176,7 @@ public class ProductVariant extends BaseEntity<ProductVariantId> {
         private ProductVariantId id;
         private String sku;
         private int stockQuantity = 0;
-        private ProductStatus status = ProductStatus.ACTIVE;
+        private ProductStatus status = ProductStatus.DRAFT;
         private Money calculatedPrice = Money.ZERO;
         private Set<ProductOptionValueId> selectedOptionValues = new HashSet<>();
 
