@@ -1,10 +1,15 @@
 package com.project.young.productservice.domain.service;
 
 import com.project.young.common.domain.valueobject.CategoryId;
+import com.project.young.common.domain.valueobject.OptionGroupId;
+import com.project.young.common.domain.valueobject.OptionValueId;
+import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.Category;
 import com.project.young.productservice.domain.entity.Product;
+import com.project.young.productservice.domain.exception.OptionDomainException;
 import com.project.young.productservice.domain.exception.ProductDomainException;
 import com.project.young.productservice.domain.repository.CategoryRepository;
+import com.project.young.productservice.domain.repository.OptionGroupRepository;
 import com.project.young.productservice.domain.repository.ProductRepository;
 import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
@@ -15,11 +20,14 @@ public class ProductDomainServiceImpl implements ProductDomainService {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final OptionGroupRepository optionGroupRepository;
 
     public ProductDomainServiceImpl(ProductRepository productRepository,
-                                    CategoryRepository categoryRepository) {
+                                    CategoryRepository categoryRepository,
+                                    OptionGroupRepository optionGroupRepository) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.optionGroupRepository = optionGroupRepository;
     }
 
     @Override
@@ -91,5 +99,25 @@ public class ProductDomainServiceImpl implements ProductDomainService {
         // - 활성 주문에 포함된 상품이면 삭제 불가
         // - 재고/프로모션 등 연관 리소스 체크
         log.debug("Validating deletion rules for product {}", product.getId().getValue());
+    }
+
+    @Override
+    public void validateOptionValueBelongsToGroup(OptionGroupId optionGroupId, OptionValueId optionValueId) {
+        if (optionGroupId == null || optionValueId == null) {
+            throw new ProductDomainException("Option group id and option value id must not be null.");
+        }
+
+        OptionGroup optionGroup = optionGroupRepository.findById(optionGroupId)
+                .orElseThrow(() ->
+                        new ProductDomainException("Global option group not found: " + optionGroupId.getValue()));
+
+        try {
+            optionGroup.getOptionValue(optionValueId);
+        } catch (OptionDomainException ex) {
+            throw new ProductDomainException(
+                    "Option value " + optionValueId.getValue() + " does not belong to option group " + optionGroupId.getValue(),
+                    ex
+            );
+        }
     }
 }

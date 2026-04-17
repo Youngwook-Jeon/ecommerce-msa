@@ -143,6 +143,8 @@ public class ProductApplicationService {
         validateOptionGroupStructureMutable(product);
 
         ProductOptionGroupId productOptionGroupId = new ProductOptionGroupId(idGenerator.generateId());
+        OptionGroupId globalOptionGroupId = new OptionGroupId(command.getOptionGroupId());
+        validateGlobalOptionValueMembership(globalOptionGroupId, command.getOptionValues());
         List<ProductOptionValue> optionValues = mapProductOptionValues(command.getOptionValues());
 
         ProductOptionGroup optionGroup = productDataMapper.toProductOptionGroup(command, productOptionGroupId, optionValues);
@@ -167,6 +169,14 @@ public class ProductApplicationService {
         validateProductCanBeUpdated(product);
 
         ProductOptionGroupId productOptionGroupId = new ProductOptionGroupId(productOptionGroupIdValue);
+        ProductOptionGroup targetGroup = product.getOptionGroups().stream()
+                .filter(group -> group.getId().equals(productOptionGroupId))
+                .findFirst()
+                .orElseThrow(() -> new ProductDomainException("Product option group not found in this product."));
+        productDomainService.validateOptionValueBelongsToGroup(
+                targetGroup.getOptionGroupId(),
+                new OptionValueId(command.getOptionValueId())
+        );
         ProductOptionValue newValue = toProductOptionValue(command);
 
         product.addProductOptionValue(productOptionGroupId, newValue);
@@ -316,6 +326,21 @@ public class ProductApplicationService {
         }
 
         return productDataMapper.toProductOptionValue(command, new ProductOptionValueId(idGenerator.generateId()));
+    }
+
+    private void validateGlobalOptionValueMembership(OptionGroupId optionGroupId, List<AddProductOptionValueCommand> optionValueCommands) {
+        if (optionGroupId == null || optionValueCommands == null) {
+            return;
+        }
+        for (AddProductOptionValueCommand command : optionValueCommands) {
+            if (command == null || command.getOptionValueId() == null) {
+                continue;
+            }
+            productDomainService.validateOptionValueBelongsToGroup(
+                    optionGroupId,
+                    new OptionValueId(command.getOptionValueId())
+            );
+        }
     }
 
     private void validateCreateRequest(CreateProductCommand command) {

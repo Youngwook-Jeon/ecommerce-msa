@@ -1,6 +1,8 @@
 package com.project.young.productservice.domain.service;
 
 import com.project.young.common.domain.valueobject.CategoryId;
+import com.project.young.common.domain.valueobject.OptionGroupId;
+import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 
@@ -42,4 +44,12 @@ public interface ProductDomainService {
      * @param product product to validate for deletion
      */
     void validateDeletionRules(Product product);
+
+    /**
+     * Validates that a global option value belongs to the given global option group.
+     *
+     * @param optionGroupId global option group id
+     * @param optionValueId global option value id
+     */
+    void validateOptionValueBelongsToGroup(OptionGroupId optionGroupId, OptionValueId optionValueId);
 }

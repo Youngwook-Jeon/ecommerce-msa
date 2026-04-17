@@ -2,14 +2,20 @@ package com.project.young.productservice.domain.service;
 
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.Money;
+import com.project.young.common.domain.valueobject.OptionGroupId;
+import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.domain.entity.Category;
+import com.project.young.productservice.domain.entity.OptionGroup;
+import com.project.young.productservice.domain.entity.OptionValue;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.exception.ProductDomainException;
 import com.project.young.productservice.domain.repository.CategoryRepository;
+import com.project.young.productservice.domain.repository.OptionGroupRepository;
 import com.project.young.productservice.domain.repository.ProductRepository;
 import com.project.young.productservice.domain.valueobject.CategoryStatus;
 import com.project.young.productservice.domain.valueobject.ConditionType;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -35,6 +41,9 @@ class ProductDomainServiceImplTest {
 
     @Mock
     private CategoryRepository categoryRepository;
+
+    @Mock
+    private OptionGroupRepository optionGroupRepository;
 
     @InjectMocks
     private ProductDomainServiceImpl productDomainService;
@@ -199,6 +208,51 @@ class ProductDomainServiceImplTest {
             Product product = sampleProduct(ProductStatus.ACTIVE);
             assertThatCode(() -> productDomainService.validateDeletionRules(product))
                     .doesNotThrowAnyException();
+        }
+    }
+
+    @Nested
+    @DisplayName("validateOptionValueBelongsToGroup")
+    class ValidateOptionValueBelongsToGroupTests {
+        @Test
+        @DisplayName("그룹이 없으면 ProductDomainException")
+        void groupNotFound_Throws() {
+            OptionGroupId groupId = new OptionGroupId(java.util.UUID.randomUUID());
+            OptionValueId valueId = new OptionValueId(java.util.UUID.randomUUID());
+            when(optionGroupRepository.findById(groupId)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> productDomainService.validateOptionValueBelongsToGroup(groupId, valueId))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Global option group not found");
+        }
+
+        @Test
+        @DisplayName("값이 그룹 소속이 아니면 ProductDomainException")
+        void valueNotBelongingToGroup_Throws() {
+            OptionGroupId groupId = new OptionGroupId(java.util.UUID.randomUUID());
+            OptionValueId existingValueId = new OptionValueId(java.util.UUID.randomUUID());
+            OptionValueId otherValueId = new OptionValueId(java.util.UUID.randomUUID());
+
+            OptionGroup group = OptionGroup.builder()
+                    .id(groupId)
+                    .name("COLOR")
+                    .displayName("색상")
+                    .status(OptionStatus.ACTIVE)
+                    .optionValues(java.util.List.of(
+                            OptionValue.builder()
+                                    .id(existingValueId)
+                                    .value("RED")
+                                    .displayName("빨강")
+                                    .sortOrder(1)
+                                    .status(OptionStatus.ACTIVE)
+                                    .build()
+                    ))
+                    .build();
+            when(optionGroupRepository.findById(groupId)).thenReturn(Optional.of(group));
+
+            assertThatThrownBy(() -> productDomainService.validateOptionValueBelongsToGroup(groupId, otherValueId))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("does not belong to option group");
         }
     }
 
