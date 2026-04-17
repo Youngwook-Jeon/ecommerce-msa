@@ -1,11 +1,11 @@
 package com.project.young.productservice.web.controller;
 
 import com.project.young.productservice.application.dto.command.AddProductOptionGroupCommand;
-import com.project.young.productservice.application.dto.command.AddProductOptionValueCommand;
+import com.project.young.productservice.application.dto.command.AddProductOptionValuesCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.web.dto.AddProductOptionGroupResponse;
-import com.project.young.productservice.web.dto.AddProductOptionValueToGroupResponse;
+import com.project.young.productservice.web.dto.AddProductOptionValuesToGroupResponse;
 import com.project.young.productservice.web.dto.AddProductVariantsResponse;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import jakarta.validation.Valid;
@@ -59,15 +59,25 @@ public class AdminProductCompositionController {
      * 이미 상품에 붙은 옵션 그룹({@code productOptionGroupId})에 옵션 값(글로벌 optionValue + 가격 델타)을 추가한다.
      */
     @PostMapping("/{productId}/option-groups/{productOptionGroupId}/option-values")
-    public ResponseEntity<AddProductOptionValueToGroupResponse> addOptionValue(
+    public ResponseEntity<AddProductOptionValuesToGroupResponse> addOptionValues(
             @PathVariable("productId") UUID productId,
             @PathVariable("productOptionGroupId") UUID productOptionGroupId,
-            @Valid @RequestBody AddProductOptionValueCommand command
+            @Valid @RequestBody AddProductOptionValuesCommand command
     ) {
-        log.info("REST request to add option value to productId={}, productOptionGroupId={}", productId, productOptionGroupId);
+        log.info("REST request to add option values to productId={}, productOptionGroupId={}, count={}",
+                productId,
+                productOptionGroupId,
+                command.getOptionValues() != null ? command.getOptionValues().size() : 0
+        );
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(productResponseMapper.toAddProductOptionValueToGroupResponse(
-                        productApplicationService.addProductOptionValue(productId, productOptionGroupId, command)));
+                .body(AddProductOptionValuesToGroupResponse.builder()
+                        .optionValues(
+                                productApplicationService.addProductOptionValues(productId, productOptionGroupId, command)
+                                        .stream()
+                                        .map(productResponseMapper::toAddProductOptionValueToGroupResponse)
+                                        .collect(Collectors.toList())
+                        )
+                        .build());
     }
 
     /**

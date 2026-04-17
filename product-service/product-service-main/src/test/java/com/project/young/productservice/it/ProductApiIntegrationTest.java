@@ -171,6 +171,43 @@ class ProductApiIntegrationTest {
         );
     }
 
+    private OptionFixture createGlobalOptionGroupWithStatuses(
+            String suffix,
+            OptionStatusEntity groupStatus,
+            OptionStatusEntity firstValueStatus,
+            OptionStatusEntity secondValueStatus
+    ) {
+        OptionGroupEntity group = OptionGroupEntity.builder()
+                .name("size-status-" + suffix)
+                .displayName("사이즈상태-" + suffix)
+                .status(groupStatus)
+                .build();
+
+        OptionValueEntity first = OptionValueEntity.builder()
+                .optionGroup(group)
+                .value("S-" + suffix)
+                .displayName("S")
+                .sortOrder(1)
+                .status(firstValueStatus)
+                .build();
+        OptionValueEntity second = OptionValueEntity.builder()
+                .optionGroup(group)
+                .value("M-" + suffix)
+                .displayName("M")
+                .sortOrder(2)
+                .status(secondValueStatus)
+                .build();
+
+        group.addOptionValue(first);
+        group.addOptionValue(second);
+        OptionGroupEntity saved = optionGroupJpaRepository.save(group);
+
+        return new OptionFixture(
+                saved.getId(),
+                saved.getOptionValues().stream().map(OptionValueEntity::getId).toList()
+        );
+    }
+
     @Nested
     @DisplayName("제품 생성/수정/삭제 API")
     class ProductCrudTests {
@@ -411,6 +448,114 @@ class ProductApiIntegrationTest {
                         .as("prepared statements should be recorded")
                         .isGreaterThan(0L);
             }
+        }
+
+        @Test
+        @DisplayName("DELETED 글로벌 옵션 그룹이면 상품 옵션 그룹 추가가 실패한다")
+        @WithMockUser(authorities = "ADMIN")
+        void addProductOptionGroup_FailsWhenGlobalGroupDeleted() throws Exception {
+            Long categoryId = createCategory("의류");
+            CreateProductCommand createProductCommand = CreateProductCommand.builder()
+                    .name("상태검증 상품")
+                    .description("상태검증용 상품 설명입니다. 20자 이상.")
+                    .basePrice(new BigDecimal("12000"))
+                    .brand("상태브랜드")
+                    .mainImageUrl("https://example.com/status.jpg")
+                    .categoryId(categoryId)
+                    .conditionType(ConditionType.NEW)
+                    .build();
+
+            String createResponse = mockMvc.perform(post("/admin/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createProductCommand)))
+                    .andExpect(status().isCreated())
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
+
+            OptionFixture fixture = createGlobalOptionGroupWithStatuses(
+                    UUID.randomUUID().toString().substring(0, 8),
+                    OptionStatusEntity.DELETED,
+                    OptionStatusEntity.ACTIVE,
+                    OptionStatusEntity.ACTIVE
+            );
+
+            AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(fixture.optionGroupId())
+                    .stepOrder(1)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(fixture.optionValueIds().get(0))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(true)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(command)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(containsString("Global option group is not allowed")));
+        }
+
+        @Test
+        @DisplayName("DELETED 글로벌 옵션 값이면 상품 옵션 그룹 추가가 실패한다")
+        @WithMockUser(authorities = "ADMIN")
+        void addProductOptionGroup_FailsWhenGlobalValueDeleted() throws Exception {
+            Long categoryId = createCategory("의류");
+            CreateProductCommand createProductCommand = CreateProductCommand.builder()
+                    .name("값상태검증 상품")
+                    .description("값상태검증용 상품 설명입니다. 20자 이상.")
+                    .basePrice(new BigDecimal("13000"))
+                    .brand("값상태브랜드")
+                    .mainImageUrl("https://example.com/status-value.jpg")
+                    .categoryId(categoryId)
+                    .conditionType(ConditionType.NEW)
+                    .build();
+
+            String createResponse = mockMvc.perform(post("/admin/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createProductCommand)))
+                    .andExpect(status().isCreated())
+                    .andReturn()
+                    .getResponse()
+                    .getContentAsString();
+            UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
+
+            OptionFixture fixture = createGlobalOptionGroupWithStatuses(
+                    UUID.randomUUID().toString().substring(0, 8),
+                    OptionStatusEntity.ACTIVE,
+                    OptionStatusEntity.DELETED,
+                    OptionStatusEntity.ACTIVE
+            );
+
+            AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(fixture.optionGroupId())
+                    .stepOrder(1)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(fixture.optionValueIds().get(0))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(true)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(command)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(containsString("Global option value is not allowed")));
         }
     }
 

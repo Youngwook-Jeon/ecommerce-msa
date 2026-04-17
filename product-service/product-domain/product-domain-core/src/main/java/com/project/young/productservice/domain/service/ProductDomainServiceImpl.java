@@ -5,6 +5,7 @@ import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.Category;
+import com.project.young.productservice.domain.entity.OptionValue;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.exception.OptionDomainException;
 import com.project.young.productservice.domain.exception.ProductDomainException;
@@ -12,8 +13,13 @@ import com.project.young.productservice.domain.repository.CategoryRepository;
 import com.project.young.productservice.domain.repository.OptionGroupRepository;
 import com.project.young.productservice.domain.repository.ProductRepository;
 import com.project.young.productservice.domain.valueobject.CategoryStatus;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.Set;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class ProductDomainServiceImpl implements ProductDomainService {
@@ -103,21 +109,44 @@ public class ProductDomainServiceImpl implements ProductDomainService {
 
     @Override
     public void validateOptionValueBelongsToGroup(OptionGroupId optionGroupId, OptionValueId optionValueId) {
-        if (optionGroupId == null || optionValueId == null) {
+        validateOptionValuesBelongToGroup(optionGroupId, Set.of(optionValueId));
+    }
+
+    @Override
+    public void validateOptionValuesBelongToGroup(OptionGroupId optionGroupId, Set<OptionValueId> optionValueIds) {
+        if (optionGroupId == null) {
             throw new ProductDomainException("Option group id and option value id must not be null.");
+        }
+        if (optionValueIds == null || optionValueIds.isEmpty()) {
+            throw new ProductDomainException("Option value ids must not be null or empty.");
         }
 
         OptionGroup optionGroup = optionGroupRepository.findById(optionGroupId)
                 .orElseThrow(() ->
                         new ProductDomainException("Global option group not found: " + optionGroupId.getValue()));
+        if (optionGroup.getStatus() == null || optionGroup.getStatus().isDeleted()) {
+            throw new ProductDomainException("Global option group is not allowed for product composition: " + optionGroupId.getValue());
+        }
 
-        try {
-            optionGroup.getOptionValue(optionValueId);
-        } catch (OptionDomainException ex) {
-            throw new ProductDomainException(
-                    "Option value " + optionValueId.getValue() + " does not belong to option group " + optionGroupId.getValue(),
-                    ex
-            );
+        Map<OptionValueId, OptionStatus> optionValueStatusById = optionGroup.getOptionValues().stream()
+                .collect(Collectors.toMap(OptionValue::getId, OptionValue::getStatus, (left, right) -> left));
+
+        for (OptionValueId optionValueId : optionValueIds) {
+            if (optionValueId == null) {
+                throw new ProductDomainException("Option value ids must not contain null.");
+            }
+            OptionStatus optionStatus = optionValueStatusById.get(optionValueId);
+            if (optionStatus == null) {
+                throw new ProductDomainException(
+                        "Option value " + optionValueId.getValue() + " does not belong to option group " + optionGroupId.getValue(),
+                        new OptionDomainException("Option value not found in this group.")
+                );
+            }
+            if (optionStatus.isDeleted()) {
+                throw new ProductDomainException(
+                        "Global option value is not allowed for product composition: " + optionValueId.getValue()
+                );
+            }
         }
     }
 }

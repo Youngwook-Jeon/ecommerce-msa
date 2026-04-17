@@ -140,9 +140,9 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(product.getOptionGroups()).hasSize(1);
 
             verify(productRepository).update(product);
-            verify(productDomainService).validateOptionValueBelongsToGroup(
+            verify(productDomainService).validateOptionValuesBelongToGroup(
                     new OptionGroupId(optionGroupId),
-                    new OptionValueId(optionValueId)
+                    Set.of(new OptionValueId(optionValueId))
             );
         }
 
@@ -210,16 +210,55 @@ class ProductApplicationServiceSubAggregateTest {
 
             verify(productRepository, never()).update(any());
         }
+
+        @Test
+        @DisplayName("글로벌 옵션 그룹/값 상태가 부적합(DELETED)하면 예외")
+        void invalidGlobalOptionStatus_Throws() {
+            UUID productId = UUID.randomUUID();
+            Product product = createBaseProduct(productId);
+            UUID optionGroupId = UUID.randomUUID();
+            UUID optionValueId = UUID.randomUUID();
+            UUID productOptionGroupId = UUID.randomUUID();
+
+            AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(optionGroupId)
+                    .stepOrder(1)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(optionValueId)
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(false)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+            when(idGenerator.generateId()).thenReturn(productOptionGroupId);
+            doThrow(new ProductDomainException("Global option group is not allowed"))
+                    .when(productDomainService)
+                    .validateOptionValuesBelongToGroup(
+                            new OptionGroupId(optionGroupId),
+                            Set.of(new OptionValueId(optionValueId))
+                    );
+
+            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("not allowed");
+
+            verify(productRepository, never()).update(any());
+        }
     }
 
     @Nested
-    @DisplayName("addProductOptionValue")
+    @DisplayName("addProductOptionValues")
     class AddProductOptionValueTests {
 
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void invalidRequest_Throws() {
-            assertThatThrownBy(() -> productApplicationService.addProductOptionValue(null, UUID.randomUUID(), null))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(null, UUID.randomUUID(), null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid add product option value request");
         }
@@ -231,16 +270,19 @@ class ProductApplicationServiceSubAggregateTest {
             Product product = createBaseProduct(productId);
             UUID pogId = UUID.randomUUID();
 
-            AddProductOptionValueCommand command = AddProductOptionValueCommand.builder()
+            AddProductOptionValueCommand commandValue = AddProductOptionValueCommand.builder()
                     .optionValueId(UUID.randomUUID())
                     .priceDelta(BigDecimal.ZERO)
                     .isDefault(false)
                     .isActive(true)
                     .build();
+            AddProductOptionValuesCommand command = AddProductOptionValuesCommand.builder()
+                    .optionValues(List.of(commandValue))
+                    .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
 
-            assertThatThrownBy(() -> productApplicationService.addProductOptionValue(productId, pogId, command))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, pogId, command))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Product option group not found");
 
@@ -266,11 +308,14 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
             product.addOptionGroup(pog);
 
-            AddProductOptionValueCommand command = AddProductOptionValueCommand.builder()
+            AddProductOptionValueCommand commandValue = AddProductOptionValueCommand.builder()
                     .optionValueId(globalOptionValueId)
                     .priceDelta(new BigDecimal("500"))
                     .isDefault(true)
                     .isActive(true)
+                    .build();
+            AddProductOptionValuesCommand command = AddProductOptionValuesCommand.builder()
+                    .optionValues(List.of(commandValue))
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
@@ -278,7 +323,7 @@ class ProductApplicationServiceSubAggregateTest {
             when(idGenerator.generateId()).thenReturn(generatedProductOptionValueId);
 
             AddProductOptionValueToGroupResult result =
-                    productApplicationService.addProductOptionValue(productId, productOptionGroupId, command);
+                    productApplicationService.addProductOptionValues(productId, productOptionGroupId, command).getFirst();
 
             assertThat(result.productOptionGroupId()).isEqualTo(productOptionGroupId);
             assertThat(result.productOptionValueId()).isEqualTo(generatedProductOptionValueId);
@@ -286,9 +331,9 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(product.getOptionGroups().getFirst().getOptionValues()).hasSize(1);
 
             verify(productRepository).update(product);
-            verify(productDomainService).validateOptionValueBelongsToGroup(
+            verify(productDomainService).validateOptionValuesBelongToGroup(
                     new OptionGroupId(globalOptionGroupId),
-                    new OptionValueId(globalOptionValueId)
+                    Set.of(new OptionValueId(globalOptionValueId))
             );
         }
 
@@ -310,22 +355,25 @@ class ProductApplicationServiceSubAggregateTest {
                     .build();
             product.addOptionGroup(pog);
 
-            AddProductOptionValueCommand command = AddProductOptionValueCommand.builder()
+            AddProductOptionValueCommand commandValue = AddProductOptionValueCommand.builder()
                     .optionValueId(wrongGlobalOptionValueId)
                     .priceDelta(new BigDecimal("500"))
                     .isDefault(true)
                     .isActive(true)
                     .build();
+            AddProductOptionValuesCommand command = AddProductOptionValuesCommand.builder()
+                    .optionValues(List.of(commandValue))
+                    .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
             doThrow(new ProductDomainException("does not belong"))
                     .when(productDomainService)
-                    .validateOptionValueBelongsToGroup(
+                    .validateOptionValuesBelongToGroup(
                             new OptionGroupId(globalOptionGroupId),
-                            new OptionValueId(wrongGlobalOptionValueId)
+                            Set.of(new OptionValueId(wrongGlobalOptionValueId))
                     );
 
-            assertThatThrownBy(() -> productApplicationService.addProductOptionValue(productId, productOptionGroupId, command))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, productOptionGroupId, command))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("does not belong");
 
@@ -361,21 +409,71 @@ class ProductApplicationServiceSubAggregateTest {
                     new ArrayList<>()
             );
 
-            AddProductOptionValueCommand command = AddProductOptionValueCommand.builder()
+            AddProductOptionValueCommand commandValue = AddProductOptionValueCommand.builder()
                     .optionValueId(UUID.randomUUID())
                     .priceDelta(BigDecimal.ZERO)
                     .isDefault(false)
                     .isActive(true)
+                    .build();
+            AddProductOptionValuesCommand command = AddProductOptionValuesCommand.builder()
+                    .optionValues(List.of(commandValue))
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
             doNothing().when(productRepository).update(product);
             when(idGenerator.generateId()).thenReturn(UUID.randomUUID());
 
-            assertThatCode(() -> productApplicationService.addProductOptionValue(productId, productOptionGroupId, command))
+            assertThatCode(() -> productApplicationService.addProductOptionValues(productId, productOptionGroupId, command))
                     .doesNotThrowAnyException();
 
             verify(productRepository).update(product);
+            verify(productDomainService).validateOptionValuesBelongToGroup(
+                    new OptionGroupId(globalOptionGroupId),
+                    Set.of(new OptionValueId(commandValue.getOptionValueId()))
+            );
+        }
+
+        @Test
+        @DisplayName("글로벌 옵션 값 상태가 부적합(DELETED)하면 예외")
+        void deletedGlobalOptionValue_Throws() {
+            UUID productId = UUID.randomUUID();
+            Product product = createBaseProduct(productId);
+            UUID globalOptionGroupId = UUID.randomUUID();
+            UUID productOptionGroupId = UUID.randomUUID();
+            UUID deletedGlobalOptionValueId = UUID.randomUUID();
+
+            ProductOptionGroup pog = ProductOptionGroup.builder()
+                    .id(new ProductOptionGroupId(productOptionGroupId))
+                    .optionGroupId(new OptionGroupId(globalOptionGroupId))
+                    .stepOrder(1)
+                    .isRequired(true)
+                    .optionValues(new ArrayList<>())
+                    .build();
+            product.addOptionGroup(pog);
+
+            AddProductOptionValueCommand commandValue = AddProductOptionValueCommand.builder()
+                    .optionValueId(deletedGlobalOptionValueId)
+                    .priceDelta(new BigDecimal("500"))
+                    .isDefault(true)
+                    .isActive(true)
+                    .build();
+            AddProductOptionValuesCommand command = AddProductOptionValuesCommand.builder()
+                    .optionValues(List.of(commandValue))
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+            doThrow(new ProductDomainException("Global option value is not allowed"))
+                    .when(productDomainService)
+                    .validateOptionValuesBelongToGroup(
+                            new OptionGroupId(globalOptionGroupId),
+                            Set.of(new OptionValueId(deletedGlobalOptionValueId))
+                    );
+
+            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, productOptionGroupId, command))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("not allowed");
+
+            verify(productRepository, never()).update(any());
         }
     }
 

@@ -3,6 +3,7 @@ package com.project.young.productservice.web.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.productservice.application.dto.command.AddProductOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.AddProductOptionValueCommand;
+import com.project.young.productservice.application.dto.command.AddProductOptionValuesCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
 import com.project.young.productservice.application.dto.result.AddProductOptionGroupResult;
@@ -131,11 +132,20 @@ class AdminProductCompositionControllerTest {
             UUID povId = UUID.randomUUID();
             UUID globalValId = UUID.randomUUID();
 
-            AddProductOptionValueCommand command = AddProductOptionValueCommand.builder()
+            AddProductOptionValueCommand value1 = AddProductOptionValueCommand.builder()
                     .optionValueId(globalValId)
                     .priceDelta(BigDecimal.ZERO)
                     .isDefault(true)
                     .isActive(true)
+                    .build();
+            AddProductOptionValueCommand value2 = AddProductOptionValueCommand.builder()
+                    .optionValueId(UUID.randomUUID())
+                    .priceDelta(new BigDecimal("1000"))
+                    .isDefault(false)
+                    .isActive(true)
+                    .build();
+            AddProductOptionValuesCommand command = AddProductOptionValuesCommand.builder()
+                    .optionValues(List.of(value1, value2))
                     .build();
 
             AddProductOptionValueToGroupResult result = AddProductOptionValueToGroupResult.builder()
@@ -154,9 +164,8 @@ class AdminProductCompositionControllerTest {
                     .priceDelta(BigDecimal.ZERO)
                     .message("ok")
                     .build();
-
-            when(productApplicationService.addProductOptionValue(eq(productId), eq(pogId), any(AddProductOptionValueCommand.class)))
-                    .thenReturn(result);
+            when(productApplicationService.addProductOptionValues(eq(productId), eq(pogId), any(AddProductOptionValuesCommand.class)))
+                    .thenReturn(List.of(result));
             when(productResponseMapper.toAddProductOptionValueToGroupResponse(result)).thenReturn(response);
 
             mockMvc.perform(post("/admin/products/{productId}/option-groups/{productOptionGroupId}/option-values",
@@ -165,9 +174,9 @@ class AdminProductCompositionControllerTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.productOptionValueId").value(povId.toString()));
+                    .andExpect(jsonPath("$.optionValues[0].productOptionValueId").value(povId.toString()));
 
-            verify(productApplicationService).addProductOptionValue(eq(productId), eq(pogId), any(AddProductOptionValueCommand.class));
+            verify(productApplicationService).addProductOptionValues(eq(productId), eq(pogId), any(AddProductOptionValuesCommand.class));
         }
     }
 

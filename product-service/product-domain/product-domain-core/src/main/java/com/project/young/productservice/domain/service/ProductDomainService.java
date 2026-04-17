@@ -6,6 +6,8 @@ import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 
+import java.util.Set;
+
 public interface ProductDomainService {
     /**
      * Validates if a category is in a valid state to be assigned to a product.
@@ -52,4 +54,12 @@ public interface ProductDomainService {
      * @param optionValueId global option value id
      */
     void validateOptionValueBelongsToGroup(OptionGroupId optionGroupId, OptionValueId optionValueId);
+
+    /**
+     * Validates that all global option values belong to the given global option group.
+     *
+     * @param optionGroupId  global option group id
+     * @param optionValueIds global option value ids
+     */
+    void validateOptionValuesBelongToGroup(OptionGroupId optionGroupId, Set<OptionValueId> optionValueIds);
 }

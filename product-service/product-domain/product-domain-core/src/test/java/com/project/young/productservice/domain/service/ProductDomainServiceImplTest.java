@@ -254,6 +254,87 @@ class ProductDomainServiceImplTest {
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("does not belong to option group");
         }
+
+        @Test
+        @DisplayName("여러 값 검증 시 그룹 조회는 1회")
+        void bulkValidation_LoadsGroupOnce() {
+            OptionGroupId groupId = new OptionGroupId(java.util.UUID.randomUUID());
+            OptionValueId valueId1 = new OptionValueId(java.util.UUID.randomUUID());
+            OptionValueId valueId2 = new OptionValueId(java.util.UUID.randomUUID());
+
+            OptionGroup group = OptionGroup.builder()
+                    .id(groupId)
+                    .name("COLOR")
+                    .displayName("색상")
+                    .status(OptionStatus.ACTIVE)
+                    .optionValues(java.util.List.of(
+                            OptionValue.builder().id(valueId1).value("RED").displayName("빨강").sortOrder(1).status(OptionStatus.ACTIVE).build(),
+                            OptionValue.builder().id(valueId2).value("BLUE").displayName("파랑").sortOrder(2).status(OptionStatus.ACTIVE).build()
+                    ))
+                    .build();
+            when(optionGroupRepository.findById(groupId)).thenReturn(Optional.of(group));
+
+            assertThatCode(() -> productDomainService.validateOptionValuesBelongToGroup(groupId, java.util.Set.of(valueId1, valueId2)))
+                    .doesNotThrowAnyException();
+
+            verify(optionGroupRepository, times(1)).findById(groupId);
+        }
+
+        @Test
+        @DisplayName("글로벌 옵션 그룹이 DELETED면 ProductDomainException")
+        void deletedGlobalGroup_Throws() {
+            OptionGroupId groupId = new OptionGroupId(java.util.UUID.randomUUID());
+            OptionValueId valueId = new OptionValueId(java.util.UUID.randomUUID());
+
+            OptionGroup deletedGroup = OptionGroup.reconstitute(
+                    groupId,
+                    "COLOR",
+                    "색상",
+                    OptionStatus.DELETED,
+                    java.util.List.of(
+                            OptionValue.reconstitute(
+                                    valueId,
+                                    "RED",
+                                    "빨강",
+                                    1,
+                                    OptionStatus.ACTIVE
+                            )
+                    )
+            );
+            when(optionGroupRepository.findById(groupId)).thenReturn(Optional.of(deletedGroup));
+
+            assertThatThrownBy(() -> productDomainService.validateOptionValuesBelongToGroup(groupId, java.util.Set.of(valueId)))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Global option group is not allowed");
+        }
+
+        @Test
+        @DisplayName("글로벌 옵션 값이 DELETED면 ProductDomainException")
+        void deletedGlobalValue_Throws() {
+            OptionGroupId groupId = new OptionGroupId(java.util.UUID.randomUUID());
+            OptionValueId deletedValueId = new OptionValueId(java.util.UUID.randomUUID());
+
+            OptionGroup group = OptionGroup.reconstitute(
+                    groupId,
+                    "COLOR",
+                    "색상",
+                    OptionStatus.ACTIVE,
+                    java.util.List.of(
+                            OptionValue.reconstitute(
+                                    deletedValueId,
+                                    "RED",
+                                    "빨강",
+                                    1,
+                                    OptionStatus.DELETED
+                            )
+                    )
+            );
+            when(optionGroupRepository.findById(groupId)).thenReturn(Optional.of(group));
+
+            assertThatThrownBy(() -> productDomainService.validateOptionValuesBelongToGroup(groupId, java.util.Set.of(deletedValueId)))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Global option value is not allowed");
+        }
     }
 
     private Product sampleProduct(ProductStatus status) {

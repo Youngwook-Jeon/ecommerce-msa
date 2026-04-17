@@ -156,13 +156,16 @@ public class ProductApplicationService {
     }
 
     @Transactional
-    public AddProductOptionValueToGroupResult addProductOptionValue(
+    public List<AddProductOptionValueToGroupResult> addProductOptionValues(
             UUID productIdValue,
             UUID productOptionGroupIdValue,
-            AddProductOptionValueCommand command
+            AddProductOptionValuesCommand command
     ) {
         if (productIdValue == null || productOptionGroupIdValue == null || command == null) {
             throw new IllegalArgumentException("Invalid add product option value request.");
+        }
+        if (command.getOptionValues() == null || command.getOptionValues().isEmpty()) {
+            throw new IllegalArgumentException("Product option values must not be empty.");
         }
 
         Product product = findProductOrThrow(new ProductId(productIdValue));
@@ -173,16 +176,20 @@ public class ProductApplicationService {
                 .filter(group -> group.getId().equals(productOptionGroupId))
                 .findFirst()
                 .orElseThrow(() -> new ProductDomainException("Product option group not found in this product."));
-        productDomainService.validateOptionValueBelongsToGroup(
-                targetGroup.getOptionGroupId(),
-                new OptionValueId(command.getOptionValueId())
-        );
-        ProductOptionValue newValue = toProductOptionValue(command);
+        List<AddProductOptionValueToGroupResult> results = new ArrayList<>();
+        validateGlobalOptionValueMembership(targetGroup.getOptionGroupId(), command.getOptionValues());
+        for (AddProductOptionValueCommand valueCommand : command.getOptionValues()) {
+            if (valueCommand == null) {
+                throw new IllegalArgumentException("Product option value command must not be null.");
+            }
+            ProductOptionValue newValue = toProductOptionValue(valueCommand);
+            product.addProductOptionValue(productOptionGroupId, newValue);
+            results.add(productDataMapper.toAddProductOptionValueToGroupResult(product, productOptionGroupId, newValue));
+        }
 
-        product.addProductOptionValue(productOptionGroupId, newValue);
         productRepository.update(product);
 
-        return productDataMapper.toAddProductOptionValueToGroupResult(product, productOptionGroupId, newValue);
+        return results;
     }
 
     @Transactional
@@ -332,15 +339,16 @@ public class ProductApplicationService {
         if (optionGroupId == null || optionValueCommands == null) {
             return;
         }
-        for (AddProductOptionValueCommand command : optionValueCommands) {
-            if (command == null || command.getOptionValueId() == null) {
-                continue;
-            }
-            productDomainService.validateOptionValueBelongsToGroup(
-                    optionGroupId,
-                    new OptionValueId(command.getOptionValueId())
-            );
+        Set<OptionValueId> optionValueIds = optionValueCommands.stream()
+                .filter(Objects::nonNull)
+                .map(AddProductOptionValueCommand::getOptionValueId)
+                .filter(Objects::nonNull)
+                .map(OptionValueId::new)
+                .collect(Collectors.toSet());
+        if (optionValueIds.isEmpty()) {
+            return;
         }
+        productDomainService.validateOptionValuesBelongToGroup(optionGroupId, optionValueIds);
     }
 
     private void validateCreateRequest(CreateProductCommand command) {
