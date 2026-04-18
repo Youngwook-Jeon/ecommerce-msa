@@ -16,7 +16,6 @@ import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionValueEntity;
 import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
-import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
 import com.project.young.productservice.domain.valueobject.ConditionType;
@@ -93,9 +92,6 @@ class ProductApiIntegrationTest {
     private ProductJpaRepository productJpaRepository;
 
     @Autowired
-    private CategoryJpaRepository categoryJpaRepository;
-
-    @Autowired
     private OptionGroupJpaRepository optionGroupJpaRepository;
 
     @Autowired
@@ -103,21 +99,12 @@ class ProductApiIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        productJpaRepository.deleteAll();
-        optionGroupJpaRepository.deleteAll();
-        categoryJpaRepository.deleteAll();
+        // currentSchema=product 기준. CASCADE로 option_values·product_option_*·variants 등 FK 하위 테이블까지 비운다.
+        entityManager.createNativeQuery(
+                "TRUNCATE TABLE categories, option_groups, products RESTART IDENTITY CASCADE"
+        ).executeUpdate();
         entityManager.flush();
-
-        // 카테고리 시퀀스 초기화 (PostgreSQL 한정)
-        try {
-            entityManager.createNativeQuery("ALTER SEQUENCE product.categories_id_seq RESTART WITH 1").executeUpdate();
-        } catch (Exception e) {
-            try {
-                entityManager.createNativeQuery("ALTER SEQUENCE categories_id_seq RESTART WITH 1").executeUpdate();
-            } catch (Exception ex) {
-                System.out.println("Category sequence reset failed: " + ex.getMessage());
-            }
-        }
+        entityManager.clear();
     }
 
     private Long createCategory(String name) throws Exception {
