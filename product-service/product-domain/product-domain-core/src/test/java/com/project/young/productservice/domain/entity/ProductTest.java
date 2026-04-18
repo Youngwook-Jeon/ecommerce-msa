@@ -10,6 +10,7 @@ import com.project.young.common.domain.valueobject.ProductOptionValueId;
 import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.productservice.domain.exception.ProductDomainException;
 import com.project.young.productservice.domain.valueobject.ConditionType;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -360,6 +361,97 @@ class ProductTest {
             ProductVariant deleted = product.deleteVariant(variantId);
 
             assertThat(deleted.getStatus()).isEqualTo(ProductStatus.DELETED);
+        }
+
+        @Test
+        @DisplayName("addVariant: 로컬 옵션 그룹이 DELETED이면 필수 그룹 검증 대상에서 제외된다")
+        void addVariant_DeletedRequiredGroup_SkippedForRequiredCheck() {
+            Product product = createBaseProduct();
+
+            ProductOptionValueId deletedGroupValueId = new ProductOptionValueId(UUID.randomUUID());
+            ProductOptionValue povDeletedGroup = ProductOptionValue.reconstitute(
+                    deletedGroupValueId,
+                    new OptionValueId(UUID.randomUUID()),
+                    Money.ZERO,
+                    false,
+                    true
+            );
+            ProductOptionGroup deletedRequiredGroup = ProductOptionGroup.reconstitute(
+                    new ProductOptionGroupId(UUID.randomUUID()),
+                    new OptionGroupId(UUID.randomUUID()),
+                    1,
+                    true,
+                    OptionStatus.DELETED,
+                    List.of(povDeletedGroup)
+            );
+
+            ProductOptionValueId activeGroupValueId = new ProductOptionValueId(UUID.randomUUID());
+            ProductOptionValue povActiveGroup = ProductOptionValue.reconstitute(
+                    activeGroupValueId,
+                    new OptionValueId(UUID.randomUUID()),
+                    Money.ZERO,
+                    false,
+                    true
+            );
+            ProductOptionGroup activeRequiredGroup = ProductOptionGroup.reconstitute(
+                    new ProductOptionGroupId(UUID.randomUUID()),
+                    new OptionGroupId(UUID.randomUUID()),
+                    2,
+                    true,
+                    OptionStatus.ACTIVE,
+                    List.of(povActiveGroup)
+            );
+
+            product.addOptionGroup(deletedRequiredGroup);
+            product.addOptionGroup(activeRequiredGroup);
+
+            ProductVariant variant = ProductVariant.reconstitute(
+                    new ProductVariantId(UUID.randomUUID()),
+                    "SKU-DEL-GROUP",
+                    1,
+                    ProductStatus.ACTIVE,
+                    Money.ZERO,
+                    Set.of(activeGroupValueId)
+            );
+
+            assertThatCode(() -> product.addVariant(variant)).doesNotThrowAnyException();
+        }
+
+        @Test
+        @DisplayName("addVariant: DELETED 그룹에 속한 옵션 값 ID는 유효 선택으로 인정되지 않는다")
+        void addVariant_OptionValueFromDeletedGroup_InvalidSelection() {
+            Product product = createBaseProduct();
+
+            ProductOptionValueId valueInDeletedGroup = new ProductOptionValueId(UUID.randomUUID());
+            ProductOptionValue pov = ProductOptionValue.reconstitute(
+                    valueInDeletedGroup,
+                    new OptionValueId(UUID.randomUUID()),
+                    Money.ZERO,
+                    false,
+                    true
+            );
+            ProductOptionGroup deletedGroup = ProductOptionGroup.reconstitute(
+                    new ProductOptionGroupId(UUID.randomUUID()),
+                    new OptionGroupId(UUID.randomUUID()),
+                    1,
+                    false,
+                    OptionStatus.DELETED,
+                    List.of(pov)
+            );
+            product.addOptionGroup(deletedGroup);
+
+            ProductVariant variant = ProductVariant.reconstitute(
+                    new ProductVariantId(UUID.randomUUID()),
+                    "SKU-BAD-OPT",
+                    1,
+                    ProductStatus.ACTIVE,
+                    Money.ZERO,
+                    Set.of(valueInDeletedGroup)
+            );
+
+            assertThatThrownBy(() -> product.addVariant(variant))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Invalid or inactive option value ID");
         }
 
         @Test

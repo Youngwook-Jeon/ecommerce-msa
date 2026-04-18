@@ -284,6 +284,7 @@ public class Product extends AggregateRoot<ProductId> {
 
     private void validateVariantOptions(Set<ProductOptionValueId> selectedOptions) {
         List<ProductOptionValueId> validOptionIds = this.optionGroups.stream()
+                .filter(group -> group.getStatus() == null || !group.getStatus().isDeleted())
                 .flatMap(group -> group.getOptionValues().stream())
                 .filter(ProductOptionValue::isActive)
                 .map(ProductOptionValue::getId)
@@ -296,7 +297,11 @@ public class Product extends AggregateRoot<ProductId> {
         }
 
         // 모든 필수(Required) 옵션 그룹에서 최소(혹은 정확히) 1개의 옵션이 선택되었는지 확인
+        // 로컬 상태가 DELETED인 그룹은 더 이상 변형 선택 대상이 아니므로 제외한다.
         for (ProductOptionGroup group : this.optionGroups) {
+            if (group.getStatus() != null && group.getStatus().isDeleted()) {
+                continue;
+            }
             if (group.isRequired()) {
                 boolean hasSelectedOptionInGroup = group.getOptionValues().stream()
                         .filter(ProductOptionValue::isActive)
