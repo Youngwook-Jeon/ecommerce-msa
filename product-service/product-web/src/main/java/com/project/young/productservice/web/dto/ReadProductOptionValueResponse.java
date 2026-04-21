@@ -11,6 +11,6 @@ public record ReadProductOptionValueResponse(
         UUID optionValueId,
         BigDecimal priceDelta,
         boolean isDefault,
-        boolean isActive
+        String status
 ) {
 }

@@ -6,8 +6,10 @@ import com.project.young.productservice.application.port.output.view.ReadProduct
 import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.domain.valueobject.ConditionType;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
+import com.project.young.productservice.web.converter.OptionStatusWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
 import com.project.young.productservice.web.dto.AdminProductDetailResponse;
 import com.project.young.productservice.web.dto.AdminProductListItemResponse;
@@ -31,7 +33,8 @@ class AdminProductQueryResponseMapperTest {
     void setUp() {
         adminProductQueryResponseMapper = new AdminProductQueryResponseMapper(
                 new ProductStatusWebConverter(),
-                new ConditionTypeWebConverter()
+                new ConditionTypeWebConverter(),
+                new OptionStatusWebConverter()
         );
     }
 
@@ -96,13 +99,14 @@ class AdminProductQueryResponseMapperTest {
                 .optionValueId(ovId)
                 .priceDelta(new BigDecimal("1000"))
                 .isDefault(true)
-                .isActive(true)
+                .status(OptionStatus.ACTIVE)
                 .build();
         ReadProductOptionGroupView groupView = ReadProductOptionGroupView.builder()
                 .productOptionGroupId(pogId)
                 .optionGroupId(ogId)
                 .stepOrder(1)
                 .required(true)
+                .status(OptionStatus.ACTIVE)
                 .optionValues(List.of(valueView))
                 .build();
         ReadProductVariantView variantView = ReadProductVariantView.builder()

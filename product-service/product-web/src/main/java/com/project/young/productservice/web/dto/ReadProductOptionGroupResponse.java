@@ -11,6 +11,7 @@ public record ReadProductOptionGroupResponse(
         UUID optionGroupId,
         int stepOrder,
         boolean required,
+        String status,
         List<ReadProductOptionValueResponse> optionValues
 ) {
     public ReadProductOptionGroupResponse {

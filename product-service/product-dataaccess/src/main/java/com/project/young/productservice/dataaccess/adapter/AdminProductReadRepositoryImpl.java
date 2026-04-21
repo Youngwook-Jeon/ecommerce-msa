@@ -13,7 +13,6 @@ import com.project.young.productservice.dataaccess.entity.ProductOptionValueEnti
 import com.project.young.productservice.dataaccess.entity.ProductVariantEntity;
 import com.project.young.productservice.dataaccess.entity.VariantOptionValueEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
-import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.projection.AdminProductListProjection;
 import com.project.young.productservice.dataaccess.repository.AdminProductJpaRepository;
@@ -153,6 +152,7 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 .optionGroupId(groupEntity.getOptionGroupId())
                 .stepOrder(groupEntity.getStepOrder())
                 .required(groupEntity.isRequired())
+                .status(productDataAccessMapper.toDomainOptionStatus(groupEntity.getStatus()))
                 .optionValues(optionValues)
                 .build();
     }
@@ -163,7 +163,7 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 .optionValueId(valueEntity.getOptionValueId())
                 .priceDelta(valueEntity.getPriceDelta())
                 .isDefault(valueEntity.isDefault())
-                .isActive(valueEntity.isActive())
+                .status(productDataAccessMapper.toDomainOptionStatus(valueEntity.getStatus()))
                 .build();
     }
 

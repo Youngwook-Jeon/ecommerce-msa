@@ -6,8 +6,10 @@ import com.project.young.productservice.application.port.output.view.ReadProduct
 import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.domain.valueobject.ConditionType;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
+import com.project.young.productservice.web.converter.OptionStatusWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
 import com.project.young.productservice.web.dto.ReadProductDetailResponse;
 import com.project.young.productservice.web.dto.ReadProductListResponse;
@@ -31,7 +33,8 @@ class ProductQueryResponseMapperTest {
     void setUp() {
         productQueryResponseMapper = new ProductQueryResponseMapper(
                 new ProductStatusWebConverter(),
-                new ConditionTypeWebConverter()
+                new ConditionTypeWebConverter(),
+                new OptionStatusWebConverter()
         );
     }
 
@@ -68,13 +71,14 @@ class ProductQueryResponseMapperTest {
                                     .optionGroupId(UUID.randomUUID())
                                     .stepOrder(1)
                                     .required(true)
+                                    .status(OptionStatus.ACTIVE)
                                     .optionValues(List.of(
                                             ReadProductOptionValueView.builder()
                                                     .productOptionValueId(productOptionValueId)
                                                     .optionValueId(UUID.randomUUID())
                                                     .priceDelta(new BigDecimal("1000"))
                                                     .isDefault(true)
-                                                    .isActive(true)
+                                                    .status(OptionStatus.ACTIVE)
                                                     .build()
                                     ))
                                     .build()

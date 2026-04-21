@@ -1,6 +1,7 @@
 package com.project.young.productservice.application.port.output.view;
 
 import lombok.Builder;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -11,6 +12,6 @@ public record ReadProductOptionValueView(
         UUID optionValueId,
         BigDecimal priceDelta,
         boolean isDefault,
-        boolean isActive
+        OptionStatus status
 ) {
 }

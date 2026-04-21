@@ -6,6 +6,7 @@ import com.project.young.productservice.application.port.output.view.ReadProduct
 import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
+import com.project.young.productservice.web.converter.OptionStatusWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
 import com.project.young.productservice.web.dto.ReadProductDetailResponse;
 import com.project.young.productservice.web.dto.ReadProductOptionGroupResponse;
@@ -22,11 +23,14 @@ public class ProductQueryResponseMapper {
 
     private final ProductStatusWebConverter productStatusWebConverter;
     private final ConditionTypeWebConverter conditionTypeWebConverter;
+    private final OptionStatusWebConverter optionStatusWebConverter;
 
     public ProductQueryResponseMapper(ProductStatusWebConverter productStatusWebConverter,
-                                      ConditionTypeWebConverter conditionTypeWebConverter) {
+                                      ConditionTypeWebConverter conditionTypeWebConverter,
+                                      OptionStatusWebConverter optionStatusWebConverter) {
         this.productStatusWebConverter = productStatusWebConverter;
         this.conditionTypeWebConverter = conditionTypeWebConverter;
+        this.optionStatusWebConverter = optionStatusWebConverter;
     }
 
     public ReadProductDetailResponse toReadProductDetailResponse(ReadProductDetailView readProductView) {
@@ -75,6 +79,7 @@ public class ProductQueryResponseMapper {
                 .optionGroupId(view.optionGroupId())
                 .stepOrder(view.stepOrder())
                 .required(view.required())
+                .status(optionStatusWebConverter.toStringValue(view.status()))
                 .optionValues(view.optionValues().stream().map(this::toReadProductOptionValueResponse).toList())
                 .build();
     }
@@ -85,7 +90,7 @@ public class ProductQueryResponseMapper {
                 .optionValueId(view.optionValueId())
                 .priceDelta(view.priceDelta())
                 .isDefault(view.isDefault())
-                .isActive(view.isActive())
+                .status(optionStatusWebConverter.toStringValue(view.status()))
                 .build();
     }
 
