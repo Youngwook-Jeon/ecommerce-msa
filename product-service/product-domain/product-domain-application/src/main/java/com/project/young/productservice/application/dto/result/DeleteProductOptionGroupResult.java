@@ -1,16 +1,16 @@
 package com.project.young.productservice.application.dto.result;
 
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import lombok.Builder;
 
 import java.util.UUID;
 
 @Builder
-public record AddProductOptionGroupResult(
+public record DeleteProductOptionGroupResult(
         UUID productId,
         UUID productOptionGroupId,
-        UUID optionGroupId,
-        double stepOrder,
-        boolean required,
-        int optionValueCount
+        OptionStatus status,
+        double stepOrder
 ) {
 }
+

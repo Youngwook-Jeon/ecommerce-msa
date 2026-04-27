@@ -81,6 +81,13 @@ public class ProductOptionValue extends BaseEntity<ProductOptionValueId> {
         this.status = OptionStatus.ACTIVE;
     }
 
+    void markAsDeleted() {
+        if (this.status == OptionStatus.DELETED) {
+            return;
+        }
+        this.status = OptionStatus.DELETED;
+    }
+
     public boolean isActive() {
         return this.status != null && this.status.isActive();
     }

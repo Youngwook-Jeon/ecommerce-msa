@@ -176,6 +176,47 @@ public class Product extends AggregateRoot<ProductId> {
             throw new ProductDomainException("Option group already exists in this product.");
         }
         this.optionGroups.add(group);
+
+        // 기존 변형 데이터 무효화 (특히 필수 옵션인 경우)
+        if (group.isRequired() && this.variants != null) {
+            this.variants.forEach(ProductVariant::markAsDeleted);
+        }
+    }
+
+    public ProductOptionGroup deleteProductOptionGroup(ProductOptionGroupId productOptionGroupId) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot deactivate option group in a deleted product.");
+        }
+        ProductOptionGroup target = this.optionGroups.stream()
+                .filter(group -> group.getId().equals(productOptionGroupId))
+                .findFirst()
+                .orElseThrow(() -> new ProductDomainException("Product option group not found in this product."));
+
+        target.markAsDeleted();
+        // Group-level structural deletion invalidates the entire variant set.
+        this.variants.forEach(ProductVariant::markAsDeleted);
+        return target;
+    }
+
+    public void changeOptionGroupStepOrder(ProductOptionGroupId productOptionGroupId, double stepOrder) {
+        ProductOptionGroup target = this.optionGroups.stream()
+                .filter(group -> group.getId().equals(productOptionGroupId))
+                .findFirst()
+                .orElseThrow(() -> new ProductDomainException("Product option group not found in this product."));
+        target.changeStepOrder(stepOrder);
+    }
+
+    public void rebalanceOptionGroupStepOrders() {
+        List<ProductOptionGroup> activeGroups = this.optionGroups.stream()
+                .filter(group -> group.getStatus() == null || !group.getStatus().isDeleted())
+                .sorted(Comparator.comparingDouble(ProductOptionGroup::getStepOrder))
+                .toList();
+
+        double cursor = 1024.0d;
+        for (ProductOptionGroup group : activeGroups) {
+            group.changeStepOrder(cursor);
+            cursor += 1024.0d;
+        }
     }
 
     public void addProductOptionValue(ProductOptionGroupId productOptionGroupId, ProductOptionValue newValue) {
@@ -267,14 +308,17 @@ public class Product extends AggregateRoot<ProductId> {
         return target;
     }
 
-    public ProductOptionValue deactivateProductOptionValue(ProductOptionValueId productOptionValueId) {
+    public ProductOptionValue deleteProductOptionValue(ProductOptionValueId productOptionValueId) {
         if (isDeleted()) {
             throw new ProductDomainException("Cannot deactivate option value in a deleted product.");
         }
         for (ProductOptionGroup group : this.optionGroups) {
             for (ProductOptionValue value : group.getOptionValues()) {
                 if (value.getId().equals(productOptionValueId)) {
-                    value.deactivateLocalOption();
+                    value.markAsDeleted();
+                    this.variants.stream()
+                            .filter(variant -> variant.getSelectedOptionValues().contains(productOptionValueId))
+                            .forEach(ProductVariant::markAsDeleted);
                     return value;
                 }
             }

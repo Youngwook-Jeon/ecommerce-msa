@@ -32,4 +32,12 @@ public class ProductResponseMessageFactory {
     public String productVariantAdded() {
         return "Product variant added successfully";
     }
+
+    public String productOptionGroupDeleted() {
+        return "Product option group deleted successfully";
+    }
+
+    public String productOptionValueDeleted() {
+        return "Product option value deleted successfully";
+    }
 }

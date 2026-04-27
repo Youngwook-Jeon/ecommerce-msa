@@ -455,8 +455,8 @@ class ProductTest {
         }
 
         @Test
-        @DisplayName("deactivateProductOptionValue: 옵션값을 비활성화한다")
-        void deactivateProductOptionValue_Success() {
+        @DisplayName("deleteProductOptionValue: 옵션값을 삭제한다")
+        void deleteProductOptionValue_Success() {
             Product product = createBaseProduct();
             ProductOptionValueId optionValueId = new ProductOptionValueId(UUID.randomUUID());
             ProductOptionValue pov = ProductOptionValue.reconstitute(
@@ -475,9 +475,91 @@ class ProductTest {
             );
             product.addOptionGroup(pog);
 
-            ProductOptionValue deactivated = product.deactivateProductOptionValue(optionValueId);
+            ProductOptionValue deactivated = product.deleteProductOptionValue(optionValueId);
 
             assertThat(deactivated.isActive()).isFalse();
+        }
+
+        @Test
+        @DisplayName("deleteProductOptionValue: 해당 옵션값을 포함한 variant를 DELETED로 전파한다")
+        void deleteProductOptionValue_PropagatesToRelatedVariants() {
+            Product product = createBaseProduct();
+            ProductOptionValueId targetOptionValueId = new ProductOptionValueId(UUID.randomUUID());
+            ProductOptionValue targetValue = ProductOptionValue.reconstitute(
+                    targetOptionValueId,
+                    new OptionValueId(UUID.randomUUID()),
+                    Money.ZERO,
+                    false,
+                    true
+            );
+            ProductOptionGroup group = ProductOptionGroup.reconstitute(
+                    new ProductOptionGroupId(UUID.randomUUID()),
+                    new OptionGroupId(UUID.randomUUID()),
+                    1.0d,
+                    false,
+                    List.of(targetValue)
+            );
+            product.addOptionGroup(group);
+
+            ProductVariant related = ProductVariant.reconstitute(
+                    new ProductVariantId(UUID.randomUUID()),
+                    "SKU-REL",
+                    1,
+                    ProductStatus.ACTIVE,
+                    Money.ZERO,
+                    Set.of(targetOptionValueId)
+            );
+            ProductVariant unrelated = ProductVariant.reconstitute(
+                    new ProductVariantId(UUID.randomUUID()),
+                    "SKU-UNREL",
+                    1,
+                    ProductStatus.ACTIVE,
+                    Money.ZERO,
+                    Set.of()
+            );
+            product.addVariant(related);
+            product.addVariant(unrelated);
+
+            product.deleteProductOptionValue(targetOptionValueId);
+
+            assertThat(related.getStatus()).isEqualTo(ProductStatus.DELETED);
+            assertThat(unrelated.getStatus()).isEqualTo(ProductStatus.ACTIVE);
+        }
+
+        @Test
+        @DisplayName("deleteProductOptionGroup: 그룹 삭제 시 variant를 모두 DELETED로 전파한다")
+        void deleteProductOptionGroup_PropagatesToAllVariants() {
+            Product product = createBaseProduct();
+            ProductOptionGroupId groupId = new ProductOptionGroupId(UUID.randomUUID());
+            ProductOptionValueId optionValueId = new ProductOptionValueId(UUID.randomUUID());
+            ProductOptionGroup group = ProductOptionGroup.reconstitute(
+                    groupId,
+                    new OptionGroupId(UUID.randomUUID()),
+                    1.0d,
+                    false,
+                    List.of(ProductOptionValue.reconstitute(
+                            optionValueId,
+                            new OptionValueId(UUID.randomUUID()),
+                            Money.ZERO,
+                            false,
+                            true
+                    ))
+            );
+            product.addOptionGroup(group);
+            ProductVariant v1 = ProductVariant.reconstitute(
+                    new ProductVariantId(UUID.randomUUID()), "SKU-1", 1, ProductStatus.ACTIVE, Money.ZERO, Set.of(optionValueId)
+            );
+            ProductVariant v2 = ProductVariant.reconstitute(
+                    new ProductVariantId(UUID.randomUUID()), "SKU-2", 1, ProductStatus.INACTIVE, Money.ZERO, Set.of()
+            );
+            product.addVariant(v1);
+            product.addVariant(v2);
+
+            ProductOptionGroup deleted = product.deleteProductOptionGroup(groupId);
+
+            assertThat(deleted.getStatus()).isEqualTo(OptionStatus.DELETED);
+            assertThat(v1.getStatus()).isEqualTo(ProductStatus.DELETED);
+            assertThat(v2.getStatus()).isEqualTo(ProductStatus.DELETED);
         }
 
         @Test

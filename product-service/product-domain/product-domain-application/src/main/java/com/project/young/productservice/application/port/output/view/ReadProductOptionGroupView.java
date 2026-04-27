@@ -10,7 +10,7 @@ import java.util.UUID;
 public record ReadProductOptionGroupView(
         UUID productOptionGroupId,
         UUID optionGroupId,
-        int stepOrder,
+        double stepOrder,
         boolean required,
         OptionStatus status,
         List<ReadProductOptionValueView> optionValues

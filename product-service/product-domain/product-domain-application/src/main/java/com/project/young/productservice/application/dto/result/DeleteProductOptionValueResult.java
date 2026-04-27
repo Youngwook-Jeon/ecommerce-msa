@@ -1,15 +1,17 @@
 package com.project.young.productservice.application.dto.result;
 
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.util.UUID;
 
 @Builder
-public record DeactivateProductOptionValueResult(
+public record DeleteProductOptionValueResult(
         UUID productId,
         UUID productOptionValueId,
-        boolean active,
+        OptionStatus status,
         BigDecimal priceDelta
 ) {
 }
+

@@ -78,14 +78,14 @@ CREATE TABLE option_values
 -- 어떤 상품이 어떤 옵션 그룹을 쓰는지 + 순서/필수 여부
 CREATE TABLE product_option_groups
 (
-    id              UUID PRIMARY KEY       DEFAULT uuidv7(),
-    product_id      UUID          NOT NULL REFERENCES products (id) ON DELETE CASCADE,
-    option_group_id UUID          NOT NULL REFERENCES option_groups (id) ON DELETE RESTRICT,
-    step_order      INTEGER       NOT NULL CHECK (step_order > 0),
-    is_required     BOOLEAN       NOT NULL DEFAULT true,
-    status          option_status NOT NULL DEFAULT 'ACTIVE',
-    created_at      TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    id              UUID PRIMARY KEY          DEFAULT uuidv7(),
+    product_id      UUID             NOT NULL REFERENCES products (id) ON DELETE CASCADE,
+    option_group_id UUID             NOT NULL REFERENCES option_groups (id) ON DELETE RESTRICT,
+    step_order      DOUBLE PRECISION NOT NULL CHECK (step_order > 0),
+    is_required     BOOLEAN          NOT NULL DEFAULT true,
+    status          option_status    NOT NULL DEFAULT 'ACTIVE',
+    created_at      TIMESTAMPTZ      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMPTZ      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uk_product_group UNIQUE (product_id, option_group_id),
     CONSTRAINT uk_product_step UNIQUE (product_id, step_order)
 );

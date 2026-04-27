@@ -7,12 +7,15 @@ import com.project.young.productservice.application.service.ProductApplicationSe
 import com.project.young.productservice.web.dto.AddProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.AddProductOptionValuesToGroupResponse;
 import com.project.young.productservice.web.dto.AddProductVariantsResponse;
+import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
+import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -78,6 +81,34 @@ public class AdminProductCompositionController {
                                         .collect(Collectors.toList())
                         )
                         .build());
+    }
+
+    @DeleteMapping("/{productId}/option-groups/{productOptionGroupId}")
+    public ResponseEntity<DeleteProductOptionGroupResponse> deleteOptionGroup(
+            @PathVariable("productId") UUID productId,
+            @PathVariable("productOptionGroupId") UUID productOptionGroupId
+    ) {
+        log.info("REST request to soft-delete option group. productId={}, productOptionGroupId={}",
+                productId, productOptionGroupId);
+        return ResponseEntity.ok(
+                productResponseMapper.toDeleteProductOptionGroupResponse(
+                        productApplicationService.deleteProductOptionGroup(productId, productOptionGroupId)
+                )
+        );
+    }
+
+    @DeleteMapping("/{productId}/option-values/{productOptionValueId}")
+    public ResponseEntity<DeleteProductOptionValueResponse> deleteOptionValue(
+            @PathVariable("productId") UUID productId,
+            @PathVariable("productOptionValueId") UUID productOptionValueId
+    ) {
+        log.info("REST request to soft-delete option value. productId={}, productOptionValueId={}",
+                productId, productOptionValueId);
+        return ResponseEntity.ok(
+                productResponseMapper.toDeleteProductOptionValueResponse(
+                        productApplicationService.deleteProductOptionValue(productId, productOptionValueId)
+                )
+        );
     }
 
     /**

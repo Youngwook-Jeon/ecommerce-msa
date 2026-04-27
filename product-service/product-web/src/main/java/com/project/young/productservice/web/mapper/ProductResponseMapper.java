@@ -4,14 +4,19 @@ import com.project.young.productservice.application.dto.result.AddProductOptionG
 import com.project.young.productservice.application.dto.result.AddProductOptionValueToGroupResult;
 import com.project.young.productservice.application.dto.result.AddProductVariantResult;
 import com.project.young.productservice.application.dto.result.CreateProductResult;
+import com.project.young.productservice.application.dto.result.DeleteProductOptionGroupResult;
+import com.project.young.productservice.application.dto.result.DeleteProductOptionValueResult;
 import com.project.young.productservice.application.dto.result.DeleteProductResult;
 import com.project.young.productservice.application.dto.result.UpdateProductResult;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
+import com.project.young.productservice.web.converter.OptionStatusWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
 import com.project.young.productservice.web.dto.AddProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.AddProductOptionValueToGroupResponse;
 import com.project.young.productservice.web.dto.AddProductVariantResponse;
 import com.project.young.productservice.web.dto.CreateProductResponse;
+import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
+import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
 import com.project.young.productservice.web.dto.DeleteProductResponse;
 import com.project.young.productservice.web.dto.UpdateProductResponse;
 import com.project.young.productservice.web.message.ProductResponseMessageFactory;
@@ -23,13 +28,16 @@ public class ProductResponseMapper {
     private final ProductResponseMessageFactory messageFactory;
     private final ProductStatusWebConverter productStatusWebConverter;
     private final ConditionTypeWebConverter conditionTypeWebConverter;
+    private final OptionStatusWebConverter optionStatusWebConverter;
 
     public ProductResponseMapper(ProductResponseMessageFactory messageFactory,
                                  ProductStatusWebConverter productStatusWebConverter,
-                                 ConditionTypeWebConverter conditionTypeWebConverter) {
+                                 ConditionTypeWebConverter conditionTypeWebConverter,
+                                 OptionStatusWebConverter optionStatusWebConverter) {
         this.messageFactory = messageFactory;
         this.productStatusWebConverter = productStatusWebConverter;
         this.conditionTypeWebConverter = conditionTypeWebConverter;
+        this.optionStatusWebConverter = optionStatusWebConverter;
     }
 
     public CreateProductResponse toCreateProductResponse(CreateProductResult result) {
@@ -105,6 +113,30 @@ public class ProductResponseMapper {
                 .status(productStatusWebConverter.toStringValue(result.status()))
                 .calculatedPrice(result.calculatedPrice())
                 .message(messageFactory.productVariantAdded())
+                .build();
+    }
+
+    public DeleteProductOptionGroupResponse toDeleteProductOptionGroupResponse(
+            DeleteProductOptionGroupResult result
+    ) {
+        return DeleteProductOptionGroupResponse.builder()
+                .productId(result.productId())
+                .productOptionGroupId(result.productOptionGroupId())
+                .status(optionStatusWebConverter.toStringValue(result.status()))
+                .stepOrder(result.stepOrder())
+                .message(messageFactory.productOptionGroupDeleted())
+                .build();
+    }
+
+    public DeleteProductOptionValueResponse toDeleteProductOptionValueResponse(
+            DeleteProductOptionValueResult result
+    ) {
+        return DeleteProductOptionValueResponse.builder()
+                .productId(result.productId())
+                .productOptionValueId(result.productOptionValueId())
+                .status(optionStatusWebConverter.toStringValue(result.status()))
+                .priceDelta(result.priceDelta())
+                .message(messageFactory.productOptionValueDeleted())
                 .build();
     }
 }

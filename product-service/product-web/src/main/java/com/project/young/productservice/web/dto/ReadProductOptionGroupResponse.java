@@ -9,7 +9,7 @@ import java.util.UUID;
 public record ReadProductOptionGroupResponse(
         UUID productOptionGroupId,
         UUID optionGroupId,
-        int stepOrder,
+        double stepOrder,
         boolean required,
         String status,
         List<ReadProductOptionValueResponse> optionValues

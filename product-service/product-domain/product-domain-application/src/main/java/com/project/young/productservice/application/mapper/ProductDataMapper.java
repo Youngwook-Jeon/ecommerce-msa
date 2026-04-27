@@ -17,8 +17,9 @@ import com.project.young.productservice.application.dto.result.AddProductVariant
 import com.project.young.productservice.application.dto.result.ChangeProductOptionValuePriceDeltaResult;
 import com.project.young.productservice.application.dto.command.CreateProductCommand;
 import com.project.young.productservice.application.dto.result.CreateProductResult;
-import com.project.young.productservice.application.dto.result.DeactivateProductOptionValueResult;
 import com.project.young.productservice.application.dto.result.DeleteProductResult;
+import com.project.young.productservice.application.dto.result.DeleteProductOptionGroupResult;
+import com.project.young.productservice.application.dto.result.DeleteProductOptionValueResult;
 import com.project.young.productservice.application.dto.result.DeleteProductVariantResult;
 import com.project.young.productservice.application.dto.result.UpdateProductVariantResult;
 import com.project.young.productservice.application.dto.result.UpdateProductResult;
@@ -113,6 +114,7 @@ public class ProductDataMapper {
     public ProductOptionGroup toProductOptionGroup(
             AddProductOptionGroupCommand command,
             ProductOptionGroupId id,
+            double stepOrder,
             List<ProductOptionValue> optionValues
     ) {
         Objects.requireNonNull(command, "AddProductOptionGroupCommand cannot be null");
@@ -121,7 +123,7 @@ public class ProductDataMapper {
         return ProductOptionGroup.builder()
                 .id(id)
                 .optionGroupId(new OptionGroupId(command.getOptionGroupId()))
-                .stepOrder(command.getStepOrder())
+                .stepOrder(stepOrder)
                 .isRequired(command.isRequired())
                 .status(OptionStatus.ACTIVE)
                 .optionValues(optionValues)
@@ -235,15 +237,27 @@ public class ProductDataMapper {
                 .build();
     }
 
-    public DeactivateProductOptionValueResult toDeactivateProductOptionValueResult(Product product, ProductOptionValue optionValue) {
+    public DeleteProductOptionValueResult toDeleteProductOptionValueResult(Product product, ProductOptionValue optionValue) {
         Objects.requireNonNull(product, "Product cannot be null");
         Objects.requireNonNull(optionValue, "ProductOptionValue cannot be null");
 
-        return DeactivateProductOptionValueResult.builder()
+        return DeleteProductOptionValueResult.builder()
                 .productId(product.getId().getValue())
                 .productOptionValueId(optionValue.getId().getValue())
-                .active(optionValue.isActive())
+                .status(optionValue.getStatus())
                 .priceDelta(optionValue.getPriceDelta().getAmount())
+                .build();
+    }
+
+    public DeleteProductOptionGroupResult toDeleteProductOptionGroupResult(Product product, ProductOptionGroup optionGroup) {
+        Objects.requireNonNull(product, "Product cannot be null");
+        Objects.requireNonNull(optionGroup, "ProductOptionGroup cannot be null");
+
+        return DeleteProductOptionGroupResult.builder()
+                .productId(product.getId().getValue())
+                .productOptionGroupId(optionGroup.getId().getValue())
+                .status(optionGroup.getStatus())
+                .stepOrder(optionGroup.getStepOrder())
                 .build();
     }
 }

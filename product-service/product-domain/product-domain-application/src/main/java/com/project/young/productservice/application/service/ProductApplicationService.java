@@ -146,8 +146,14 @@ public class ProductApplicationService {
         OptionGroupId globalOptionGroupId = new OptionGroupId(command.getOptionGroupId());
         validateGlobalOptionValueMembership(globalOptionGroupId, command.getOptionValues());
         List<ProductOptionValue> optionValues = mapProductOptionValues(command.getOptionValues());
+        double resolvedStepOrder = resolveStepOrder(product, command.getStepOrder());
 
-        ProductOptionGroup optionGroup = productDataMapper.toProductOptionGroup(command, productOptionGroupId, optionValues);
+        ProductOptionGroup optionGroup = productDataMapper.toProductOptionGroup(
+                command,
+                productOptionGroupId,
+                resolvedStepOrder,
+                optionValues
+        );
 
         product.addOptionGroup(optionGroup);
         productRepository.update(product);
@@ -193,6 +199,27 @@ public class ProductApplicationService {
     }
 
     @Transactional
+    public DeleteProductOptionGroupResult deleteProductOptionGroup(
+            UUID productIdValue,
+            UUID productOptionGroupIdValue
+    ) {
+        if (productIdValue == null || productOptionGroupIdValue == null) {
+            throw new IllegalArgumentException("Invalid product option group deactivate request.");
+        }
+
+        Product product = findProductOrThrow(new ProductId(productIdValue));
+        validateProductCanBeUpdated(product);
+        validateOptionGroupStructureMutable(product);
+
+        ProductOptionGroup deleted = product.deleteProductOptionGroup(
+                new ProductOptionGroupId(productOptionGroupIdValue)
+        );
+        productRepository.update(product);
+
+        return productDataMapper.toDeleteProductOptionGroupResult(product, deleted);
+    }
+
+    @Transactional
     public List<AddProductVariantResult> addProductVariants(
             UUID productIdValue,
             AddProductVariantsCommand command
@@ -207,6 +234,7 @@ public class ProductApplicationService {
 
         Product product = findProductOrThrow(new ProductId(productIdValue));
         validateProductCanBeUpdated(product);
+        validateOptionGroupStructureMutable(product);
 
         List<AddProductVariantResult> results = new ArrayList<>();
         Set<String> reservedSkus = product.getVariants() == null
@@ -303,18 +331,19 @@ public class ProductApplicationService {
     }
 
     @Transactional
-    public DeactivateProductOptionValueResult deactivateProductOptionValue(UUID productIdValue, UUID productOptionValueIdValue) {
+    public DeleteProductOptionValueResult deleteProductOptionValue(UUID productIdValue, UUID productOptionValueIdValue) {
         if (productIdValue == null || productOptionValueIdValue == null) {
             throw new IllegalArgumentException("Invalid product option value deactivate request.");
         }
 
         Product product = findProductOrThrow(new ProductId(productIdValue));
         validateProductCanBeUpdated(product);
+        validateOptionGroupStructureMutable(product);
 
-        ProductOptionValue deactivated = product.deactivateProductOptionValue(new ProductOptionValueId(productOptionValueIdValue));
+        ProductOptionValue deleted = product.deleteProductOptionValue(new ProductOptionValueId(productOptionValueIdValue));
         productRepository.update(product);
 
-        return productDataMapper.toDeactivateProductOptionValueResult(product, deactivated);
+        return productDataMapper.toDeleteProductOptionValueResult(product, deleted);
     }
 
     private List<ProductOptionValue> mapProductOptionValues(List<AddProductOptionValueCommand> commands) {
@@ -496,9 +525,75 @@ public class ProductApplicationService {
     }
 
     private void validateOptionGroupStructureMutable(Product product) {
-        if (product.getStatus() == ProductStatus.ACTIVE) {
-            throw new ProductDomainException("Cannot add option groups after product is ACTIVE.");
+        if (product.getStatus() != ProductStatus.DRAFT) {
+            throw new ProductDomainException("Option group/value changes are allowed only when product is DRAFT.");
         }
+    }
+
+    private double resolveStepOrder(Product product, Double requestedStepOrder) {
+        final double spacing = 1024.0d;
+        final double minGap = 0.000001d;
+
+        List<ProductOptionGroup> activeGroups = product.getOptionGroups().stream()
+                .filter(group -> group.getStatus() == null || !group.getStatus().isDeleted())
+                .sorted(Comparator.comparingDouble(ProductOptionGroup::getStepOrder))
+                .toList();
+
+        if (requestedStepOrder == null) {
+            if (activeGroups.isEmpty()) {
+                return spacing;
+            }
+            return activeGroups.getLast().getStepOrder() + spacing;
+        }
+        if (requestedStepOrder <= 0) {
+            throw new ProductDomainException("Step order must be greater than zero.");
+        }
+
+        boolean duplicate = activeGroups.stream()
+                .anyMatch(group -> Double.compare(group.getStepOrder(), requestedStepOrder) == 0);
+        if (!duplicate) {
+            return requestedStepOrder;
+        }
+
+        double prev = 0.0d;
+        Double next = null;
+        for (ProductOptionGroup group : activeGroups) {
+            if (group.getStepOrder() <= requestedStepOrder) {
+                prev = group.getStepOrder();
+                continue;
+            }
+            next = group.getStepOrder();
+            break;
+        }
+
+        if (next == null) {
+            return requestedStepOrder + spacing;
+        }
+
+        double candidate = (prev + next) / 2.0d;
+        if ((next - prev) < minGap) {
+            product.rebalanceOptionGroupStepOrders();
+            activeGroups = product.getOptionGroups().stream()
+                    .filter(group -> group.getStatus() == null || !group.getStatus().isDeleted())
+                    .sorted(Comparator.comparingDouble(ProductOptionGroup::getStepOrder))
+                    .toList();
+
+            prev = 0.0d;
+            next = null;
+            for (ProductOptionGroup group : activeGroups) {
+                if (group.getStepOrder() <= requestedStepOrder) {
+                    prev = group.getStepOrder();
+                    continue;
+                }
+                next = group.getStepOrder();
+                break;
+            }
+            if (next == null) {
+                return activeGroups.getLast().getStepOrder() + spacing;
+            }
+            candidate = (prev + next) / 2.0d;
+        }
+        return candidate;
     }
 
     private record VariantIdentity(ProductVariantId variantId, String sku) {

@@ -82,7 +82,7 @@ class ProductApplicationServiceSubAggregateTest {
             UUID productId = UUID.randomUUID();
             AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
                     .optionGroupId(UUID.randomUUID())
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .required(true)
                     .optionValues(List.of(
                             AddProductOptionValueCommand.builder()
@@ -112,7 +112,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
                     .optionGroupId(optionGroupId)
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .required(true)
                     .optionValues(List.of(
                             AddProductOptionValueCommand.builder()
@@ -166,7 +166,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
                     .optionGroupId(UUID.randomUUID())
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .required(true)
                     .optionValues(List.of(
                             AddProductOptionValueCommand.builder()
@@ -182,7 +182,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command))
                     .isInstanceOf(ProductDomainException.class)
-                    .hasMessageContaining("Cannot add option groups after product is ACTIVE");
+                    .hasMessageContaining("Option group/value changes are allowed only when product is DRAFT");
 
             verify(productRepository, never()).update(any());
         }
@@ -196,7 +196,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
                     .optionGroupId(globalOptionGroupId)
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .required(true)
                     .optionValues(null)
                     .build();
@@ -222,7 +222,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
                     .optionGroupId(optionGroupId)
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .required(true)
                     .optionValues(List.of(
                             AddProductOptionValueCommand.builder()
@@ -302,7 +302,7 @@ class ProductApplicationServiceSubAggregateTest {
             ProductOptionGroup pog = ProductOptionGroup.builder()
                     .id(new ProductOptionGroupId(productOptionGroupId))
                     .optionGroupId(new OptionGroupId(globalOptionGroupId))
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .isRequired(true)
                     .optionValues(new ArrayList<>())
                     .build();
@@ -349,7 +349,7 @@ class ProductApplicationServiceSubAggregateTest {
             ProductOptionGroup pog = ProductOptionGroup.builder()
                     .id(new ProductOptionGroupId(productOptionGroupId))
                     .optionGroupId(new OptionGroupId(globalOptionGroupId))
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .isRequired(true)
                     .optionValues(new ArrayList<>())
                     .build();
@@ -390,7 +390,7 @@ class ProductApplicationServiceSubAggregateTest {
             ProductOptionGroup pog = ProductOptionGroup.builder()
                     .id(new ProductOptionGroupId(productOptionGroupId))
                     .optionGroupId(new OptionGroupId(globalOptionGroupId))
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .isRequired(true)
                     .optionValues(new ArrayList<>())
                     .build();
@@ -445,7 +445,7 @@ class ProductApplicationServiceSubAggregateTest {
             ProductOptionGroup pog = ProductOptionGroup.builder()
                     .id(new ProductOptionGroupId(productOptionGroupId))
                     .optionGroupId(new OptionGroupId(globalOptionGroupId))
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .isRequired(true)
                     .optionValues(new ArrayList<>())
                     .build();
@@ -855,19 +855,19 @@ class ProductApplicationServiceSubAggregateTest {
     }
 
     @Nested
-    @DisplayName("deactivateProductOptionValue")
-    class DeactivateProductOptionValueTests {
+    @DisplayName("deleteProductOptionValue")
+    class DeleteProductOptionValueTests {
 
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void invalidRequest_Throws() {
-            assertThatThrownBy(() -> productApplicationService.deactivateProductOptionValue(null, null))
+            assertThatThrownBy(() -> productApplicationService.deleteProductOptionValue(null, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid product option value deactivate request");
         }
 
         @Test
-        @DisplayName("정상 비활성화 시 active=false 반환")
+            @DisplayName("정상 삭제 시 status=DELETED 반환")
         void success() {
             UUID productId = UUID.randomUUID();
             UUID productOptionValueId = UUID.randomUUID();
@@ -893,7 +893,7 @@ class ProductApplicationServiceSubAggregateTest {
                     "상품",
                     "상품 설명은 20자 이상으로 충분히 길어야 합니다.",
                     new Money(new BigDecimal("10000")),
-                    ProductStatus.ACTIVE,
+                    ProductStatus.DRAFT,
                     ConditionType.NEW,
                     "브랜드",
                     "https://example.com/image.jpg",
@@ -904,12 +904,12 @@ class ProductApplicationServiceSubAggregateTest {
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
             doNothing().when(productRepository).update(product);
 
-            DeactivateProductOptionValueResult result =
-                    productApplicationService.deactivateProductOptionValue(productId, productOptionValueId);
+            DeleteProductOptionValueResult result =
+                    productApplicationService.deleteProductOptionValue(productId, productOptionValueId);
 
             assertThat(result.productId()).isEqualTo(productId);
             assertThat(result.productOptionValueId()).isEqualTo(productOptionValueId);
-            assertThat(result.active()).isFalse();
+            assertThat(result.status().name()).isEqualTo("DELETED");
             assertThat(result.priceDelta()).isEqualByComparingTo(new BigDecimal("500.00"));
             verify(productRepository).update(product);
         }

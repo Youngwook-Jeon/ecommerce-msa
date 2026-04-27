@@ -18,8 +18,8 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
     // 글로벌 옵션 그룹에 대한 식별자 참조 (예: 'COLOR'의 글로벌 ID). 생성 후 변경 불가.
     private final OptionGroupId optionGroupId;
 
-    // 프론트엔드에서 노출될 단계/순서 (1, 2, 3...)
-    private int stepOrder;
+    // 프론트엔드에서 노출될 단계/순서
+    private double stepOrder;
 
     // 고객이 반드시 선택해야 하는 필수 옵션인지 여부
     private boolean isRequired;
@@ -43,7 +43,7 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
         this.optionValues = builder.optionValues != null ? builder.optionValues : new ArrayList<>();
     }
 
-    private ProductOptionGroup(ProductOptionGroupId id, OptionGroupId optionGroupId, int stepOrder, boolean isRequired, OptionStatus status, List<ProductOptionValue> optionValues) {
+    private ProductOptionGroup(ProductOptionGroupId id, OptionGroupId optionGroupId, double stepOrder, boolean isRequired, OptionStatus status, List<ProductOptionValue> optionValues) {
         super.setId(id);
         this.optionGroupId = optionGroupId;
         this.stepOrder = stepOrder;
@@ -63,7 +63,7 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
     // 비즈니스 로직
     // ========================================================================
 
-    void changeStepOrder(int newStepOrder) {
+    void changeStepOrder(double newStepOrder) {
         validateStepOrder(newStepOrder);
         this.stepOrder = newStepOrder;
     }
@@ -82,11 +82,11 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
         this.status = newStatus;
     }
 
-    void deactivateGroup() {
+    void markAsDeleted() {
         if (this.status == OptionStatus.DELETED) {
             return;
         }
-        this.status = OptionStatus.INACTIVE;
+        this.status = OptionStatus.DELETED;
     }
 
     void activateGroup() {
@@ -125,7 +125,7 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
     // 검증 로직
     // ========================================================================
 
-    private static void validateStepOrder(int stepOrder) {
+    private static void validateStepOrder(double stepOrder) {
         if (stepOrder <= 0) {
             throw new ProductDomainException("Step order must be greater than zero.");
         }
@@ -134,11 +134,11 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
     // ========================================================================
     // FOR PERSISTENCE MAPPING ONLY
     // ========================================================================
-    public static ProductOptionGroup reconstitute(ProductOptionGroupId id, OptionGroupId optionGroupId, int stepOrder, boolean isRequired, OptionStatus status, List<ProductOptionValue> optionValues) {
+    public static ProductOptionGroup reconstitute(ProductOptionGroupId id, OptionGroupId optionGroupId, double stepOrder, boolean isRequired, OptionStatus status, List<ProductOptionValue> optionValues) {
         return new ProductOptionGroup(id, optionGroupId, stepOrder, isRequired, status, optionValues);
     }
 
-    public static ProductOptionGroup reconstitute(ProductOptionGroupId id, OptionGroupId optionGroupId, int stepOrder, boolean isRequired, List<ProductOptionValue> optionValues) {
+    public static ProductOptionGroup reconstitute(ProductOptionGroupId id, OptionGroupId optionGroupId, double stepOrder, boolean isRequired, List<ProductOptionValue> optionValues) {
         return new ProductOptionGroup(id, optionGroupId, stepOrder, isRequired, OptionStatus.ACTIVE, optionValues);
     }
 
@@ -148,7 +148,7 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
     public static class Builder {
         private ProductOptionGroupId id;
         private OptionGroupId optionGroupId;
-        private int stepOrder;
+        private double stepOrder;
         private boolean isRequired = true; // 기본값: 필수 옵션
         private OptionStatus status = OptionStatus.ACTIVE;
         private List<ProductOptionValue> optionValues = new ArrayList<>();
@@ -163,7 +163,7 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
             return this;
         }
 
-        public Builder stepOrder(int stepOrder) {
+        public Builder stepOrder(double stepOrder) {
             this.stepOrder = stepOrder;
             return this;
         }

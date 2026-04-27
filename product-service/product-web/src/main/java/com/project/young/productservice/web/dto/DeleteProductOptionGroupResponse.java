@@ -5,13 +5,12 @@ import lombok.Builder;
 import java.util.UUID;
 
 @Builder
-public record AddProductOptionGroupResponse(
+public record DeleteProductOptionGroupResponse(
         UUID productId,
         UUID productOptionGroupId,
-        UUID optionGroupId,
+        String status,
         double stepOrder,
-        boolean required,
-        int optionValueCount,
         String message
 ) {
 }
+

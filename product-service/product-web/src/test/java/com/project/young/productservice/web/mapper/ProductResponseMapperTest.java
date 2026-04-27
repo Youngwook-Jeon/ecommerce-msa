@@ -9,6 +9,7 @@ import com.project.young.productservice.application.dto.result.UpdateProductResu
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
+import com.project.young.productservice.web.converter.OptionStatusWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
 import com.project.young.productservice.web.dto.AddProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.AddProductOptionValueToGroupResponse;
@@ -36,7 +37,8 @@ class ProductResponseMapperTest {
         productResponseMapper = new ProductResponseMapper(
                 new ProductResponseMessageFactory(),
                 new ProductStatusWebConverter(),
-                new ConditionTypeWebConverter()
+                new ConditionTypeWebConverter(),
+                new OptionStatusWebConverter()
         );
     }
 
@@ -161,7 +163,7 @@ class ProductResponseMapperTest {
                             .productId(pid)
                             .productOptionGroupId(pog)
                             .optionGroupId(globalOg)
-                            .stepOrder(2)
+                            .stepOrder(2.0d)
                             .required(false)
                             .optionValueCount(0)
                             .build());

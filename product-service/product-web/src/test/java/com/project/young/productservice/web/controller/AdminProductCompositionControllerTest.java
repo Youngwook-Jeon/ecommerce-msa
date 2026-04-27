@@ -9,12 +9,17 @@ import com.project.young.productservice.application.dto.command.AddProductVarian
 import com.project.young.productservice.application.dto.result.AddProductOptionGroupResult;
 import com.project.young.productservice.application.dto.result.AddProductOptionValueToGroupResult;
 import com.project.young.productservice.application.dto.result.AddProductVariantResult;
+import com.project.young.productservice.application.dto.result.DeleteProductOptionGroupResult;
+import com.project.young.productservice.application.dto.result.DeleteProductOptionValueResult;
 import com.project.young.productservice.application.service.ProductApplicationService;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import com.project.young.productservice.web.config.SecurityConfig;
 import com.project.young.productservice.web.dto.AddProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.AddProductOptionValueToGroupResponse;
 import com.project.young.productservice.web.dto.AddProductVariantResponse;
+import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
+import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -37,6 +42,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -72,7 +78,7 @@ class AdminProductCompositionControllerTest {
             UUID globalValueId = UUID.randomUUID();
             AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
                     .optionGroupId(globalOgId)
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .required(true)
                     .optionValues(List.of(
                             AddProductOptionValueCommand.builder()
@@ -88,7 +94,7 @@ class AdminProductCompositionControllerTest {
                     .productId(productId)
                     .productOptionGroupId(pogId)
                     .optionGroupId(globalOgId)
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .required(true)
                     .optionValueCount(1)
                     .build();
@@ -97,7 +103,7 @@ class AdminProductCompositionControllerTest {
                     .productId(productId)
                     .productOptionGroupId(pogId)
                     .optionGroupId(globalOgId)
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .required(true)
                     .optionValueCount(1)
                     .message("ok")
@@ -232,6 +238,72 @@ class AdminProductCompositionControllerTest {
                     .andExpect(jsonPath("$.variants[0].sku").value("PRD-TEST-SKU"));
 
             verify(productApplicationService).addProductVariants(eq(productId), any(AddProductVariantsCommand.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE /admin/products/{productId}/option-groups/{productOptionGroupId}")
+    class DeleteOptionGroupTests {
+        @Test
+        @DisplayName("ADMIN이면 200과 본문 반환")
+        @WithMockUser(authorities = "ADMIN")
+        void withAdmin_Returns200() throws Exception {
+            UUID productId = UUID.randomUUID();
+            UUID groupId = UUID.randomUUID();
+            DeleteProductOptionGroupResult result = DeleteProductOptionGroupResult.builder()
+                    .productId(productId)
+                    .productOptionGroupId(groupId)
+                    .status(OptionStatus.DELETED)
+                    .stepOrder(1024.0d)
+                    .build();
+            DeleteProductOptionGroupResponse response = DeleteProductOptionGroupResponse.builder()
+                    .productId(productId)
+                    .productOptionGroupId(groupId)
+                    .status("DELETED")
+                    .stepOrder(1024.0d)
+                    .message("ok")
+                    .build();
+
+            when(productApplicationService.deleteProductOptionGroup(productId, groupId)).thenReturn(result);
+            when(productResponseMapper.toDeleteProductOptionGroupResponse(result)).thenReturn(response);
+
+            mockMvc.perform(delete("/admin/products/{productId}/option-groups/{productOptionGroupId}", productId, groupId)
+                            .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("DELETED"));
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE /admin/products/{productId}/option-values/{productOptionValueId}")
+    class DeleteOptionValueTests {
+        @Test
+        @DisplayName("ADMIN이면 200과 본문 반환")
+        @WithMockUser(authorities = "ADMIN")
+        void withAdmin_Returns200() throws Exception {
+            UUID productId = UUID.randomUUID();
+            UUID valueId = UUID.randomUUID();
+            DeleteProductOptionValueResult result = DeleteProductOptionValueResult.builder()
+                    .productId(productId)
+                    .productOptionValueId(valueId)
+                    .status(OptionStatus.DELETED)
+                    .priceDelta(BigDecimal.ZERO)
+                    .build();
+            DeleteProductOptionValueResponse response = DeleteProductOptionValueResponse.builder()
+                    .productId(productId)
+                    .productOptionValueId(valueId)
+                    .status("DELETED")
+                    .priceDelta(BigDecimal.ZERO)
+                    .message("ok")
+                    .build();
+
+            when(productApplicationService.deleteProductOptionValue(productId, valueId)).thenReturn(result);
+            when(productResponseMapper.toDeleteProductOptionValueResponse(result)).thenReturn(response);
+
+            mockMvc.perform(delete("/admin/products/{productId}/option-values/{productOptionValueId}", productId, valueId)
+                            .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("DELETED"));
         }
     }
 }

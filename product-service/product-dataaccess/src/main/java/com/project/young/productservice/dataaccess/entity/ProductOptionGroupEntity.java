@@ -50,7 +50,7 @@ public class ProductOptionGroupEntity {
     private UUID optionGroupId;
 
     @Column(name = "step_order", nullable = false)
-    private int stepOrder;
+    private double stepOrder;
 
     @Column(name = "is_required", nullable = false)
     private boolean isRequired;

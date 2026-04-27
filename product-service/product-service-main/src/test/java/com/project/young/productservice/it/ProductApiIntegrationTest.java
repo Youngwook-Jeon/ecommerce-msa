@@ -359,7 +359,7 @@ class ProductApiIntegrationTest {
 
             AddProductOptionGroupCommand addOptionGroupCommand = AddProductOptionGroupCommand.builder()
                     .optionGroupId(optionFixture.optionGroupId())
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .required(true)
                     .optionValues(List.of(
                             AddProductOptionValueCommand.builder()
@@ -471,7 +471,7 @@ class ProductApiIntegrationTest {
 
             AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
                     .optionGroupId(fixture.optionGroupId())
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .required(true)
                     .optionValues(List.of(
                             AddProductOptionValueCommand.builder()
@@ -525,7 +525,7 @@ class ProductApiIntegrationTest {
 
             AddProductOptionGroupCommand command = AddProductOptionGroupCommand.builder()
                     .optionGroupId(fixture.optionGroupId())
-                    .stepOrder(1)
+                    .stepOrder(1.0d)
                     .required(true)
                     .optionValues(List.of(
                             AddProductOptionValueCommand.builder()
@@ -543,6 +543,231 @@ class ProductApiIntegrationTest {
                             .content(objectMapper.writeValueAsString(command)))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.message").value(containsString("Global option value is not allowed")));
+        }
+
+        @Test
+        @DisplayName("DRAFT가 아니면 상품 옵션 그룹/값 삭제가 실패한다")
+        @WithMockUser(authorities = "ADMIN")
+        void deleteOptionGroup_NonDraft_Fails() throws Exception {
+            Long categoryId = createCategory("의류");
+            CreateProductCommand createProductCommand = CreateProductCommand.builder()
+                    .name("삭제가드 상품")
+                    .description("삭제가드 검증용 상품 설명입니다. 20자 이상.")
+                    .basePrice(new BigDecimal("12000"))
+                    .brand("상태브랜드")
+                    .mainImageUrl("https://example.com/status.jpg")
+                    .categoryId(categoryId)
+                    .conditionType(ConditionType.NEW)
+                    .build();
+            String createResponse = mockMvc.perform(post("/admin/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createProductCommand)))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
+
+            OptionFixture optionFixture = createGlobalOptionGroupWithValues(UUID.randomUUID().toString().substring(0, 8));
+            AddProductOptionGroupCommand addOptionGroupCommand = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(optionFixture.optionGroupId())
+                    .stepOrder(1.0d)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(optionFixture.optionValueIds().get(0))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(true)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
+                    .andExpect(status().isCreated());
+
+            ProductEntity aggregateBeforePublish = productJpaRepository.findAggregateById(productId).orElseThrow();
+            ProductOptionGroupEntity pogBeforePublish = aggregateBeforePublish.getOptionGroups().stream().findFirst().orElseThrow();
+            UUID povIdForPublish = pogBeforePublish.getOptionValues().stream().findFirst().orElseThrow().getId();
+
+            AddProductVariantsCommand variantsCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(
+                            AddProductVariantCommand.builder()
+                                    .stockQuantity(1)
+                                    .selectedProductOptionValueIds(Set.of(povIdForPublish))
+                                    .build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(variantsCommand)))
+                    .andExpect(status().isCreated());
+
+            mockMvc.perform(patch("/admin/products/{productId}/status", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(UpdateProductStatusCommand.builder()
+                                    .status(ProductStatus.ACTIVE)
+                                    .build())))
+                    .andExpect(status().isOk());
+
+            ProductEntity aggregate = productJpaRepository.findAggregateById(productId).orElseThrow();
+            UUID productOptionGroupId = aggregate.getOptionGroups().stream().findFirst().orElseThrow().getId();
+
+            mockMvc.perform(delete("/admin/products/{productId}/option-groups/{productOptionGroupId}", productId, productOptionGroupId)
+                            .with(csrf()))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(containsString("DRAFT")));
+        }
+
+        @Test
+        @DisplayName("상품 옵션 값 삭제 시 해당 옵션 값을 참조하는 변형들이 소프트삭제된다")
+        @WithMockUser(authorities = "ADMIN")
+        void deleteOptionValue_CascadesToRelatedVariants() throws Exception {
+            Long categoryId = createCategory("의류");
+            CreateProductCommand createProductCommand = CreateProductCommand.builder()
+                    .name("옵션값삭제 상품")
+                    .description("옵션값삭제 검증용 상품 설명입니다. 20자 이상.")
+                    .basePrice(new BigDecimal("12000"))
+                    .brand("옵션밸류브랜드")
+                    .mainImageUrl("https://example.com/status.jpg")
+                    .categoryId(categoryId)
+                    .conditionType(ConditionType.NEW)
+                    .build();
+            String createResponse = mockMvc.perform(post("/admin/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createProductCommand)))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
+
+            OptionFixture optionFixture = createGlobalOptionGroupWithValues(UUID.randomUUID().toString().substring(0, 8));
+            AddProductOptionGroupCommand addOptionGroupCommand = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(optionFixture.optionGroupId())
+                    .stepOrder(1.0d)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(optionFixture.optionValueIds().get(0))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(true)
+                                    .isActive(true)
+                                    .build(),
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(optionFixture.optionValueIds().get(1))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(false)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
+                    .andExpect(status().isCreated());
+
+            ProductEntity aggregate = productJpaRepository.findAggregateById(productId).orElseThrow();
+            ProductOptionGroupEntity pog = aggregate.getOptionGroups().stream().findFirst().orElseThrow();
+            List<UUID> povIds = pog.getOptionValues().stream().map(ProductOptionValueEntity::getId).toList();
+
+            AddProductVariantsCommand variantsCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(
+                            AddProductVariantCommand.builder().stockQuantity(3).selectedProductOptionValueIds(Set.of(povIds.get(0))).build(),
+                            AddProductVariantCommand.builder().stockQuantity(5).selectedProductOptionValueIds(Set.of(povIds.get(1))).build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(variantsCommand)))
+                    .andExpect(status().isCreated());
+
+            mockMvc.perform(delete("/admin/products/{productId}/option-values/{productOptionValueId}", productId, povIds.get(0))
+                            .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("DELETED"));
+
+            mockMvc.perform(get("/admin/queries/products/{productId}", productId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.variants[0].status").isNotEmpty());
+        }
+
+        @Test
+        @DisplayName("상품 옵션 그룹 삭제 시 모든 변형이 소프트삭제된다")
+        @WithMockUser(authorities = "ADMIN")
+        void deleteOptionGroup_CascadesToAllVariants() throws Exception {
+            Long categoryId = createCategory("의류");
+            CreateProductCommand createProductCommand = CreateProductCommand.builder()
+                    .name("옵션그룹삭제 상품")
+                    .description("옵션그룹삭제 검증용 상품 설명입니다. 20자 이상.")
+                    .basePrice(new BigDecimal("12000"))
+                    .brand("옵션그룹브랜드")
+                    .mainImageUrl("https://example.com/status.jpg")
+                    .categoryId(categoryId)
+                    .conditionType(ConditionType.NEW)
+                    .build();
+            String createResponse = mockMvc.perform(post("/admin/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createProductCommand)))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
+
+            OptionFixture optionFixture = createGlobalOptionGroupWithValues(UUID.randomUUID().toString().substring(0, 8));
+            AddProductOptionGroupCommand addOptionGroupCommand = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(optionFixture.optionGroupId())
+                    .stepOrder(1.0d)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(optionFixture.optionValueIds().get(0))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(true)
+                                    .isActive(true)
+                                    .build(),
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(optionFixture.optionValueIds().get(1))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(false)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
+                    .andExpect(status().isCreated());
+
+            ProductEntity aggregate = productJpaRepository.findAggregateById(productId).orElseThrow();
+            ProductOptionGroupEntity pog = aggregate.getOptionGroups().stream().findFirst().orElseThrow();
+            List<UUID> povIds = pog.getOptionValues().stream().map(ProductOptionValueEntity::getId).toList();
+
+            AddProductVariantsCommand variantsCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(
+                            AddProductVariantCommand.builder().stockQuantity(3).selectedProductOptionValueIds(Set.of(povIds.get(0))).build(),
+                            AddProductVariantCommand.builder().stockQuantity(5).selectedProductOptionValueIds(Set.of(povIds.get(1))).build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(variantsCommand)))
+                    .andExpect(status().isCreated());
+
+            mockMvc.perform(delete("/admin/products/{productId}/option-groups/{productOptionGroupId}", productId, pog.getId())
+                            .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("DELETED"));
+
+            mockMvc.perform(get("/admin/queries/products/{productId}", productId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.variants.length()").value(greaterThanOrEqualTo(2)));
         }
     }
 
