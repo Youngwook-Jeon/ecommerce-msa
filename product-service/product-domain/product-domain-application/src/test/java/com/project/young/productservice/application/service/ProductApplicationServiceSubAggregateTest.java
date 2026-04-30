@@ -26,6 +26,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -912,6 +913,129 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(result.status().name()).isEqualTo("DELETED");
             assertThat(result.priceDelta()).isEqualByComparingTo(new BigDecimal("500.00"));
             verify(productRepository).update(product);
+        }
+    }
+
+    @Nested
+    @DisplayName("reorderProductOptionGroups")
+    class ReorderProductOptionGroupsTests {
+
+        @Test
+        @DisplayName("요청이 null이면 IllegalArgumentException")
+        void invalidRequest_Throws() {
+            assertThatThrownBy(() -> productApplicationService.reorderProductOptionGroups(null, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Invalid product option group reorder request");
+        }
+
+        @Test
+        @DisplayName("순서 배열대로 stepOrder를 재할당하고 저장한다")
+        void success() {
+            UUID productId = UUID.randomUUID();
+            UUID groupId1 = UUID.randomUUID();
+            UUID groupId2 = UUID.randomUUID();
+            UUID groupId3 = UUID.randomUUID();
+
+            ProductOptionGroup group1 = ProductOptionGroup.builder()
+                    .id(new ProductOptionGroupId(groupId1))
+                    .optionGroupId(new OptionGroupId(UUID.randomUUID()))
+                    .stepOrder(1024.0d)
+                    .isRequired(true)
+                    .optionValues(new ArrayList<>())
+                    .build();
+            ProductOptionGroup group2 = ProductOptionGroup.builder()
+                    .id(new ProductOptionGroupId(groupId2))
+                    .optionGroupId(new OptionGroupId(UUID.randomUUID()))
+                    .stepOrder(2048.0d)
+                    .isRequired(true)
+                    .optionValues(new ArrayList<>())
+                    .build();
+            ProductOptionGroup group3 = ProductOptionGroup.builder()
+                    .id(new ProductOptionGroupId(groupId3))
+                    .optionGroupId(new OptionGroupId(UUID.randomUUID()))
+                    .stepOrder(3072.0d)
+                    .isRequired(true)
+                    .optionValues(new ArrayList<>())
+                    .build();
+
+            Product product = Product.reconstitute(
+                    new ProductId(productId),
+                    null,
+                    "상품",
+                    "상품 설명은 20자 이상으로 충분히 길어야 합니다.",
+                    new Money(new BigDecimal("10000")),
+                    ProductStatus.DRAFT,
+                    ConditionType.NEW,
+                    "브랜드",
+                    "https://example.com/image.jpg",
+                    new ArrayList<>(List.of(group1, group2, group3)),
+                    List.of()
+            );
+
+            ReorderProductOptionGroupsCommand command = ReorderProductOptionGroupsCommand.builder()
+                    .orderedProductOptionGroupIds(List.of(groupId3, groupId1, groupId2))
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+            doNothing().when(productRepository).update(product);
+
+            ReorderProductOptionGroupsResult result =
+                    productApplicationService.reorderProductOptionGroups(productId, command);
+
+            assertThat(result.productId()).isEqualTo(productId);
+            assertThat(result.updatedCount()).isEqualTo(3);
+
+            Map<UUID, Double> stepOrderByGroupId = product.getOptionGroups().stream()
+                    .collect(Collectors.toMap(
+                            group -> group.getId().getValue(),
+                            ProductOptionGroup::getStepOrder
+                    ));
+
+            assertThat(stepOrderByGroupId.get(groupId3)).isEqualTo(1024.0d);
+            assertThat(stepOrderByGroupId.get(groupId1)).isEqualTo(2048.0d);
+            assertThat(stepOrderByGroupId.get(groupId2)).isEqualTo(3072.0d);
+            verify(productRepository).update(product);
+        }
+
+        @Test
+        @DisplayName("DRAFT가 아닌 상품은 reorder 할 수 없다")
+        void nonDraftProduct_Throws() {
+            UUID productId = UUID.randomUUID();
+            UUID groupId = UUID.randomUUID();
+
+            ProductOptionGroup group = ProductOptionGroup.builder()
+                    .id(new ProductOptionGroupId(groupId))
+                    .optionGroupId(new OptionGroupId(UUID.randomUUID()))
+                    .stepOrder(1024.0d)
+                    .isRequired(true)
+                    .optionValues(new ArrayList<>())
+                    .build();
+
+            Product product = Product.reconstitute(
+                    new ProductId(productId),
+                    null,
+                    "상품",
+                    "상품 설명은 20자 이상으로 충분히 길어야 합니다.",
+                    new Money(new BigDecimal("10000")),
+                    ProductStatus.ACTIVE,
+                    ConditionType.NEW,
+                    "브랜드",
+                    "https://example.com/image.jpg",
+                    List.of(group),
+                    List.of()
+            );
+
+            ReorderProductOptionGroupsCommand command = ReorderProductOptionGroupsCommand.builder()
+                    .orderedProductOptionGroupIds(List.of(groupId))
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+
+            assertThatThrownBy(() -> productApplicationService.reorderProductOptionGroups(productId, command))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Option group/value changes are allowed only when product is DRAFT");
+
+            verify(productRepository, never()).update(any());
         }
     }
 }

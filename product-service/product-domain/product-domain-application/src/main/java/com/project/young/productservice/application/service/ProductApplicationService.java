@@ -146,7 +146,9 @@ public class ProductApplicationService {
         OptionGroupId globalOptionGroupId = new OptionGroupId(command.getOptionGroupId());
         validateGlobalOptionValueMembership(globalOptionGroupId, command.getOptionValues());
         List<ProductOptionValue> optionValues = mapProductOptionValues(command.getOptionValues());
-        double resolvedStepOrder = resolveStepOrder(product, command.getStepOrder());
+        double resolvedStepOrder = command.getStepOrder() == null
+                ? resolveStepOrder(product, StepOrderPlacement.append(), null)
+                : resolveStepOrder(product, StepOrderPlacement.absolute(command.getStepOrder()), null);
 
         ProductOptionGroup optionGroup = productDataMapper.toProductOptionGroup(
                 command,
@@ -234,7 +236,6 @@ public class ProductApplicationService {
 
         Product product = findProductOrThrow(new ProductId(productIdValue));
         validateProductCanBeUpdated(product);
-        validateOptionGroupStructureMutable(product);
 
         List<AddProductVariantResult> results = new ArrayList<>();
         Set<String> reservedSkus = product.getVariants() == null
@@ -328,6 +329,64 @@ public class ProductApplicationService {
         productRepository.update(product);
 
         return productDataMapper.toDeleteProductVariantResult(product, deleted);
+    }
+
+    @Transactional
+    public ChangeProductOptionGroupStepOrderResult changeProductOptionGroupStepOrder(
+            UUID productIdValue,
+            UUID productOptionGroupIdValue,
+            ChangeProductOptionGroupStepOrderCommand command
+    ) {
+        if (productIdValue == null || productOptionGroupIdValue == null || command == null) {
+            throw new IllegalArgumentException("Invalid product option group step order change request.");
+        }
+
+        Product product = findProductOrThrow(new ProductId(productIdValue));
+        validateProductCanBeUpdated(product);
+        validateOptionGroupStructureMutable(product);
+
+        ProductOptionGroupId groupId = new ProductOptionGroupId(productOptionGroupIdValue);
+        StepOrderPlacement placement = StepOrderPlacement.fromCommand(command);
+        double resolvedStepOrder = resolveStepOrder(product, placement, groupId);
+        product.changeOptionGroupStepOrder(groupId, resolvedStepOrder);
+        productRepository.update(product);
+
+        ProductOptionGroup updated = product.getOptionGroups().stream()
+                .filter(group -> group.getId().equals(groupId))
+                .findFirst()
+                .orElseThrow(() -> new ProductDomainException("Product option group not found in this product."));
+        return productDataMapper.toChangeProductOptionGroupStepOrderResult(product, updated);
+    }
+
+    @Transactional
+    public ReorderProductOptionGroupsResult reorderProductOptionGroups(
+            UUID productIdValue,
+            ReorderProductOptionGroupsCommand command
+    ) {
+        if (productIdValue == null || command == null
+                || command.getOrderedProductOptionGroupIds() == null
+                || command.getOrderedProductOptionGroupIds().isEmpty()) {
+            throw new IllegalArgumentException("Invalid product option group reorder request.");
+        }
+
+        Product product = findProductOrThrow(new ProductId(productIdValue));
+        validateProductCanBeUpdated(product);
+        validateOptionGroupStructureMutable(product);
+
+        final double spacing = 1024.0d;
+        List<UUID> orderedIds = command.getOrderedProductOptionGroupIds();
+        for (int i = 0; i < orderedIds.size(); i++) {
+            UUID orderedId = orderedIds.get(i);
+            product.changeOptionGroupStepOrder(
+                    new ProductOptionGroupId(orderedId),
+                    (i + 1) * spacing
+            );
+        }
+        productRepository.update(product);
+        return ReorderProductOptionGroupsResult.builder()
+                .productId(product.getId().getValue())
+                .updatedCount(orderedIds.size())
+                .build();
     }
 
     @Transactional
@@ -530,20 +589,85 @@ public class ProductApplicationService {
         }
     }
 
-    private double resolveStepOrder(Product product, Double requestedStepOrder) {
+    private double resolveStepOrder(
+            Product product,
+            StepOrderPlacement placement,
+            ProductOptionGroupId excludeGroupId
+    ) {
         final double spacing = 1024.0d;
         final double minGap = 0.000001d;
 
         List<ProductOptionGroup> activeGroups = product.getOptionGroups().stream()
                 .filter(group -> group.getStatus() == null || !group.getStatus().isDeleted())
+                .filter(group -> excludeGroupId == null || !group.getId().equals(excludeGroupId))
                 .sorted(Comparator.comparingDouble(ProductOptionGroup::getStepOrder))
                 .toList();
 
-        if (requestedStepOrder == null) {
+        if (placement.mode() == StepOrderPlacementMode.APPEND) {
             if (activeGroups.isEmpty()) {
                 return spacing;
             }
             return activeGroups.getLast().getStepOrder() + spacing;
+        }
+
+        if (placement.mode() == StepOrderPlacementMode.PREPEND) {
+            if (activeGroups.isEmpty()) {
+                return spacing;
+            }
+            double first = activeGroups.getFirst().getStepOrder();
+            if (first > spacing) {
+                return first - spacing;
+            }
+            return first / 2.0d;
+        }
+
+        if (placement.mode() == StepOrderPlacementMode.BEFORE || placement.mode() == StepOrderPlacementMode.AFTER) {
+            if (placement.anchorProductOptionGroupId() == null) {
+                throw new ProductDomainException("Anchor product option group id is required for BEFORE/AFTER placement.");
+            }
+
+            ProductOptionGroupId anchorId = new ProductOptionGroupId(placement.anchorProductOptionGroupId());
+            int anchorIndex = -1;
+            for (int i = 0; i < activeGroups.size(); i++) {
+                if (activeGroups.get(i).getId().equals(anchorId)) {
+                    anchorIndex = i;
+                    break;
+                }
+            }
+            if (anchorIndex < 0) {
+                throw new ProductDomainException("Anchor product option group not found in this product.");
+            }
+
+            if (placement.mode() == StepOrderPlacementMode.BEFORE) {
+                ProductOptionGroup anchor = activeGroups.get(anchorIndex);
+                Double prev = anchorIndex > 0 ? activeGroups.get(anchorIndex - 1).getStepOrder() : null;
+                if (prev == null) {
+                    return Math.max(anchor.getStepOrder() / 2.0d, minGap);
+                }
+                if ((anchor.getStepOrder() - prev) < minGap) {
+                    product.rebalanceOptionGroupStepOrders();
+                    return resolveStepOrder(product, placement, excludeGroupId);
+                }
+                return (prev + anchor.getStepOrder()) / 2.0d;
+            }
+
+            ProductOptionGroup anchor = activeGroups.get(anchorIndex);
+            Double next = anchorIndex < activeGroups.size() - 1
+                    ? activeGroups.get(anchorIndex + 1).getStepOrder()
+                    : null;
+            if (next == null) {
+                return anchor.getStepOrder() + spacing;
+            }
+            if ((next - anchor.getStepOrder()) < minGap) {
+                product.rebalanceOptionGroupStepOrders();
+                return resolveStepOrder(product, placement, excludeGroupId);
+            }
+            return (anchor.getStepOrder() + next) / 2.0d;
+        }
+
+        Double requestedStepOrder = placement.absoluteStepOrder();
+        if (requestedStepOrder == null) {
+            throw new ProductDomainException("Step order is required for ABSOLUTE placement.");
         }
         if (requestedStepOrder <= 0) {
             throw new ProductDomainException("Step order must be greater than zero.");
@@ -598,5 +722,53 @@ public class ProductApplicationService {
 
     private record VariantIdentity(ProductVariantId variantId, String sku) {
 
+    }
+
+    private enum StepOrderPlacementMode {
+        APPEND,
+        PREPEND,
+        BEFORE,
+        AFTER,
+        ABSOLUTE
+    }
+
+    private record StepOrderPlacement(
+            StepOrderPlacementMode mode,
+            Double absoluteStepOrder,
+            UUID anchorProductOptionGroupId
+    ) {
+        static StepOrderPlacement append() {
+            return new StepOrderPlacement(StepOrderPlacementMode.APPEND, null, null);
+        }
+
+        static StepOrderPlacement absolute(Double stepOrder) {
+            return new StepOrderPlacement(StepOrderPlacementMode.ABSOLUTE, stepOrder, null);
+        }
+
+        static StepOrderPlacement prepend() {
+            return new StepOrderPlacement(StepOrderPlacementMode.PREPEND, null, null);
+        }
+
+        static StepOrderPlacement before(UUID anchorProductOptionGroupId) {
+            return new StepOrderPlacement(StepOrderPlacementMode.BEFORE, null, anchorProductOptionGroupId);
+        }
+
+        static StepOrderPlacement after(UUID anchorProductOptionGroupId) {
+            return new StepOrderPlacement(StepOrderPlacementMode.AFTER, null, anchorProductOptionGroupId);
+        }
+
+        static StepOrderPlacement fromCommand(ChangeProductOptionGroupStepOrderCommand command) {
+            if (command == null || command.getPlacementMode() == null) {
+                throw new ProductDomainException("Placement mode is required.");
+            }
+
+            return switch (command.getPlacementMode()) {
+                case APPEND -> append();
+                case PREPEND -> prepend();
+                case BEFORE -> before(command.getAnchorProductOptionGroupId());
+                case AFTER -> after(command.getAnchorProductOptionGroupId());
+                case ABSOLUTE -> absolute(command.getStepOrder());
+            };
+        }
     }
 }

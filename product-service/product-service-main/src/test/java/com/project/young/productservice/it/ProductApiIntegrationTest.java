@@ -5,6 +5,7 @@ import com.project.young.productservice.application.dto.command.AddProductOption
 import com.project.young.productservice.application.dto.command.AddProductOptionValueCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
+import com.project.young.productservice.application.dto.command.ReorderProductOptionGroupsCommand;
 import com.project.young.productservice.ProductServiceMain;
 import com.project.young.productservice.application.dto.command.CreateCategoryCommand;
 import com.project.young.productservice.application.dto.command.CreateProductCommand;
@@ -768,6 +769,101 @@ class ProductApiIntegrationTest {
             mockMvc.perform(get("/admin/queries/products/{productId}", productId))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.variants.length()").value(greaterThanOrEqualTo(2)));
+        }
+
+        @Test
+        @DisplayName("상품 옵션 그룹 reorder API 호출 시 전달 순서대로 stepOrder가 재배치된다")
+        @WithMockUser(authorities = "ADMIN")
+        void reorderOptionGroups_ReassignsStepOrderByRequestedOrder() throws Exception {
+            Long categoryId = createCategory("의류");
+            CreateProductCommand createProductCommand = CreateProductCommand.builder()
+                    .name("옵션그룹정렬 상품")
+                    .description("옵션그룹정렬 검증용 상품 설명입니다. 20자 이상.")
+                    .basePrice(new BigDecimal("15000"))
+                    .brand("정렬브랜드")
+                    .mainImageUrl("https://example.com/reorder.jpg")
+                    .categoryId(categoryId)
+                    .conditionType(ConditionType.NEW)
+                    .build();
+            String createResponse = mockMvc.perform(post("/admin/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createProductCommand)))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
+
+            OptionFixture firstFixture = createGlobalOptionGroupWithValues(UUID.randomUUID().toString().substring(0, 8));
+            OptionFixture secondFixture = createGlobalOptionGroupWithValues(UUID.randomUUID().toString().substring(0, 8));
+
+            AddProductOptionGroupCommand addFirstGroup = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(firstFixture.optionGroupId())
+                    .stepOrder(1000.0d)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(firstFixture.optionValueIds().get(0))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(true)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+            AddProductOptionGroupCommand addSecondGroup = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(secondFixture.optionGroupId())
+                    .stepOrder(2000.0d)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(secondFixture.optionValueIds().get(0))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(true)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(addFirstGroup)))
+                    .andExpect(status().isCreated());
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(addSecondGroup)))
+                    .andExpect(status().isCreated());
+
+            ProductEntity beforeReorder = productJpaRepository.findAggregateById(productId).orElseThrow();
+            List<UUID> groupIdsByCurrentOrder = beforeReorder.getOptionGroups().stream()
+                    .sorted((a, b) -> Double.compare(a.getStepOrder(), b.getStepOrder()))
+                    .map(ProductOptionGroupEntity::getId)
+                    .toList();
+
+            ReorderProductOptionGroupsCommand reorderCommand = ReorderProductOptionGroupsCommand.builder()
+                    .orderedProductOptionGroupIds(List.of(groupIdsByCurrentOrder.get(1), groupIdsByCurrentOrder.get(0)))
+                    .build();
+
+            mockMvc.perform(patch("/admin/products/{productId}/option-groups/reorder", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(reorderCommand)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.updatedCount").value(2));
+
+            ProductEntity afterReorder = productJpaRepository.findAggregateById(productId).orElseThrow();
+            List<ProductOptionGroupEntity> sortedGroups = afterReorder.getOptionGroups().stream()
+                    .sorted((a, b) -> Double.compare(a.getStepOrder(), b.getStepOrder()))
+                    .toList();
+
+            org.assertj.core.api.Assertions.assertThat(sortedGroups.get(0).getId())
+                    .isEqualTo(groupIdsByCurrentOrder.get(1));
+            org.assertj.core.api.Assertions.assertThat(sortedGroups.get(1).getId())
+                    .isEqualTo(groupIdsByCurrentOrder.get(0));
+            org.assertj.core.api.Assertions.assertThat(sortedGroups.get(0).getStepOrder())
+                    .isEqualTo(1024.0d);
+            org.assertj.core.api.Assertions.assertThat(sortedGroups.get(1).getStepOrder())
+                    .isEqualTo(2048.0d);
         }
     }
 

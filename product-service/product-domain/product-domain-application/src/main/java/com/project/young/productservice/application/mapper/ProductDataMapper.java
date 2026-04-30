@@ -15,6 +15,7 @@ import com.project.young.productservice.application.dto.command.AddProductOption
 import com.project.young.productservice.application.dto.command.AddProductVariantCommand;
 import com.project.young.productservice.application.dto.result.AddProductVariantResult;
 import com.project.young.productservice.application.dto.result.ChangeProductOptionValuePriceDeltaResult;
+import com.project.young.productservice.application.dto.result.ChangeProductOptionGroupStepOrderResult;
 import com.project.young.productservice.application.dto.command.CreateProductCommand;
 import com.project.young.productservice.application.dto.result.CreateProductResult;
 import com.project.young.productservice.application.dto.result.DeleteProductResult;
@@ -211,6 +212,20 @@ public class ProductDataMapper {
                 .build();
     }
 
+    public ChangeProductOptionGroupStepOrderResult toChangeProductOptionGroupStepOrderResult(
+            Product product,
+            ProductOptionGroup optionGroup
+    ) {
+        Objects.requireNonNull(product, "Product cannot be null");
+        Objects.requireNonNull(optionGroup, "ProductOptionGroup cannot be null");
+
+        return ChangeProductOptionGroupStepOrderResult.builder()
+                .productId(product.getId().getValue())
+                .productOptionGroupId(optionGroup.getId().getValue())
+                .stepOrder(optionGroup.getStepOrder())
+                .build();
+    }
+
     public UpdateProductVariantResult toUpdateProductVariantResult(Product product, ProductVariant variant) {
         Objects.requireNonNull(product, "Product cannot be null");
         Objects.requireNonNull(variant, "ProductVariant cannot be null");
@@ -260,4 +275,5 @@ public class ProductDataMapper {
                 .stepOrder(optionGroup.getStepOrder())
                 .build();
     }
+
 }

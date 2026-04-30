@@ -6,11 +6,13 @@ import com.project.young.productservice.application.dto.command.AddProductOption
 import com.project.young.productservice.application.dto.command.AddProductOptionValuesCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
+import com.project.young.productservice.application.dto.command.ReorderProductOptionGroupsCommand;
 import com.project.young.productservice.application.dto.result.AddProductOptionGroupResult;
 import com.project.young.productservice.application.dto.result.AddProductOptionValueToGroupResult;
 import com.project.young.productservice.application.dto.result.AddProductVariantResult;
 import com.project.young.productservice.application.dto.result.DeleteProductOptionGroupResult;
 import com.project.young.productservice.application.dto.result.DeleteProductOptionValueResult;
+import com.project.young.productservice.application.dto.result.ReorderProductOptionGroupsResult;
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
@@ -20,6 +22,7 @@ import com.project.young.productservice.web.dto.AddProductOptionValueToGroupResp
 import com.project.young.productservice.web.dto.AddProductVariantResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
+import com.project.young.productservice.web.dto.ReorderProductOptionGroupsResponse;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -43,6 +46,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -304,6 +308,48 @@ class AdminProductCompositionControllerTest {
                             .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("DELETED"));
+        }
+    }
+
+    @Nested
+    @DisplayName("PATCH /admin/products/{productId}/option-groups/reorder")
+    class ReorderOptionGroupsTests {
+        @Test
+        @DisplayName("ADMIN이면 200과 본문 반환")
+        @WithMockUser(authorities = "ADMIN")
+        void withAdmin_Returns200() throws Exception {
+            UUID productId = UUID.randomUUID();
+            UUID groupId1 = UUID.randomUUID();
+            UUID groupId2 = UUID.randomUUID();
+
+            ReorderProductOptionGroupsCommand command = ReorderProductOptionGroupsCommand.builder()
+                    .orderedProductOptionGroupIds(List.of(groupId2, groupId1))
+                    .build();
+
+            ReorderProductOptionGroupsResult result = ReorderProductOptionGroupsResult.builder()
+                    .productId(productId)
+                    .updatedCount(2)
+                    .build();
+            ReorderProductOptionGroupsResponse response = ReorderProductOptionGroupsResponse.builder()
+                    .productId(productId)
+                    .updatedCount(2)
+                    .message("ok")
+                    .build();
+
+            when(productApplicationService.reorderProductOptionGroups(eq(productId), any(ReorderProductOptionGroupsCommand.class)))
+                    .thenReturn(result);
+            when(productResponseMapper.toReorderProductOptionGroupsResponse(result)).thenReturn(response);
+
+            mockMvc.perform(patch("/admin/products/{productId}/option-groups/reorder", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(command)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.productId").value(productId.toString()))
+                    .andExpect(jsonPath("$.updatedCount").value(2));
+
+            verify(productApplicationService)
+                    .reorderProductOptionGroups(eq(productId), any(ReorderProductOptionGroupsCommand.class));
         }
     }
 }

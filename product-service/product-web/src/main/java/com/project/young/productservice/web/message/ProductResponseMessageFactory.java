@@ -40,4 +40,12 @@ public class ProductResponseMessageFactory {
     public String productOptionValueDeleted() {
         return "Product option value deleted successfully";
     }
+
+    public String productOptionGroupStepOrderUpdated() {
+        return "Product option group step order updated successfully";
+    }
+
+    public String productOptionGroupsReordered() {
+        return "Product option groups reordered successfully";
+    }
 }

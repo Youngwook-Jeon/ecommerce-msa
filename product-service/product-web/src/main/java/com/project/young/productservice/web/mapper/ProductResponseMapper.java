@@ -3,22 +3,26 @@ package com.project.young.productservice.web.mapper;
 import com.project.young.productservice.application.dto.result.AddProductOptionGroupResult;
 import com.project.young.productservice.application.dto.result.AddProductOptionValueToGroupResult;
 import com.project.young.productservice.application.dto.result.AddProductVariantResult;
+import com.project.young.productservice.application.dto.result.ChangeProductOptionGroupStepOrderResult;
 import com.project.young.productservice.application.dto.result.CreateProductResult;
 import com.project.young.productservice.application.dto.result.DeleteProductOptionGroupResult;
 import com.project.young.productservice.application.dto.result.DeleteProductOptionValueResult;
 import com.project.young.productservice.application.dto.result.DeleteProductResult;
 import com.project.young.productservice.application.dto.result.UpdateProductResult;
+import com.project.young.productservice.application.dto.result.ReorderProductOptionGroupsResult;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
 import com.project.young.productservice.web.converter.OptionStatusWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
 import com.project.young.productservice.web.dto.AddProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.AddProductOptionValueToGroupResponse;
 import com.project.young.productservice.web.dto.AddProductVariantResponse;
+import com.project.young.productservice.web.dto.ChangeProductOptionGroupStepOrderResponse;
 import com.project.young.productservice.web.dto.CreateProductResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
 import com.project.young.productservice.web.dto.DeleteProductResponse;
 import com.project.young.productservice.web.dto.UpdateProductResponse;
+import com.project.young.productservice.web.dto.ReorderProductOptionGroupsResponse;
 import com.project.young.productservice.web.message.ProductResponseMessageFactory;
 import org.springframework.stereotype.Component;
 
@@ -137,6 +141,27 @@ public class ProductResponseMapper {
                 .status(optionStatusWebConverter.toStringValue(result.status()))
                 .priceDelta(result.priceDelta())
                 .message(messageFactory.productOptionValueDeleted())
+                .build();
+    }
+
+    public ChangeProductOptionGroupStepOrderResponse toChangeProductOptionGroupStepOrderResponse(
+            ChangeProductOptionGroupStepOrderResult result
+    ) {
+        return ChangeProductOptionGroupStepOrderResponse.builder()
+                .productId(result.productId())
+                .productOptionGroupId(result.productOptionGroupId())
+                .stepOrder(result.stepOrder())
+                .message(messageFactory.productOptionGroupStepOrderUpdated())
+                .build();
+    }
+
+    public ReorderProductOptionGroupsResponse toReorderProductOptionGroupsResponse(
+            ReorderProductOptionGroupsResult result
+    ) {
+        return ReorderProductOptionGroupsResponse.builder()
+                .productId(result.productId())
+                .updatedCount(result.updatedCount())
+                .message(messageFactory.productOptionGroupsReordered())
                 .build();
     }
 }

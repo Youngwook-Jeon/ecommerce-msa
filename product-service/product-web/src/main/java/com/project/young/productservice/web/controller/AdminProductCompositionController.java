@@ -3,12 +3,16 @@ package com.project.young.productservice.web.controller;
 import com.project.young.productservice.application.dto.command.AddProductOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.AddProductOptionValuesCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
+import com.project.young.productservice.application.dto.command.ChangeProductOptionGroupStepOrderCommand;
+import com.project.young.productservice.application.dto.command.ReorderProductOptionGroupsCommand;
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.web.dto.AddProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.AddProductOptionValuesToGroupResponse;
 import com.project.young.productservice.web.dto.AddProductVariantsResponse;
+import com.project.young.productservice.web.dto.ChangeProductOptionGroupStepOrderResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
+import com.project.young.productservice.web.dto.ReorderProductOptionGroupsResponse;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +21,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -107,6 +112,33 @@ public class AdminProductCompositionController {
         return ResponseEntity.ok(
                 productResponseMapper.toDeleteProductOptionValueResponse(
                         productApplicationService.deleteProductOptionValue(productId, productOptionValueId)
+                )
+        );
+    }
+
+    @PatchMapping("/{productId}/option-groups/{productOptionGroupId}/step-order")
+    public ResponseEntity<ChangeProductOptionGroupStepOrderResponse> changeOptionGroupStepOrder(
+            @PathVariable("productId") UUID productId,
+            @PathVariable("productOptionGroupId") UUID productOptionGroupId,
+            @Valid @RequestBody ChangeProductOptionGroupStepOrderCommand command
+    ) {
+        return ResponseEntity.ok(
+                productResponseMapper.toChangeProductOptionGroupStepOrderResponse(
+                        productApplicationService.changeProductOptionGroupStepOrder(
+                                productId, productOptionGroupId, command
+                        )
+                )
+        );
+    }
+
+    @PatchMapping("/{productId}/option-groups/reorder")
+    public ResponseEntity<ReorderProductOptionGroupsResponse> reorderOptionGroups(
+            @PathVariable("productId") UUID productId,
+            @Valid @RequestBody ReorderProductOptionGroupsCommand command
+    ) {
+        return ResponseEntity.ok(
+                productResponseMapper.toReorderProductOptionGroupsResponse(
+                        productApplicationService.reorderProductOptionGroups(productId, command)
                 )
         );
     }
