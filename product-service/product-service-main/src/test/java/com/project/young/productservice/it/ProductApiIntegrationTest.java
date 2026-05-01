@@ -17,6 +17,7 @@ import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionValueEntity;
 import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
+import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
 import com.project.young.productservice.domain.valueobject.ConditionType;
@@ -605,6 +606,13 @@ class ProductApiIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(variantsCommand)))
                     .andExpect(status().isCreated());
+
+            // Publish precondition: at least one ACTIVE variant is required.
+            ProductEntity productWithVariant = productJpaRepository.findAggregateById(productId).orElseThrow();
+            productWithVariant.getVariants().stream().findFirst().orElseThrow().setStatus(ProductStatusEntity.ACTIVE);
+            productJpaRepository.save(productWithVariant);
+            entityManager.flush();
+            entityManager.clear();
 
             mockMvc.perform(patch("/admin/products/{productId}/status", productId)
                             .with(csrf())

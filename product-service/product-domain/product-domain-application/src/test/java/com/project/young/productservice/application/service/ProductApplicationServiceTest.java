@@ -3,6 +3,7 @@ package com.project.young.productservice.application.service;
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
+import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.productservice.application.dto.command.CreateProductCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductStatusCommand;
@@ -12,6 +13,7 @@ import com.project.young.productservice.application.dto.result.UpdateProductResu
 import com.project.young.productservice.application.mapper.ProductDataMapper;
 import com.project.young.productservice.application.port.output.IdGenerator;
 import com.project.young.productservice.domain.entity.Product;
+import com.project.young.productservice.domain.entity.ProductVariant;
 import com.project.young.productservice.domain.exception.ProductDomainException;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import com.project.young.productservice.domain.repository.ProductRepository;
@@ -29,6 +31,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -352,7 +355,49 @@ class ProductApplicationServiceTest {
 
             assertThatThrownBy(() -> productApplicationService.updateProductStatus(rawId, command))
                     .isInstanceOf(ProductDomainException.class)
-                    .hasMessageContaining("Cannot publish product without at least one variant");
+                    .hasMessageContaining("Cannot publish product without at least one active variant");
+
+            verify(productRepository, never()).update(any());
+        }
+
+        @Test
+        @DisplayName("ACTIVE 상태 변형이 없으면 ACTIVE로 변경할 수 없다")
+        void updateProductStatus_PublishWithoutActiveVariant_Throws() {
+            UUID rawId = UUID.randomUUID();
+            ProductId productId = new ProductId(rawId);
+
+            UpdateProductStatusCommand command = UpdateProductStatusCommand.builder()
+                    .status(ProductStatus.ACTIVE)
+                    .build();
+
+            ProductVariant inactiveVariant = ProductVariant.reconstitute(
+                    new ProductVariantId(UUID.randomUUID()),
+                    "SKU-INACTIVE",
+                    1,
+                    ProductStatus.INACTIVE,
+                    new Money(new BigDecimal("1000")),
+                    Set.of()
+            );
+
+            Product draftProduct = Product.reconstitute(
+                    productId,
+                    null,
+                    "상품",
+                    "상품에 대한 설명입니다. 충분히 깁니다.",
+                    new Money(new BigDecimal("1000")),
+                    ProductStatus.DRAFT,
+                    ConditionType.NEW,
+                    "브랜드",
+                    "url",
+                    List.of(),
+                    List.of(inactiveVariant)
+            );
+
+            when(productRepository.findById(productId)).thenReturn(Optional.of(draftProduct));
+
+            assertThatThrownBy(() -> productApplicationService.updateProductStatus(rawId, command))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Cannot publish product without at least one active variant");
 
             verify(productRepository, never()).update(any());
         }

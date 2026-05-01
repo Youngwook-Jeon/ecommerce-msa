@@ -346,6 +346,7 @@ public class ProductApplicationService {
         validateOptionGroupStructureMutable(product);
 
         ProductOptionGroupId groupId = new ProductOptionGroupId(productOptionGroupIdValue);
+        ensureOptionGroupIsActive(product, groupId);
         StepOrderPlacement placement = StepOrderPlacement.fromCommand(command);
         double resolvedStepOrder = resolveStepOrder(product, placement, groupId);
         product.changeOptionGroupStepOrder(groupId, resolvedStepOrder);
@@ -375,6 +376,7 @@ public class ProductApplicationService {
 
         final double spacing = 1024.0d;
         List<UUID> orderedIds = command.getOrderedProductOptionGroupIds();
+        validateReorderTargetsMatchActiveGroups(product, orderedIds);
         for (int i = 0; i < orderedIds.size(); i++) {
             UUID orderedId = orderedIds.get(i);
             product.changeOptionGroupStepOrder(
@@ -578,14 +580,46 @@ public class ProductApplicationService {
     }
 
     private void validateProductPublishable(Product product) {
-        if (product.getVariants() == null || product.getVariants().isEmpty()) {
-            throw new ProductDomainException("Cannot publish product without at least one variant.");
+        boolean hasActiveVariant = product.getVariants() != null
+                && product.getVariants().stream().anyMatch(variant -> variant.getStatus() == ProductStatus.ACTIVE);
+        if (!hasActiveVariant) {
+            throw new ProductDomainException("Cannot publish product without at least one active variant.");
         }
     }
 
     private void validateOptionGroupStructureMutable(Product product) {
         if (product.getStatus() != ProductStatus.DRAFT) {
             throw new ProductDomainException("Option group/value changes are allowed only when product is DRAFT.");
+        }
+    }
+
+    private List<ProductOptionGroup> getActiveOptionGroups(Product product) {
+        return product.getOptionGroups().stream()
+                .filter(group -> group.getStatus() == null || !group.getStatus().isDeleted())
+                .toList();
+    }
+
+    private void ensureOptionGroupIsActive(Product product, ProductOptionGroupId targetGroupId) {
+        boolean exists = getActiveOptionGroups(product).stream()
+                .anyMatch(group -> group.getId().equals(targetGroupId));
+        if (!exists) {
+            throw new ProductDomainException("Active product option group not found in this product.");
+        }
+    }
+
+    private void validateReorderTargetsMatchActiveGroups(Product product, List<UUID> orderedIds) {
+        Set<UUID> activeIds = getActiveOptionGroups(product).stream()
+                .map(group -> group.getId().getValue())
+                .collect(Collectors.toSet());
+        Set<UUID> requestedIds = new HashSet<>(orderedIds);
+
+        if (requestedIds.size() != orderedIds.size()) {
+            throw new ProductDomainException("Reorder request contains duplicated product option group ids.");
+        }
+        if (!requestedIds.equals(activeIds)) {
+            throw new ProductDomainException(
+                    "Reorder request must include all and only non-deleted product option groups."
+            );
         }
     }
 
@@ -597,8 +631,7 @@ public class ProductApplicationService {
         final double spacing = 1024.0d;
         final double minGap = 0.000001d;
 
-        List<ProductOptionGroup> activeGroups = product.getOptionGroups().stream()
-                .filter(group -> group.getStatus() == null || !group.getStatus().isDeleted())
+        List<ProductOptionGroup> activeGroups = getActiveOptionGroups(product).stream()
                 .filter(group -> excludeGroupId == null || !group.getId().equals(excludeGroupId))
                 .sorted(Comparator.comparingDouble(ProductOptionGroup::getStepOrder))
                 .toList();
@@ -697,8 +730,8 @@ public class ProductApplicationService {
         double candidate = (prev + next) / 2.0d;
         if ((next - prev) < minGap) {
             product.rebalanceOptionGroupStepOrders();
-            activeGroups = product.getOptionGroups().stream()
-                    .filter(group -> group.getStatus() == null || !group.getStatus().isDeleted())
+            activeGroups = getActiveOptionGroups(product).stream()
+                    .filter(group -> excludeGroupId == null || !group.getId().equals(excludeGroupId))
                     .sorted(Comparator.comparingDouble(ProductOptionGroup::getStepOrder))
                     .toList();
 

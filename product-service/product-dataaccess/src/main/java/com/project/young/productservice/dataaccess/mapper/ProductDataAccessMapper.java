@@ -47,7 +47,9 @@ public class ProductDataAccessMapper {
         Objects.requireNonNull(domainProduct, "domainProduct must not be null.");
         Objects.requireNonNull(productEntity, "productEntity must not be null.");
 
-        productEntity.setCategory(categoryEntity);
+        if (!isSameCategory(productEntity.getCategory(), categoryEntity)) {
+            productEntity.setCategory(categoryEntity);
+        }
         productEntity.setName(domainProduct.getName());
         productEntity.setDescription(domainProduct.getDescription());
         if (domainProduct.getBasePrice() != null) {
@@ -60,6 +62,16 @@ public class ProductDataAccessMapper {
 
         mergeOptionGroups(domainProduct, productEntity);
         mergeVariants(domainProduct, productEntity);
+    }
+
+    private boolean isSameCategory(CategoryEntity current, CategoryEntity next) {
+        if (current == null && next == null) {
+            return true;
+        }
+        if (current == null || next == null) {
+            return false;
+        }
+        return Objects.equals(current.getId(), next.getId());
     }
 
     private void mergeOptionGroups(Product domainProduct, ProductEntity productEntity) {

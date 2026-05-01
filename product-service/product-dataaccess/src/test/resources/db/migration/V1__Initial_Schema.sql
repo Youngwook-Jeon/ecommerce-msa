@@ -85,9 +85,7 @@ CREATE TABLE product_option_groups
     is_required     BOOLEAN          NOT NULL DEFAULT true,
     status          option_status    NOT NULL DEFAULT 'ACTIVE',
     created_at      TIMESTAMPTZ      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at      TIMESTAMPTZ      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_product_group UNIQUE (product_id, option_group_id),
-    CONSTRAINT uk_product_step UNIQUE (product_id, step_order)
+    updated_at      TIMESTAMPTZ      NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 해당 상품에서 허용되는 옵션 값 + 가격 차이

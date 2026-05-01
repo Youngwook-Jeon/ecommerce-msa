@@ -15,19 +15,7 @@ import java.time.Instant;
 import java.util.*;
 
 @Entity
-@Table(
-        name = "product_option_groups",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_product_group",
-                        columnNames = {"product_id", "option_group_id"}
-                ),
-                @UniqueConstraint(
-                        name = "uk_product_step",
-                        columnNames = {"product_id", "step_order"}
-                )
-        }
-)
+@Table(name = "product_option_groups")
 @EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter

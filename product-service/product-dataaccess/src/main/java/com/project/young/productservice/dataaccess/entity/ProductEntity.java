@@ -89,6 +89,10 @@ public class ProductEntity {
     }
 
     public void setCategory(CategoryEntity category) {
+        if (isSameCategory(this.category, category)) {
+            return;
+        }
+
         if (this.category != null) {
             this.category.getProducts().remove(this);
         }
@@ -98,6 +102,16 @@ public class ProductEntity {
         if (category != null && !category.getProducts().contains(this)) {
             category.getProducts().add(this);
         }
+    }
+
+    private boolean isSameCategory(CategoryEntity current, CategoryEntity next) {
+        if (current == null && next == null) {
+            return true;
+        }
+        if (current == null || next == null) {
+            return false;
+        }
+        return Objects.equals(current.getId(), next.getId());
     }
 
     public void addOptionGroup(ProductOptionGroupEntity optionGroup) {
