@@ -1,6 +1,7 @@
 package com.project.young.productservice.web.controller;
 
 import com.project.young.productservice.application.dto.result.AdminProductDetailResult;
+import com.project.young.productservice.application.dto.query.AdminProductDetailQuery;
 import com.project.young.productservice.application.dto.condition.AdminProductSearchCondition;
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
@@ -11,6 +12,7 @@ import com.project.young.productservice.web.config.SecurityConfig;
 import com.project.young.productservice.web.dto.AdminProductDetailResponse;
 import com.project.young.productservice.web.dto.AdminProductListItemResponse;
 import com.project.young.productservice.web.dto.AdminProductPageResponse;
+import com.project.young.productservice.web.dto.ReadProductVariantResponse;
 import com.project.young.productservice.web.mapper.AdminProductQueryResponseMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -200,6 +202,50 @@ class AdminProductQueryControllerTest {
 
             verify(adminProductQueryService, never()).search(any(), anyInt(), anyInt(), anyString(), anyBoolean());
             verify(adminProductQueryResponseMapper, never()).toAdminProductPageResponse(anyList(), anyInt(), anyInt(), anyLong(), anyInt());
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /admin/queries/products/{productId}/variants")
+    class VariantsTests {
+        @Test
+        @DisplayName("ADMIN 권한으로 variants 조회 시 200 OK 반환")
+        @WithMockUser(authorities = "ADMIN")
+        void variants_WithAdmin_Returns200() throws Exception {
+            UUID productId = UUID.randomUUID();
+            ReadProductVariantResponse variant = ReadProductVariantResponse.builder()
+                    .productVariantId(UUID.randomUUID())
+                    .sku("SKU-1")
+                    .stockQuantity(10)
+                    .status("ACTIVE")
+                    .calculatedPrice(new BigDecimal("10000"))
+                    .selectedProductOptionValueIds(List.of())
+                    .build();
+
+            when(adminProductQueryService.getProductVariants(any(AdminProductDetailQuery.class)))
+                    .thenReturn(java.util.List.of());
+            when(adminProductQueryResponseMapper.toReadProductVariantResponses(any()))
+                    .thenReturn(java.util.List.of(variant));
+
+            mockMvc.perform(get("/admin/queries/products/{productId}/variants", productId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].sku").value("SKU-1"))
+                    .andExpect(jsonPath("$[0].status").value("ACTIVE"));
+
+            verify(adminProductQueryService).getProductVariants(any(AdminProductDetailQuery.class));
+            verify(adminProductQueryResponseMapper).toReadProductVariantResponses(any());
+        }
+
+        @Test
+        @DisplayName("ADMIN 권한 없으면 403 Forbidden")
+        @WithMockUser(authorities = "CUSTOMER")
+        void variants_WithoutAdmin_Returns403() throws Exception {
+            UUID productId = UUID.randomUUID();
+            mockMvc.perform(get("/admin/queries/products/{productId}/variants", productId))
+                    .andExpect(status().isForbidden());
+
+            verify(adminProductQueryService, never()).getProductVariants(any());
+            verify(adminProductQueryResponseMapper, never()).toReadProductVariantResponses(any());
         }
     }
 }

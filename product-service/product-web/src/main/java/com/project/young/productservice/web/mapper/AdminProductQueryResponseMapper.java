@@ -51,6 +51,10 @@ public class AdminProductQueryResponseMapper {
                 .build();
     }
 
+    public List<ReadProductVariantResponse> toReadProductVariantResponses(List<ReadProductVariantView> views) {
+        return views == null ? List.of() : views.stream().map(this::toReadProductVariantResponse).toList();
+    }
+
     private ReadProductOptionGroupResponse toReadProductOptionGroupResponse(ReadProductOptionGroupView view) {
         return ReadProductOptionGroupResponse.builder()
                 .productOptionGroupId(view.productOptionGroupId())

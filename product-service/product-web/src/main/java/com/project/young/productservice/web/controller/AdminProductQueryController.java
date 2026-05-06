@@ -7,6 +7,7 @@ import com.project.young.productservice.application.port.output.AdminProductRead
 import com.project.young.productservice.application.service.AdminProductQueryService;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import com.project.young.productservice.web.dto.AdminProductDetailResponse;
+import com.project.young.productservice.web.dto.ReadProductVariantResponse;
 import com.project.young.productservice.web.dto.AdminProductPageResponse;
 import com.project.young.productservice.web.mapper.AdminProductQueryResponseMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -37,6 +39,13 @@ public class AdminProductQueryController {
         AdminProductDetailResult result = adminProductQueryService.getProductDetail(new AdminProductDetailQuery(productId));
 
         return ResponseEntity.ok(adminProductQueryResponseMapper.toAdminProductDetailResponse(result));
+    }
+
+    @GetMapping("/{productId}/variants")
+    public ResponseEntity<List<ReadProductVariantResponse>> getProductVariants(@PathVariable("productId") UUID productId) {
+        log.info("REST request to get product variants for productId={}", productId);
+        var variants = adminProductQueryService.getProductVariants(new AdminProductDetailQuery(productId));
+        return ResponseEntity.ok(adminProductQueryResponseMapper.toReadProductVariantResponses(variants));
     }
 
     @GetMapping

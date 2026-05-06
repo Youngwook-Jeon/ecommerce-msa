@@ -60,6 +60,26 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
     }
 
     @Override
+    public List<ReadProductVariantView> getProductVariants(AdminProductDetailQuery query) {
+        if (query == null) {
+            throw new IllegalArgumentException("AdminProductDetailQuery cannot be null");
+        }
+
+        var loaded = adminProductJpaRepository.findAdminDetailWithVariantsById(query.id());
+        if (loaded.isEmpty()) {
+            throw new ProductNotFoundException("Product not found: " + query.id());
+        }
+
+        ProductEntity entity = loaded.orElseThrow();
+        if (entity.getVariants() == null || entity.getVariants().isEmpty()) {
+            return List.of();
+        }
+        return entity.getVariants().stream()
+                .map(this::toReadProductVariantView)
+                .toList();
+    }
+
+    @Override
     public AdminProductSearchResult search(AdminProductSearchCondition condition,
                                            int page,
                                            int size,

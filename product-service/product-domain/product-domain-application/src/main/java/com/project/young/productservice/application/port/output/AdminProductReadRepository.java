@@ -4,12 +4,15 @@ import com.project.young.productservice.application.dto.query.AdminProductDetail
 import com.project.young.productservice.application.dto.result.AdminProductDetailResult;
 import com.project.young.productservice.application.dto.condition.AdminProductSearchCondition;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
+import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
 
 import java.util.List;
 
 public interface AdminProductReadRepository {
 
     AdminProductDetailResult getProductDetail(AdminProductDetailQuery query);
+
+    List<ReadProductVariantView> getProductVariants(AdminProductDetailQuery query);
 
     AdminProductSearchResult search(AdminProductSearchCondition condition,
                                     int page,
