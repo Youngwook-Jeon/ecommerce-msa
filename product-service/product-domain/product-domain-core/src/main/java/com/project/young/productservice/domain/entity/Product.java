@@ -171,6 +171,7 @@ public class Product extends AggregateRoot<ProductId> {
             throw new ProductDomainException("Cannot add option group to a deleted product.");
         }
         boolean exists = this.optionGroups.stream()
+                .filter(g -> !g.getStatus().isDeleted())
                 .anyMatch(g -> g.getOptionGroupId().equals(group.getOptionGroupId()));
         if (exists) {
             throw new ProductDomainException("Option group already exists in this product.");
