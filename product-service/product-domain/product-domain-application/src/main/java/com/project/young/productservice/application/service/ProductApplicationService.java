@@ -243,20 +243,31 @@ public class ProductApplicationService {
                 : product.getVariants().stream()
                 .map(ProductVariant::getSku)
                 .collect(Collectors.toSet());
+        Set<String> existingActiveCombinationKeys = product.getVariants() == null
+                ? new HashSet<>()
+                : product.getVariants().stream()
+                .filter(variant -> !variant.isDeleted())
+                .map(variant -> toVariantCombinationKey(variant.getSelectedOptionValues()))
+                .collect(Collectors.toSet());
+        Set<String> requestedCombinationKeys = new HashSet<>();
 
         for (AddProductVariantCommand variantCommand : command.getVariants()) {
             if (variantCommand == null) {
                 throw new IllegalArgumentException("Variant command must not be null.");
             }
 
+            Set<ProductOptionValueId> selectedOptionValueIds = variantCommand.getSelectedProductOptionValueIds().stream()
+                    .map(ProductOptionValueId::new)
+                    .collect(Collectors.toSet());
+            String combinationKey = toVariantCombinationKey(selectedOptionValueIds);
+            if (existingActiveCombinationKeys.contains(combinationKey) || !requestedCombinationKeys.add(combinationKey)) {
+                throw new ProductDomainException("Duplicate variant option combination is not allowed.");
+            }
+
             VariantIdentity identity = generateUniqueVariantIdentity(product.getId(), reservedSkus);
             ProductVariantId productVariantId = identity.variantId();
             String generatedSku = identity.sku();
             reservedSkus.add(generatedSku);
-
-            Set<ProductOptionValueId> selectedOptionValueIds = variantCommand.getSelectedProductOptionValueIds().stream()
-                    .map(ProductOptionValueId::new)
-                    .collect(Collectors.toSet());
 
             ProductVariant variant = productDataMapper.toProductVariant(
                     variantCommand,
@@ -568,6 +579,17 @@ public class ProductApplicationService {
 
     private String generateVariantSku(ProductId productId, ProductVariantId variantId) {
         return "PRD-" + shortToken(productId.getValue()) + "-VAR-" + fullToken(variantId.getValue());
+    }
+
+    private String toVariantCombinationKey(Set<ProductOptionValueId> selectedOptionValueIds) {
+        if (selectedOptionValueIds == null || selectedOptionValueIds.isEmpty()) {
+            return "";
+        }
+        return selectedOptionValueIds.stream()
+                .map(ProductOptionValueId::getValue)
+                .map(UUID::toString)
+                .sorted()
+                .collect(Collectors.joining("|"));
     }
 
     private String shortToken(UUID value) {

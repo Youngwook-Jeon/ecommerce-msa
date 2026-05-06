@@ -496,14 +496,23 @@ class ProductApplicationServiceSubAggregateTest {
             UUID productId = UUID.randomUUID();
             Product product = createBaseProduct(productId);
             UUID globalOptionGroupId = UUID.randomUUID();
-            UUID globalOptionValueId = UUID.randomUUID();
-            UUID productOptionValueId = UUID.randomUUID();
+            UUID globalOptionValueId1 = UUID.randomUUID();
+            UUID productOptionValueId1 = UUID.randomUUID();
+            UUID globalOptionValueId2 = UUID.randomUUID();
+            UUID productOptionValueId2 = UUID.randomUUID();
 
-            ProductOptionValue pov = ProductOptionValue.reconstitute(
-                    new ProductOptionValueId(productOptionValueId),
-                    new OptionValueId(globalOptionValueId),
+            ProductOptionValue pov1 = ProductOptionValue.reconstitute(
+                    new ProductOptionValueId(productOptionValueId1),
+                    new OptionValueId(globalOptionValueId1),
                     new Money(new BigDecimal("1000")),
                     true,
+                    true
+            );
+            ProductOptionValue pov2 = ProductOptionValue.reconstitute(
+                    new ProductOptionValueId(productOptionValueId2),
+                    new OptionValueId(globalOptionValueId2),
+                    new Money(new BigDecimal("1200")),
+                    false,
                     true
             );
 
@@ -512,17 +521,21 @@ class ProductApplicationServiceSubAggregateTest {
                     new OptionGroupId(globalOptionGroupId),
                     1,
                     true,
-                    List.of(pov)
+                    List.of(pov1, pov2)
             );
             product.addOptionGroup(pog);
 
-            AddProductVariantCommand command = AddProductVariantCommand.builder()
+            AddProductVariantCommand command1 = AddProductVariantCommand.builder()
                     .stockQuantity(5)
-                    .selectedProductOptionValueIds(Set.of(productOptionValueId))
+                    .selectedProductOptionValueIds(Set.of(productOptionValueId1))
+                    .build();
+            AddProductVariantCommand command2 = AddProductVariantCommand.builder()
+                    .stockQuantity(7)
+                    .selectedProductOptionValueIds(Set.of(productOptionValueId2))
                     .build();
 
             AddProductVariantsCommand bulkCommand = AddProductVariantsCommand.builder()
-                    .variants(List.of(command, command))
+                    .variants(List.of(command1, command2))
                     .build();
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
@@ -633,6 +646,124 @@ class ProductApplicationServiceSubAggregateTest {
                     .hasMessageContaining("Cannot update a product that has been deleted");
 
             verify(productRepository, never()).update(any());
+            verifyNoInteractions(productDomainService);
+        }
+
+        @Test
+        @DisplayName("삭제되지 않은 동일 옵션 조합 variant가 이미 있으면 추가할 수 없다")
+        void duplicateCombination_WithActiveVariant_Throws() {
+            UUID productId = UUID.randomUUID();
+            UUID globalOptionGroupId = UUID.randomUUID();
+            UUID globalOptionValueId = UUID.randomUUID();
+            UUID productOptionValueId = UUID.randomUUID();
+            Product product = createBaseProduct(productId);
+
+            ProductOptionValue pov = ProductOptionValue.reconstitute(
+                    new ProductOptionValueId(productOptionValueId),
+                    new OptionValueId(globalOptionValueId),
+                    new Money(new BigDecimal("1000")),
+                    true,
+                    true
+            );
+            ProductOptionGroup pog = ProductOptionGroup.reconstitute(
+                    new ProductOptionGroupId(UUID.randomUUID()),
+                    new OptionGroupId(globalOptionGroupId),
+                    1,
+                    true,
+                    List.of(pov)
+            );
+            product.addOptionGroup(pog);
+
+            ProductVariant existingVariant = ProductVariant.reconstitute(
+                    new ProductVariantId(UUID.randomUUID()),
+                    "PRD-EXISTING",
+                    3,
+                    ProductStatus.ACTIVE,
+                    new Money(new BigDecimal("11000")),
+                    Set.of(new ProductOptionValueId(productOptionValueId))
+            );
+            product.addVariant(existingVariant);
+
+            AddProductVariantCommand command = AddProductVariantCommand.builder()
+                    .stockQuantity(1)
+                    .selectedProductOptionValueIds(Set.of(productOptionValueId))
+                    .build();
+            AddProductVariantsCommand bulkCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(command))
+                    .build();
+
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+
+            assertThatThrownBy(() -> productApplicationService.addProductVariants(productId, bulkCommand))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Duplicate variant option combination");
+
+            verify(productRepository, never()).update(any());
+            verifyNoInteractions(productDomainService);
+        }
+
+        @Test
+        @DisplayName("기존 DELETED variant와 동일 옵션 조합은 새로 추가할 수 있다")
+        void duplicateCombination_WithDeletedVariant_AllowsCreate() {
+            UUID productId = UUID.randomUUID();
+            UUID globalOptionGroupId = UUID.randomUUID();
+            UUID globalOptionValueId = UUID.randomUUID();
+            UUID productOptionValueId = UUID.randomUUID();
+            ProductOptionValue pov = ProductOptionValue.reconstitute(
+                    new ProductOptionValueId(productOptionValueId),
+                    new OptionValueId(globalOptionValueId),
+                    new Money(new BigDecimal("1000")),
+                    true,
+                    true
+            );
+            ProductOptionGroup pog = ProductOptionGroup.reconstitute(
+                    new ProductOptionGroupId(UUID.randomUUID()),
+                    new OptionGroupId(globalOptionGroupId),
+                    1,
+                    true,
+                    List.of(pov)
+            );
+
+            ProductVariant deletedVariant = ProductVariant.reconstitute(
+                    new ProductVariantId(UUID.randomUUID()),
+                    "PRD-DELETED",
+                    0,
+                    ProductStatus.DELETED,
+                    new Money(new BigDecimal("11000")),
+                    Set.of(new ProductOptionValueId(productOptionValueId))
+            );
+            Product product = Product.reconstitute(
+                    new ProductId(productId),
+                    null,
+                    "상품",
+                    "상품 설명은 20자 이상으로 충분히 길어야 합니다.",
+                    new Money(new BigDecimal("10000")),
+                    ProductStatus.DRAFT,
+                    ConditionType.NEW,
+                    "브랜드",
+                    "https://example.com/image.jpg",
+                    List.of(pog),
+                    List.of(deletedVariant)
+            );
+
+            AddProductVariantCommand command = AddProductVariantCommand.builder()
+                    .stockQuantity(2)
+                    .selectedProductOptionValueIds(Set.of(productOptionValueId))
+                    .build();
+            AddProductVariantsCommand bulkCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(command))
+                    .build();
+
+            UUID generatedVariantId = UUID.randomUUID();
+            when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+            when(idGenerator.generateId()).thenReturn(generatedVariantId);
+
+            List<AddProductVariantResult> results = productApplicationService.addProductVariants(productId, bulkCommand);
+
+            assertThat(results).hasSize(1);
+            assertThat(results.get(0).productVariantId()).isEqualTo(generatedVariantId);
+            assertThat(product.getVariants()).hasSize(2);
+            verify(productRepository).update(product);
             verifyNoInteractions(productDomainService);
         }
     }
