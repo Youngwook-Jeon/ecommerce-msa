@@ -931,6 +931,23 @@ class ProductApplicationServiceSubAggregateTest {
 
             verify(productRepository).update(product);
         }
+
+        @Test
+        @DisplayName("DELETED 상태로의 변경은 삭제 엔드포인트로 분리되어야 한다")
+        void updateToDeletedStatus_Throws() {
+            UUID productId = UUID.randomUUID();
+            UUID variantId = UUID.randomUUID();
+            UpdateProductVariantCommand command = UpdateProductVariantCommand.builder()
+                    .status(ProductStatus.DELETED)
+                    .build();
+
+            assertThatThrownBy(() -> productApplicationService.updateProductVariant(productId, variantId, command))
+                    .isInstanceOf(ProductDomainException.class)
+                    .hasMessageContaining("Use delete variant endpoint for DELETED status");
+
+            verify(productRepository, never()).findById(any());
+            verify(productRepository, never()).update(any());
+        }
     }
 
     @Nested

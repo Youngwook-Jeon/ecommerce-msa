@@ -33,6 +33,10 @@ public class ProductResponseMessageFactory {
         return "Product variant added successfully";
     }
 
+    public String productVariantUpdated() {
+        return "Product variant updated successfully";
+    }
+
     public String productOptionGroupDeleted() {
         return "Product option group deleted successfully";
     }

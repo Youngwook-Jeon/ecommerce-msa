@@ -316,6 +316,9 @@ public class ProductApplicationService {
         if (productIdValue == null || productVariantIdValue == null || command == null) {
             throw new IllegalArgumentException("Invalid product variant update request.");
         }
+        if (command.getStatus() == ProductStatus.DELETED) {
+            throw new ProductDomainException("Use delete variant endpoint for DELETED status.");
+        }
 
         Product product = findProductOrThrow(new ProductId(productIdValue));
         validateProductCanBeUpdated(product);

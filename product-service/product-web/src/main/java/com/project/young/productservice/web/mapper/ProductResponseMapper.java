@@ -9,6 +9,7 @@ import com.project.young.productservice.application.dto.result.DeleteProductOpti
 import com.project.young.productservice.application.dto.result.DeleteProductOptionValueResult;
 import com.project.young.productservice.application.dto.result.DeleteProductResult;
 import com.project.young.productservice.application.dto.result.UpdateProductResult;
+import com.project.young.productservice.application.dto.result.UpdateProductVariantResult;
 import com.project.young.productservice.application.dto.result.ReorderProductOptionGroupsResult;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
 import com.project.young.productservice.web.converter.OptionStatusWebConverter;
@@ -23,6 +24,7 @@ import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse
 import com.project.young.productservice.web.dto.DeleteProductResponse;
 import com.project.young.productservice.web.dto.UpdateProductResponse;
 import com.project.young.productservice.web.dto.ReorderProductOptionGroupsResponse;
+import com.project.young.productservice.web.dto.UpdateProductVariantResponse;
 import com.project.young.productservice.web.message.ProductResponseMessageFactory;
 import org.springframework.stereotype.Component;
 
@@ -117,6 +119,18 @@ public class ProductResponseMapper {
                 .status(productStatusWebConverter.toStringValue(result.status()))
                 .calculatedPrice(result.calculatedPrice())
                 .message(messageFactory.productVariantAdded())
+                .build();
+    }
+
+    public UpdateProductVariantResponse toUpdateProductVariantResponse(UpdateProductVariantResult result) {
+        return UpdateProductVariantResponse.builder()
+                .productId(result.productId())
+                .productVariantId(result.productVariantId())
+                .sku(result.sku())
+                .stockQuantity(result.stockQuantity())
+                .status(productStatusWebConverter.toStringValue(result.status()))
+                .calculatedPrice(result.calculatedPrice())
+                .message(messageFactory.productVariantUpdated())
                 .build();
     }
 

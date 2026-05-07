@@ -7,12 +7,14 @@ import com.project.young.productservice.application.dto.command.AddProductOption
 import com.project.young.productservice.application.dto.command.AddProductVariantCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
 import com.project.young.productservice.application.dto.command.ReorderProductOptionGroupsCommand;
+import com.project.young.productservice.application.dto.command.UpdateProductVariantCommand;
 import com.project.young.productservice.application.dto.result.AddProductOptionGroupResult;
 import com.project.young.productservice.application.dto.result.AddProductOptionValueToGroupResult;
 import com.project.young.productservice.application.dto.result.AddProductVariantResult;
 import com.project.young.productservice.application.dto.result.DeleteProductOptionGroupResult;
 import com.project.young.productservice.application.dto.result.DeleteProductOptionValueResult;
 import com.project.young.productservice.application.dto.result.ReorderProductOptionGroupsResult;
+import com.project.young.productservice.application.dto.result.UpdateProductVariantResult;
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
@@ -23,6 +25,7 @@ import com.project.young.productservice.web.dto.AddProductVariantResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
 import com.project.young.productservice.web.dto.ReorderProductOptionGroupsResponse;
+import com.project.young.productservice.web.dto.UpdateProductVariantResponse;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -242,6 +245,59 @@ class AdminProductCompositionControllerTest {
                     .andExpect(jsonPath("$.variants[0].sku").value("PRD-TEST-SKU"));
 
             verify(productApplicationService).addProductVariants(eq(productId), any(AddProductVariantsCommand.class));
+        }
+    }
+
+    @Nested
+    @DisplayName("PATCH /admin/products/{productId}/variants/{productVariantId}")
+    class UpdateVariantTests {
+
+        @Test
+        @DisplayName("ADMIN이면 200과 본문 반환")
+        @WithMockUser(authorities = "ADMIN")
+        void withAdmin_Returns200() throws Exception {
+            UUID productId = UUID.randomUUID();
+            UUID variantId = UUID.randomUUID();
+
+            UpdateProductVariantCommand command = UpdateProductVariantCommand.builder()
+                    .stockQuantity(5)
+                    .status(ProductStatus.ACTIVE)
+                    .build();
+
+            UpdateProductVariantResult result = UpdateProductVariantResult.builder()
+                    .productId(productId)
+                    .productVariantId(variantId)
+                    .sku("PRD-TEST-SKU")
+                    .stockQuantity(5)
+                    .status(ProductStatus.ACTIVE)
+                    .calculatedPrice(new BigDecimal("11000"))
+                    .build();
+
+            UpdateProductVariantResponse response = UpdateProductVariantResponse.builder()
+                    .productId(productId)
+                    .productVariantId(variantId)
+                    .sku("PRD-TEST-SKU")
+                    .stockQuantity(5)
+                    .status("ACTIVE")
+                    .calculatedPrice(new BigDecimal("11000"))
+                    .message("ok")
+                    .build();
+
+            when(productApplicationService.updateProductVariant(eq(productId), eq(variantId), any(UpdateProductVariantCommand.class)))
+                    .thenReturn(result);
+            when(productResponseMapper.toUpdateProductVariantResponse(result)).thenReturn(response);
+
+            mockMvc.perform(patch("/admin/products/{productId}/variants/{productVariantId}", productId, variantId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(command)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.productVariantId").value(variantId.toString()))
+                    .andExpect(jsonPath("$.stockQuantity").value(5))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+            verify(productApplicationService)
+                    .updateProductVariant(eq(productId), eq(variantId), any(UpdateProductVariantCommand.class));
         }
     }
 

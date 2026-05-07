@@ -5,6 +5,7 @@ import com.project.young.productservice.application.dto.command.AddProductOption
 import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
 import com.project.young.productservice.application.dto.command.ChangeProductOptionGroupStepOrderCommand;
 import com.project.young.productservice.application.dto.command.ReorderProductOptionGroupsCommand;
+import com.project.young.productservice.application.dto.command.UpdateProductVariantCommand;
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.web.dto.AddProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.AddProductOptionValuesToGroupResponse;
@@ -13,6 +14,7 @@ import com.project.young.productservice.web.dto.ChangeProductOptionGroupStepOrde
 import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
 import com.project.young.productservice.web.dto.ReorderProductOptionGroupsResponse;
+import com.project.young.productservice.web.dto.UpdateProductVariantResponse;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -165,5 +167,19 @@ public class AdminProductCompositionController {
                                         .collect(Collectors.toList())
                         )
                         .build());
+    }
+
+    @PatchMapping("/{productId}/variants/{productVariantId}")
+    public ResponseEntity<UpdateProductVariantResponse> updateVariant(
+            @PathVariable("productId") UUID productId,
+            @PathVariable("productVariantId") UUID productVariantId,
+            @Valid @RequestBody UpdateProductVariantCommand command
+    ) {
+        log.info("REST request to update variant. productId={}, productVariantId={}", productId, productVariantId);
+        return ResponseEntity.ok(
+                productResponseMapper.toUpdateProductVariantResponse(
+                        productApplicationService.updateProductVariant(productId, productVariantId, command)
+                )
+        );
     }
 }
