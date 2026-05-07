@@ -11,6 +11,7 @@ import com.project.young.productservice.application.dto.command.CreateCategoryCo
 import com.project.young.productservice.application.dto.command.CreateProductCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductStatusCommand;
+import com.project.young.productservice.application.dto.command.UpdateProductVariantCommand;
 import com.project.young.productservice.dataaccess.entity.OptionGroupEntity;
 import com.project.young.productservice.dataaccess.entity.OptionValueEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
@@ -154,6 +155,31 @@ class ProductApiIntegrationTest {
         group.addOptionValue(medium);
         OptionGroupEntity saved = optionGroupJpaRepository.save(group);
 
+        return new OptionFixture(
+                saved.getId(),
+                saved.getOptionValues().stream().map(OptionValueEntity::getId).toList()
+        );
+    }
+
+    private OptionFixture createGlobalOptionGroupWithManyValues(String suffix, int count) {
+        OptionGroupEntity group = OptionGroupEntity.builder()
+                .name("size-many-" + suffix)
+                .displayName("사이즈다중-" + suffix)
+                .status(OptionStatusEntity.ACTIVE)
+                .build();
+
+        for (int i = 0; i < count; i++) {
+            OptionValueEntity value = OptionValueEntity.builder()
+                    .optionGroup(group)
+                    .value("V-" + suffix + "-" + i)
+                    .displayName("V" + i)
+                    .sortOrder(i + 1)
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            group.addOptionValue(value);
+        }
+
+        OptionGroupEntity saved = optionGroupJpaRepository.save(group);
         return new OptionFixture(
                 saved.getId(),
                 saved.getOptionValues().stream().map(OptionValueEntity::getId).toList()
@@ -357,26 +383,26 @@ class ProductApiIntegrationTest {
                     .getContentAsString();
             UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
 
-            OptionFixture optionFixture = createGlobalOptionGroupWithValues(UUID.randomUUID().toString().substring(0, 8));
+            int variantCount = 60;
+            OptionFixture optionFixture = createGlobalOptionGroupWithManyValues(
+                    UUID.randomUUID().toString().substring(0, 8),
+                    variantCount
+            );
 
             AddProductOptionGroupCommand addOptionGroupCommand = AddProductOptionGroupCommand.builder()
                     .optionGroupId(optionFixture.optionGroupId())
                     .stepOrder(1.0d)
                     .required(true)
-                    .optionValues(List.of(
-                            AddProductOptionValueCommand.builder()
-                                    .optionValueId(optionFixture.optionValueIds().get(0))
-                                    .priceDelta(BigDecimal.ZERO)
-                                    .isDefault(true)
-                                    .isActive(true)
-                                    .build(),
-                            AddProductOptionValueCommand.builder()
-                                    .optionValueId(optionFixture.optionValueIds().get(1))
-                                    .priceDelta(new BigDecimal("1000"))
-                                    .isDefault(false)
-                                    .isActive(true)
-                                    .build()
-                    ))
+                    .optionValues(
+                            java.util.stream.IntStream.range(0, optionFixture.optionValueIds().size())
+                                    .mapToObj(i -> AddProductOptionValueCommand.builder()
+                                            .optionValueId(optionFixture.optionValueIds().get(i))
+                                            .priceDelta(BigDecimal.ZERO)
+                                            .isDefault(i == 0)
+                                            .isActive(true)
+                                            .build())
+                                    .toList()
+                    )
                     .build();
 
             mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
@@ -391,11 +417,10 @@ class ProductApiIntegrationTest {
                     .map(ProductOptionValueEntity::getId)
                     .toList();
 
-            int variantCount = 60;
             List<AddProductVariantCommand> variants = java.util.stream.IntStream.range(0, variantCount)
                     .mapToObj(i -> AddProductVariantCommand.builder()
                             .stockQuantity(10 + i)
-                            .selectedProductOptionValueIds(Set.of(productOptionValueIds.get(i % productOptionValueIds.size())))
+                            .selectedProductOptionValueIds(Set.of(productOptionValueIds.get(i)))
                             .build())
                     .toList();
 
@@ -872,6 +897,236 @@ class ProductApiIntegrationTest {
                     .isEqualTo(1024.0d);
             org.assertj.core.api.Assertions.assertThat(sortedGroups.get(1).getStepOrder())
                     .isEqualTo(2048.0d);
+        }
+
+        @Test
+        @DisplayName("상품 하위 변형 업데이트 API 호출 시 재고/상태가 변경된다")
+        @WithMockUser(authorities = "ADMIN")
+        void updateVariant_UpdatesStockAndStatus() throws Exception {
+            Long categoryId = createCategory("의류");
+            CreateProductCommand createProductCommand = CreateProductCommand.builder()
+                    .name("변형업데이트 상품")
+                    .description("변형업데이트 검증용 상품 설명입니다. 20자 이상.")
+                    .basePrice(new BigDecimal("14000"))
+                    .brand("업데이트브랜드")
+                    .mainImageUrl("https://example.com/variant-update.jpg")
+                    .categoryId(categoryId)
+                    .conditionType(ConditionType.NEW)
+                    .build();
+            String createResponse = mockMvc.perform(post("/admin/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createProductCommand)))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
+
+            OptionFixture optionFixture = createGlobalOptionGroupWithValues(UUID.randomUUID().toString().substring(0, 8));
+            AddProductOptionGroupCommand addOptionGroupCommand = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(optionFixture.optionGroupId())
+                    .stepOrder(1.0d)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(optionFixture.optionValueIds().get(0))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(true)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
+                    .andExpect(status().isCreated());
+
+            ProductEntity aggregate = productJpaRepository.findAggregateById(productId).orElseThrow();
+            UUID productOptionValueId = aggregate.getOptionGroups().stream()
+                    .findFirst().orElseThrow()
+                    .getOptionValues().stream().findFirst().orElseThrow()
+                    .getId();
+            AddProductVariantsCommand variantsCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(
+                            AddProductVariantCommand.builder()
+                                    .stockQuantity(3)
+                                    .selectedProductOptionValueIds(Set.of(productOptionValueId))
+                                    .build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(variantsCommand)))
+                    .andExpect(status().isCreated());
+
+            ProductEntity beforeUpdate = productJpaRepository.findAggregateById(productId).orElseThrow();
+            UUID variantId = beforeUpdate.getVariants().stream().findFirst().orElseThrow().getId();
+            UpdateProductVariantCommand updateCommand = UpdateProductVariantCommand.builder()
+                    .stockQuantity(11)
+                    .status(ProductStatus.ACTIVE)
+                    .build();
+
+            mockMvc.perform(patch("/admin/products/{productId}/variants/{productVariantId}", productId, variantId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateCommand)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.productVariantId").value(variantId.toString()))
+                    .andExpect(jsonPath("$.stockQuantity").value(11))
+                    .andExpect(jsonPath("$.status").value("ACTIVE"));
+        }
+
+        @Test
+        @DisplayName("상품 하위 변형 업데이트에서 DELETED 상태 요청은 실패한다")
+        @WithMockUser(authorities = "ADMIN")
+        void updateVariant_ToDeletedStatus_Fails() throws Exception {
+            Long categoryId = createCategory("의류");
+            CreateProductCommand createProductCommand = CreateProductCommand.builder()
+                    .name("변형업데이트실패 상품")
+                    .description("변형업데이트실패 검증용 상품 설명입니다. 20자 이상.")
+                    .basePrice(new BigDecimal("14000"))
+                    .brand("업데이트브랜드")
+                    .mainImageUrl("https://example.com/variant-update-fail.jpg")
+                    .categoryId(categoryId)
+                    .conditionType(ConditionType.NEW)
+                    .build();
+            String createResponse = mockMvc.perform(post("/admin/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createProductCommand)))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
+
+            OptionFixture optionFixture = createGlobalOptionGroupWithValues(UUID.randomUUID().toString().substring(0, 8));
+            AddProductOptionGroupCommand addOptionGroupCommand = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(optionFixture.optionGroupId())
+                    .stepOrder(1.0d)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(optionFixture.optionValueIds().get(0))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(true)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
+                    .andExpect(status().isCreated());
+
+            ProductEntity aggregate = productJpaRepository.findAggregateById(productId).orElseThrow();
+            UUID productOptionValueId = aggregate.getOptionGroups().stream()
+                    .findFirst().orElseThrow()
+                    .getOptionValues().stream().findFirst().orElseThrow()
+                    .getId();
+            AddProductVariantsCommand variantsCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(
+                            AddProductVariantCommand.builder()
+                                    .stockQuantity(3)
+                                    .selectedProductOptionValueIds(Set.of(productOptionValueId))
+                                    .build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(variantsCommand)))
+                    .andExpect(status().isCreated());
+
+            ProductEntity beforeUpdate = productJpaRepository.findAggregateById(productId).orElseThrow();
+            UUID variantId = beforeUpdate.getVariants().stream().findFirst().orElseThrow().getId();
+            UpdateProductVariantCommand updateCommand = UpdateProductVariantCommand.builder()
+                    .status(ProductStatus.DELETED)
+                    .build();
+
+            mockMvc.perform(patch("/admin/products/{productId}/variants/{productVariantId}", productId, variantId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(updateCommand)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.message").value(containsString("delete variant endpoint")));
+        }
+
+        @Test
+        @DisplayName("상품 하위 변형 삭제 API 호출 시 소프트삭제된다")
+        @WithMockUser(authorities = "ADMIN")
+        void deleteVariant_SoftDeletesVariant() throws Exception {
+            Long categoryId = createCategory("의류");
+            CreateProductCommand createProductCommand = CreateProductCommand.builder()
+                    .name("변형삭제 상품")
+                    .description("변형삭제 검증용 상품 설명입니다. 20자 이상.")
+                    .basePrice(new BigDecimal("14000"))
+                    .brand("삭제브랜드")
+                    .mainImageUrl("https://example.com/variant-delete.jpg")
+                    .categoryId(categoryId)
+                    .conditionType(ConditionType.NEW)
+                    .build();
+            String createResponse = mockMvc.perform(post("/admin/products")
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(createProductCommand)))
+                    .andExpect(status().isCreated())
+                    .andReturn().getResponse().getContentAsString();
+            UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
+
+            OptionFixture optionFixture = createGlobalOptionGroupWithValues(UUID.randomUUID().toString().substring(0, 8));
+            AddProductOptionGroupCommand addOptionGroupCommand = AddProductOptionGroupCommand.builder()
+                    .optionGroupId(optionFixture.optionGroupId())
+                    .stepOrder(1.0d)
+                    .required(true)
+                    .optionValues(List.of(
+                            AddProductOptionValueCommand.builder()
+                                    .optionValueId(optionFixture.optionValueIds().get(0))
+                                    .priceDelta(BigDecimal.ZERO)
+                                    .isDefault(true)
+                                    .isActive(true)
+                                    .build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
+                    .andExpect(status().isCreated());
+
+            ProductEntity aggregate = productJpaRepository.findAggregateById(productId).orElseThrow();
+            UUID productOptionValueId = aggregate.getOptionGroups().stream()
+                    .findFirst().orElseThrow()
+                    .getOptionValues().stream().findFirst().orElseThrow()
+                    .getId();
+            AddProductVariantsCommand variantsCommand = AddProductVariantsCommand.builder()
+                    .variants(List.of(
+                            AddProductVariantCommand.builder()
+                                    .stockQuantity(3)
+                                    .selectedProductOptionValueIds(Set.of(productOptionValueId))
+                                    .build()
+                    ))
+                    .build();
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(variantsCommand)))
+                    .andExpect(status().isCreated());
+
+            ProductEntity beforeDelete = productJpaRepository.findAggregateById(productId).orElseThrow();
+            UUID variantId = beforeDelete.getVariants().stream().findFirst().orElseThrow().getId();
+
+            mockMvc.perform(delete("/admin/products/{productId}/variants/{productVariantId}", productId, variantId)
+                            .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.productVariantId").value(variantId.toString()))
+                    .andExpect(jsonPath("$.status").value("DELETED"));
+
+            ProductEntity afterDelete = productJpaRepository.findAggregateById(productId).orElseThrow();
+            org.assertj.core.api.Assertions.assertThat(
+                            afterDelete.getVariants().stream().filter(v -> v.getId().equals(variantId)).findFirst().orElseThrow().getStatus()
+                    )
+                    .isEqualTo(ProductStatusEntity.DELETED);
         }
     }
 
