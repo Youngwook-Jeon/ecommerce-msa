@@ -13,6 +13,7 @@ import com.project.young.productservice.web.dto.AddProductVariantsResponse;
 import com.project.young.productservice.web.dto.ChangeProductOptionGroupStepOrderResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
+import com.project.young.productservice.web.dto.DeleteProductVariantResponse;
 import com.project.young.productservice.web.dto.ReorderProductOptionGroupsResponse;
 import com.project.young.productservice.web.dto.UpdateProductVariantResponse;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
@@ -179,6 +180,19 @@ public class AdminProductCompositionController {
         return ResponseEntity.ok(
                 productResponseMapper.toUpdateProductVariantResponse(
                         productApplicationService.updateProductVariant(productId, productVariantId, command)
+                )
+        );
+    }
+
+    @DeleteMapping("/{productId}/variants/{productVariantId}")
+    public ResponseEntity<DeleteProductVariantResponse> deleteVariant(
+            @PathVariable("productId") UUID productId,
+            @PathVariable("productVariantId") UUID productVariantId
+    ) {
+        log.info("REST request to soft-delete variant. productId={}, productVariantId={}", productId, productVariantId);
+        return ResponseEntity.ok(
+                productResponseMapper.toDeleteProductVariantResponse(
+                        productApplicationService.deleteProductVariant(productId, productVariantId)
                 )
         );
     }

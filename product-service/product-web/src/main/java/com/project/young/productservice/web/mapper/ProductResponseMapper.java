@@ -8,6 +8,7 @@ import com.project.young.productservice.application.dto.result.CreateProductResu
 import com.project.young.productservice.application.dto.result.DeleteProductOptionGroupResult;
 import com.project.young.productservice.application.dto.result.DeleteProductOptionValueResult;
 import com.project.young.productservice.application.dto.result.DeleteProductResult;
+import com.project.young.productservice.application.dto.result.DeleteProductVariantResult;
 import com.project.young.productservice.application.dto.result.UpdateProductResult;
 import com.project.young.productservice.application.dto.result.UpdateProductVariantResult;
 import com.project.young.productservice.application.dto.result.ReorderProductOptionGroupsResult;
@@ -22,6 +23,7 @@ import com.project.young.productservice.web.dto.CreateProductResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
 import com.project.young.productservice.web.dto.DeleteProductResponse;
+import com.project.young.productservice.web.dto.DeleteProductVariantResponse;
 import com.project.young.productservice.web.dto.UpdateProductResponse;
 import com.project.young.productservice.web.dto.ReorderProductOptionGroupsResponse;
 import com.project.young.productservice.web.dto.UpdateProductVariantResponse;
@@ -131,6 +133,16 @@ public class ProductResponseMapper {
                 .status(productStatusWebConverter.toStringValue(result.status()))
                 .calculatedPrice(result.calculatedPrice())
                 .message(messageFactory.productVariantUpdated())
+                .build();
+    }
+
+    public DeleteProductVariantResponse toDeleteProductVariantResponse(DeleteProductVariantResult result) {
+        return DeleteProductVariantResponse.builder()
+                .productId(result.productId())
+                .productVariantId(result.productVariantId())
+                .sku(result.sku())
+                .status(productStatusWebConverter.toStringValue(result.status()))
+                .message(messageFactory.productVariantDeleted())
                 .build();
     }
 

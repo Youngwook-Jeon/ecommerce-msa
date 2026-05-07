@@ -37,6 +37,10 @@ public class ProductResponseMessageFactory {
         return "Product variant updated successfully";
     }
 
+    public String productVariantDeleted() {
+        return "Product variant deleted successfully";
+    }
+
     public String productOptionGroupDeleted() {
         return "Product option group deleted successfully";
     }

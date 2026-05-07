@@ -13,6 +13,7 @@ import com.project.young.productservice.application.dto.result.AddProductOptionV
 import com.project.young.productservice.application.dto.result.AddProductVariantResult;
 import com.project.young.productservice.application.dto.result.DeleteProductOptionGroupResult;
 import com.project.young.productservice.application.dto.result.DeleteProductOptionValueResult;
+import com.project.young.productservice.application.dto.result.DeleteProductVariantResult;
 import com.project.young.productservice.application.dto.result.ReorderProductOptionGroupsResult;
 import com.project.young.productservice.application.dto.result.UpdateProductVariantResult;
 import com.project.young.productservice.application.service.ProductApplicationService;
@@ -24,6 +25,7 @@ import com.project.young.productservice.web.dto.AddProductOptionValueToGroupResp
 import com.project.young.productservice.web.dto.AddProductVariantResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
+import com.project.young.productservice.web.dto.DeleteProductVariantResponse;
 import com.project.young.productservice.web.dto.ReorderProductOptionGroupsResponse;
 import com.project.young.productservice.web.dto.UpdateProductVariantResponse;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
@@ -363,6 +365,40 @@ class AdminProductCompositionControllerTest {
             mockMvc.perform(delete("/admin/products/{productId}/option-values/{productOptionValueId}", productId, valueId)
                             .with(csrf()))
                     .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("DELETED"));
+        }
+    }
+
+    @Nested
+    @DisplayName("DELETE /admin/products/{productId}/variants/{productVariantId}")
+    class DeleteVariantTests {
+        @Test
+        @DisplayName("ADMIN이면 200과 본문 반환")
+        @WithMockUser(authorities = "ADMIN")
+        void withAdmin_Returns200() throws Exception {
+            UUID productId = UUID.randomUUID();
+            UUID variantId = UUID.randomUUID();
+            DeleteProductVariantResult result = DeleteProductVariantResult.builder()
+                    .productId(productId)
+                    .productVariantId(variantId)
+                    .sku("PRD-TEST-SKU")
+                    .status(ProductStatus.DELETED)
+                    .build();
+            DeleteProductVariantResponse response = DeleteProductVariantResponse.builder()
+                    .productId(productId)
+                    .productVariantId(variantId)
+                    .sku("PRD-TEST-SKU")
+                    .status("DELETED")
+                    .message("ok")
+                    .build();
+
+            when(productApplicationService.deleteProductVariant(productId, variantId)).thenReturn(result);
+            when(productResponseMapper.toDeleteProductVariantResponse(result)).thenReturn(response);
+
+            mockMvc.perform(delete("/admin/products/{productId}/variants/{productVariantId}", productId, variantId)
+                            .with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.productVariantId").value(variantId.toString()))
                     .andExpect(jsonPath("$.status").value("DELETED"));
         }
     }
