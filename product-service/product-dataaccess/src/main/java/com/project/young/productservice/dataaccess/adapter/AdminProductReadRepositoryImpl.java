@@ -4,6 +4,7 @@ import com.project.young.productservice.application.dto.query.AdminProductDetail
 import com.project.young.productservice.application.dto.result.AdminProductDetailResult;
 import com.project.young.productservice.application.dto.condition.AdminProductSearchCondition;
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
+import com.project.young.productservice.application.port.output.view.ReadProductImageView;
 import com.project.young.productservice.application.port.output.view.ReadProductOptionGroupView;
 import com.project.young.productservice.application.port.output.view.ReadProductOptionValueView;
 import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
@@ -13,10 +14,14 @@ import com.project.young.productservice.dataaccess.entity.ProductOptionValueEnti
 import com.project.young.productservice.dataaccess.entity.ProductVariantEntity;
 import com.project.young.productservice.dataaccess.entity.VariantOptionValueEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.entity.ProductImageEntity;
+import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
+import com.project.young.productservice.dataaccess.enums.ProductImageRoleEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.projection.AdminProductListProjection;
 import com.project.young.productservice.dataaccess.repository.AdminProductJpaRepository;
 import com.project.young.productservice.dataaccess.repository.AdminProductSearchQueryRepository;
+import com.project.young.productservice.dataaccess.repository.ProductImageJpaRepository;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,6 +30,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -36,13 +42,16 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
     private final AdminProductJpaRepository adminProductJpaRepository;
     private final AdminProductSearchQueryRepository adminProductSearchQueryRepository;
     private final ProductDataAccessMapper productDataAccessMapper;
+    private final ProductImageJpaRepository productImageJpaRepository;
 
     public AdminProductReadRepositoryImpl(AdminProductJpaRepository adminProductJpaRepository,
                                           AdminProductSearchQueryRepository adminProductSearchQueryRepository,
-                                          ProductDataAccessMapper productDataAccessMapper) {
+                                          ProductDataAccessMapper productDataAccessMapper,
+                                          ProductImageJpaRepository productImageJpaRepository) {
         this.adminProductJpaRepository = adminProductJpaRepository;
         this.adminProductSearchQueryRepository = adminProductSearchQueryRepository;
         this.productDataAccessMapper = productDataAccessMapper;
+        this.productImageJpaRepository = productImageJpaRepository;
     }
 
     @Override
@@ -56,7 +65,17 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
         }
         adminProductJpaRepository.findAdminDetailWithVariantsById(query.id());
 
-        return optionLoaded.map(this::toAdminReadProductDetailView).orElseThrow();
+        ProductEntity entity = optionLoaded.orElseThrow();
+        List<ReadProductImageView> images = productImageJpaRepository
+                .findByProduct_IdAndStatusOrderBySortOrderAsc(entity.getId(), OptionStatusEntity.ACTIVE)
+                .stream()
+                .sorted(Comparator
+                        .comparing((ProductImageEntity e) -> e.getRole() == ProductImageRoleEntity.MAIN ? 0 : 1)
+                        .thenComparingInt(ProductImageEntity::getSortOrder))
+                .map(this::toReadProductImageView)
+                .toList();
+
+        return toAdminReadProductDetailView(entity, images);
     }
 
     @Override
@@ -126,7 +145,10 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 .build();
     }
 
-    private AdminProductDetailResult toAdminReadProductDetailView(ProductEntity entity) {
+    private AdminProductDetailResult toAdminReadProductDetailView(
+            ProductEntity entity,
+            List<ReadProductImageView> images
+    ) {
         Objects.requireNonNull(entity, "entity must not be null.");
 
         Long categoryId = entity.getCategory() != null ? entity.getCategory().getId() : null;
@@ -157,6 +179,17 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 .updatedAt(entity.getUpdatedAt())
                 .optionGroups(optionGroups)
                 .variants(variants)
+                .images(images)
+                .build();
+    }
+
+    private ReadProductImageView toReadProductImageView(ProductImageEntity e) {
+        return ReadProductImageView.builder()
+                .id(e.getId())
+                .publicUrl(e.getPublicUrl())
+                .role(e.getRole().name())
+                .status(e.getStatus().name())
+                .sortOrder(e.getSortOrder())
                 .build();
     }
 

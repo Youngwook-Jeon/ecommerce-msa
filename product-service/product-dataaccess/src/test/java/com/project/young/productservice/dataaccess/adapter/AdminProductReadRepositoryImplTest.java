@@ -12,8 +12,10 @@ import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.projection.AdminProductListProjection;
+import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.repository.AdminProductJpaRepository;
 import com.project.young.productservice.dataaccess.repository.AdminProductSearchQueryRepository;
+import com.project.young.productservice.dataaccess.repository.ProductImageJpaRepository;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +52,9 @@ class AdminProductReadRepositoryImplTest {
     @Mock
     private ProductDataAccessMapper productDataAccessMapper;
 
+    @Mock
+    private ProductImageJpaRepository productImageJpaRepository;
+
     @InjectMocks
     private AdminProductReadRepositoryImpl adminProductReadRepository;
 
@@ -83,6 +88,8 @@ class AdminProductReadRepositoryImplTest {
                 .thenReturn(java.util.Optional.of(productEntity));
         when(adminProductJpaRepository.findAdminDetailWithVariantsById(productId))
                 .thenReturn(java.util.Optional.of(productEntity));
+        when(productImageJpaRepository.findByProduct_IdAndStatusOrderBySortOrderAsc(productId, OptionStatusEntity.ACTIVE))
+                .thenReturn(java.util.List.of());
         when(productDataAccessMapper.toDomainStatus(ProductStatusEntity.ACTIVE))
                 .thenReturn(ProductStatus.ACTIVE);
         when(productDataAccessMapper.toDomainConditionType(ConditionTypeEntity.NEW))

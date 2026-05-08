@@ -30,7 +30,9 @@ public class UpdateProductCommand {
     @Size(min = 2, max = 100, message = "Brand must be between 2 and 100 characters.")
     private String brand;
 
-    @NotBlank(message = "Main image URL cannot be blank.")
+    /**
+     * When null, the existing main image URL is left unchanged.
+     */
     @Size(max = 500, message = "Main image URL is too long.")
     private String mainImageUrl;
 

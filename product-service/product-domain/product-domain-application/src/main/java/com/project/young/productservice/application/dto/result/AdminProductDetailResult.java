@@ -1,5 +1,6 @@
 package com.project.young.productservice.application.dto.result;
 
+import com.project.young.productservice.application.port.output.view.ReadProductImageView;
 import com.project.young.productservice.application.port.output.view.ReadProductOptionGroupView;
 import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
 import com.project.young.productservice.domain.valueobject.ConditionType;
@@ -25,10 +26,12 @@ public record AdminProductDetailResult(
         Instant createdAt,
         Instant updatedAt,
         List<ReadProductOptionGroupView> optionGroups,
-        List<ReadProductVariantView> variants
+        List<ReadProductVariantView> variants,
+        List<ReadProductImageView> images
 ) {
     public AdminProductDetailResult {
         optionGroups = optionGroups == null ? List.of() : optionGroups;
         variants = variants == null ? List.of() : variants;
+        images = images == null ? List.of() : images;
     }
 }

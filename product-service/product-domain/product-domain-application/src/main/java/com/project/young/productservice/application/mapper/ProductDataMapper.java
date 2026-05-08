@@ -39,6 +39,8 @@ import java.util.Set;
 @Component
 public class ProductDataMapper {
 
+    private static final String DEFAULT_MAIN_IMAGE_URL = "https://placehold.co/600x400?text=Product";
+
     public CreateProductResult toCreateProductResult(Product product) {
         Objects.requireNonNull(product, "Product cannot be null");
         Objects.requireNonNull(product.getId(), "Product ID cannot be null");
@@ -85,6 +87,9 @@ public class ProductDataMapper {
         Objects.requireNonNull(productId, "ProductId cannot be null");
 
         Money basePrice = new Money(command.getBasePrice());
+        String mainImageUrl = command.getMainImageUrl() == null || command.getMainImageUrl().isBlank()
+                ? DEFAULT_MAIN_IMAGE_URL
+                : command.getMainImageUrl();
 
         return Product.builder()
                 .productId(productId)
@@ -93,7 +98,7 @@ public class ProductDataMapper {
                 .description(command.getDescription())
                 .basePrice(basePrice)
                 .brand(command.getBrand())
-                .mainImageUrl(command.getMainImageUrl())
+                .mainImageUrl(mainImageUrl)
                 .conditionType(command.getConditionType())
                 .status(ProductStatus.DRAFT)
                 .build();

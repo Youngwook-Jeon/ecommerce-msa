@@ -35,7 +35,9 @@ public class CreateProductCommand {
     @Size(min = 2, max = 100, message = "Brand must be between 2 and 100 characters.")
     private String brand;
 
-    @NotBlank(message = "Main image URL cannot be blank.")
+    /**
+     * Optional at create time; when blank, server uses a default placeholder until images are uploaded.
+     */
     @Size(max = 500, message = "Main image URL is too long.")
     private String mainImageUrl;
 

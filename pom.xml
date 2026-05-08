@@ -31,6 +31,7 @@
         <querydsl.version>5.0.0</querydsl.version>
         <flyway.version>11.10.2</flyway.version>
         <uuid-generator.version>5.2.0</uuid-generator.version>
+        <s3.version>2.44.3</s3.version>
     </properties>
 
     <dependencies>
@@ -130,6 +131,11 @@
                 <groupId>com.fasterxml.uuid</groupId>
                 <artifactId>java-uuid-generator</artifactId>
                 <version>${uuid-generator.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>s3</artifactId>
+                <version>${s3.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

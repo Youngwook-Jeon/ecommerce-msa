@@ -1,6 +1,7 @@
 package com.project.young.productservice.web.mapper;
 
 import com.project.young.productservice.application.dto.result.AdminProductDetailResult;
+import com.project.young.productservice.application.port.output.view.ReadProductImageView;
 import com.project.young.productservice.application.port.output.view.ReadProductOptionGroupView;
 import com.project.young.productservice.application.port.output.view.ReadProductOptionValueView;
 import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
@@ -11,6 +12,7 @@ import com.project.young.productservice.web.converter.ProductStatusWebConverter;
 import com.project.young.productservice.web.dto.AdminProductDetailResponse;
 import com.project.young.productservice.web.dto.AdminProductListItemResponse;
 import com.project.young.productservice.web.dto.AdminProductPageResponse;
+import com.project.young.productservice.web.dto.ReadProductImageResponse;
 import com.project.young.productservice.web.dto.ReadProductOptionGroupResponse;
 import com.project.young.productservice.web.dto.ReadProductOptionValueResponse;
 import com.project.young.productservice.web.dto.ReadProductVariantResponse;
@@ -48,6 +50,17 @@ public class AdminProductQueryResponseMapper {
                 .updatedAt(result.updatedAt())
                 .optionGroups(result.optionGroups().stream().map(this::toReadProductOptionGroupResponse).toList())
                 .variants(result.variants().stream().map(this::toReadProductVariantResponse).toList())
+                .images(result.images().stream().map(this::toReadProductImageResponse).toList())
+                .build();
+    }
+
+    private ReadProductImageResponse toReadProductImageResponse(ReadProductImageView view) {
+        return ReadProductImageResponse.builder()
+                .id(view.id())
+                .publicUrl(view.publicUrl())
+                .role(view.role())
+                .status(view.status())
+                .sortOrder(view.sortOrder())
                 .build();
     }
 

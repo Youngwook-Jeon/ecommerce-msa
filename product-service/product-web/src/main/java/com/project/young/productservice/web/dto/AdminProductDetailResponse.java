@@ -21,10 +21,12 @@ public record AdminProductDetailResponse(
         Instant createdAt,
         Instant updatedAt,
         List<ReadProductOptionGroupResponse> optionGroups,
-        List<ReadProductVariantResponse> variants
+        List<ReadProductVariantResponse> variants,
+        List<ReadProductImageResponse> images
 ) {
     public AdminProductDetailResponse {
         optionGroups = optionGroups == null ? List.of() : optionGroups;
         variants = variants == null ? List.of() : variants;
+        images = images == null ? List.of() : images;
     }
 }

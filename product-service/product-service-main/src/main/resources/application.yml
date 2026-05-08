@@ -66,6 +66,15 @@ kafka-producer-config:
   request-timeout-ms: 60000
   retry-count: 5
 
+r2:
+  enabled: true
+  endpoint: ${R2_ENDPOINT}
+  region: auto
+  access-key-id: ${R2_ACCESS_KEY_ID}
+  secret-access-key: ${R2_SECRET_ACCESS_KEY}
+  bucket: ${R2_BUCKET}
+  public-base-url: ${R2_PUBLIC_BASE_URL}
+
 logging:
   level:
     org:

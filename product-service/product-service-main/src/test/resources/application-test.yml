@@ -28,6 +28,10 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+r2:
+  enabled: false
+  public-base-url: https://dev.invalid
+
 logging:
   level:
     org:
