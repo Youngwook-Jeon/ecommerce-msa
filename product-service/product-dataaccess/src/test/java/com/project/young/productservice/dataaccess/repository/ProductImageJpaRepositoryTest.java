@@ -144,6 +144,28 @@ class ProductImageJpaRepositoryTest {
         assertThat(reloaded.getStatus()).isEqualTo(OptionStatusEntity.DELETED);
     }
 
+    @Test
+    @DisplayName("updateSortOrder: ACTIVE 이미지의 sort_order를 변경한다")
+    void updateSortOrder_Works() {
+        ProductEntity product = testEntityManager.persistAndFlush(createProduct("상품4"));
+        ProductImageEntity image = testEntityManager.persistAndFlush(createImage(
+                product, "products/" + product.getId() + "/sort.jpg", ProductImageRoleEntity.GALLERY, 7, OptionStatusEntity.ACTIVE
+        ));
+
+        int updated = productImageJpaRepository.updateSortOrder(
+                image.getId(),
+                product.getId(),
+                1,
+                OptionStatusEntity.ACTIVE
+        );
+        testEntityManager.flush();
+        testEntityManager.clear();
+
+        ProductImageEntity reloaded = testEntityManager.find(ProductImageEntity.class, image.getId());
+        assertThat(updated).isEqualTo(1);
+        assertThat(reloaded.getSortOrder()).isEqualTo(1);
+    }
+
     @Configuration
     @Import(ProductDataAccessConfig.class)
     static class Config {

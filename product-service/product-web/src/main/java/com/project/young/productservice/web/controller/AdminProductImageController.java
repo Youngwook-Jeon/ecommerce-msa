@@ -2,14 +2,18 @@ package com.project.young.productservice.web.controller;
 
 import com.project.young.productservice.application.dto.command.CommitProductImageCommand;
 import com.project.young.productservice.application.dto.command.PresignProductImageUploadCommand;
+import com.project.young.productservice.application.dto.command.ReorderProductImagesCommand;
 import com.project.young.productservice.application.dto.result.CommitProductImageResult;
 import com.project.young.productservice.application.dto.result.PresignProductImageUploadResult;
+import com.project.young.productservice.application.dto.result.ReorderProductImagesResult;
 import com.project.young.productservice.application.service.ProductImageApplicationService;
 import com.project.young.productservice.domain.valueobject.ProductImageRole;
 import com.project.young.productservice.web.dto.ProductImageCommitRequest;
 import com.project.young.productservice.web.dto.ProductImageCommitResponse;
 import com.project.young.productservice.web.dto.ProductImagePresignRequest;
 import com.project.young.productservice.web.dto.ProductImagePresignResponse;
+import com.project.young.productservice.web.dto.ProductImageReorderRequest;
+import com.project.young.productservice.web.dto.ProductImageReorderResponse;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -86,22 +90,6 @@ public class AdminProductImageController {
                 .build());
     }
 
-    @PatchMapping("/{imageId}/set-main")
-    public ResponseEntity<ProductImageCommitResponse> setMain(
-            @PathVariable("productId") UUID productId,
-            @PathVariable("imageId") UUID imageId
-    ) {
-        log.info("REST set-main productId={}, imageId={}", productId, imageId);
-        CommitProductImageResult result = productImageApplicationService.setMainImage(productId, imageId);
-        return ResponseEntity.ok(ProductImageCommitResponse.builder()
-                .id(result.id())
-                .publicUrl(result.publicUrl())
-                .role(result.role())
-                .sortOrder(result.sortOrder())
-                .message("Main image updated.")
-                .build());
-    }
-
     @DeleteMapping("/{imageId}")
     public ResponseEntity<Void> delete(
             @PathVariable("productId") UUID productId,
@@ -110,6 +98,24 @@ public class AdminProductImageController {
         log.info("REST delete image productId={}, imageId={}", productId, imageId);
         productImageApplicationService.deleteImage(productId, imageId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/reorder")
+    public ResponseEntity<ProductImageReorderResponse> reorder(
+            @PathVariable("productId") UUID productId,
+            @Valid @RequestBody ProductImageReorderRequest request
+    ) {
+        log.info("REST reorder images productId={}", productId);
+        ReorderProductImagesCommand command = ReorderProductImagesCommand.builder()
+                .orderedImageIds(request.getOrderedImageIds())
+                .build();
+        ReorderProductImagesResult result = productImageApplicationService.reorderImages(productId, command);
+        return ResponseEntity.ok(ProductImageReorderResponse.builder()
+                .productId(result.productId())
+                .reorderedCount(result.reorderedCount())
+                .orderedImageIds(result.orderedImageIds())
+                .message("Images reordered.")
+                .build());
     }
 
     private static ProductImageRole parseRole(String raw) {

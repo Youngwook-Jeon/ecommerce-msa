@@ -118,6 +118,16 @@ public class ProductImagePersistenceAdapter implements ProductImagePersistencePo
         }
     }
 
+    @Override
+    public int updateSortOrder(UUID imageId, UUID productId, int sortOrder) {
+        return productImageJpaRepository.updateSortOrder(
+                imageId,
+                productId,
+                sortOrder,
+                OptionStatusEntity.ACTIVE
+        );
+    }
+
     private ProductImageRow toRow(ProductImageEntity e) {
         return new ProductImageRow(
                 e.getId(),

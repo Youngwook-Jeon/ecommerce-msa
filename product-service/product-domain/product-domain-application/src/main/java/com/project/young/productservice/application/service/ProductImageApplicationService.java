@@ -3,8 +3,10 @@ package com.project.young.productservice.application.service;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.dto.command.CommitProductImageCommand;
 import com.project.young.productservice.application.dto.command.PresignProductImageUploadCommand;
+import com.project.young.productservice.application.dto.command.ReorderProductImagesCommand;
 import com.project.young.productservice.application.dto.result.CommitProductImageResult;
 import com.project.young.productservice.application.dto.result.PresignProductImageUploadResult;
+import com.project.young.productservice.application.dto.result.ReorderProductImagesResult;
 import com.project.young.productservice.application.port.output.ProductImagePersistencePort;
 import com.project.young.productservice.application.port.output.ProductImageStoragePort;
 import com.project.young.productservice.domain.entity.Product;
@@ -25,6 +27,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.HashSet;
 
 @Service
 @Slf4j
@@ -192,68 +195,91 @@ public class ProductImageApplicationService {
     }
 
     @Transactional
-    public CommitProductImageResult setMainImage(UUID productId, UUID imageId) {
-        Product product = findProductOrThrow(productId);
-        if (product.isDeleted()) {
-            throw new ProductDomainException("Cannot change main image of a deleted product.");
-        }
+    public void deleteImage(UUID productId, UUID imageId) {
+        executeWithMainImagePolicy(productId, "delete images", product -> {
+            productImagePersistence.findActiveByIdAndProduct(imageId, productId)
+                    .orElseThrow(() -> new ProductDomainException("Product image not found."));
 
-        ProductImagePersistencePort.ProductImageRow row = productImagePersistence.findActiveByIdAndProduct(imageId, productId)
-                .orElseThrow(() -> new ProductDomainException("Product image not found."));
-
-        if (row.role() == ProductImageRole.MAIN) {
-            return CommitProductImageResult.builder()
-                    .id(row.id())
-                    .publicUrl(row.publicUrl())
-                    .role(ProductImageRole.MAIN.name())
-                    .sortOrder(row.sortOrder())
-                    .build();
-        }
-
-        productImagePersistence.demoteActiveMainsToGallery(productId);
-        productImagePersistence.updateRole(imageId, productId, ProductImageRole.MAIN);
-        product.changeMainImageUrl(row.publicUrl());
-        productRepository.update(product);
-
-        return CommitProductImageResult.builder()
-                .id(imageId)
-                .publicUrl(row.publicUrl())
-                .role(ProductImageRole.MAIN.name())
-                .sortOrder(row.sortOrder())
-                .build();
+            int deleted = productImagePersistence.softDelete(imageId, productId);
+            if (deleted == 0) {
+                throw new ProductDomainException("Product image not found or already deleted.");
+            }
+            return null;
+        });
     }
 
     @Transactional
-    public void deleteImage(UUID productId, UUID imageId) {
+    public ReorderProductImagesResult reorderImages(UUID productId, ReorderProductImagesCommand command) {
+        return executeWithMainImagePolicy(productId, "reorder images", product -> {
+            if (command == null || command.getOrderedImageIds() == null) {
+                throw new ProductDomainException("orderedImageIds is required.");
+            }
+            List<UUID> requested = command.getOrderedImageIds();
+            List<ProductImagePersistencePort.ProductImageRow> activeRows = productImagePersistence.findAllActiveByProductId(productId);
+            List<UUID> activeIds = activeRows.stream().map(ProductImagePersistencePort.ProductImageRow::id).toList();
+
+            if (requested.size() != new HashSet<>(requested).size()) {
+                throw new ProductDomainException("orderedImageIds contains duplicates.");
+            }
+            if (requested.size() != activeIds.size()) {
+                throw new ProductDomainException("orderedImageIds must include all active product images.");
+            }
+            if (!new HashSet<>(requested).equals(new HashSet<>(activeIds))) {
+                throw new ProductDomainException("orderedImageIds must match active product images exactly.");
+            }
+
+            for (int i = 0; i < requested.size(); i++) {
+                UUID imageId = requested.get(i);
+                int updated = productImagePersistence.updateSortOrder(imageId, productId, i);
+                if (updated == 0) {
+                    throw new ProductDomainException("Failed to update image sort order: " + imageId);
+                }
+            }
+
+            return ReorderProductImagesResult.builder()
+                    .productId(productId)
+                    .reorderedCount(requested.size())
+                    .orderedImageIds(List.copyOf(requested))
+                    .build();
+        });
+    }
+
+    private <T> T executeWithMainImagePolicy(UUID productId, String actionName, ImageMutation<T> mutation) {
         Product product = findProductOrThrow(productId);
         if (product.isDeleted()) {
-            throw new ProductDomainException("Cannot delete images of a deleted product.");
+            throw new ProductDomainException("Cannot " + actionName + " of a deleted product.");
         }
+        T result = mutation.apply(product);
+        applyFirstActiveImageAsMainPolicy(productId, product);
+        return result;
+    }
 
-        ProductImagePersistencePort.ProductImageRow row = productImagePersistence.findActiveByIdAndProduct(imageId, productId)
-                .orElseThrow(() -> new ProductDomainException("Product image not found."));
+    /**
+     * Shared post-action policy:
+     * after delete/reorder, the first active image by sortOrder is always MAIN.
+     */
+    private void applyFirstActiveImageAsMainPolicy(UUID productId, Product product) {
+        List<ProductImagePersistencePort.ProductImageRow> activeRows = productImagePersistence.findAllActiveByProductId(productId)
+                .stream()
+                .sorted(Comparator.comparingInt(ProductImagePersistencePort.ProductImageRow::sortOrder))
+                .toList();
 
-        boolean wasMain = row.role() == ProductImageRole.MAIN;
-        int deleted = productImagePersistence.softDelete(imageId, productId);
-        if (deleted == 0) {
-            throw new ProductDomainException("Product image not found or already deleted.");
-        }
-
-        if (wasMain) {
-            List<ProductImagePersistencePort.ProductImageRow> remaining = productImagePersistence.findAllActiveByProductId(productId);
-            Optional<ProductImagePersistencePort.ProductImageRow> nextGallery = remaining.stream()
-                    .filter(r -> r.role() == ProductImageRole.GALLERY)
-                    .min(Comparator.comparingInt(ProductImagePersistencePort.ProductImageRow::sortOrder));
-
-            if (nextGallery.isPresent()) {
-                ProductImagePersistencePort.ProductImageRow pick = nextGallery.get();
-                productImagePersistence.updateRole(pick.id(), productId, ProductImageRole.MAIN);
-                product.changeMainImageUrl(pick.publicUrl());
-            } else {
-                product.changeMainImageUrl(DEFAULT_PRODUCT_IMAGE_URL);
-            }
+        if (activeRows.isEmpty()) {
+            product.changeMainImageUrl(DEFAULT_PRODUCT_IMAGE_URL);
             productRepository.update(product);
+            return;
         }
+
+        ProductImagePersistencePort.ProductImageRow first = activeRows.getFirst();
+        productImagePersistence.demoteActiveMainsToGallery(productId);
+        productImagePersistence.updateRole(first.id(), productId, ProductImageRole.MAIN);
+        product.changeMainImageUrl(first.publicUrl());
+        productRepository.update(product);
+    }
+
+    @FunctionalInterface
+    private interface ImageMutation<T> {
+        T apply(Product product);
     }
 
     private Product findProductOrThrow(UUID productId) {

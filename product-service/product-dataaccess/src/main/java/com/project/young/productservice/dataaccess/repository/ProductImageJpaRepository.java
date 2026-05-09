@@ -69,4 +69,17 @@ public interface ProductImageJpaRepository extends JpaRepository<ProductImageEnt
             @Param("newRole") ProductImageRoleEntity newRole,
             @Param("active") OptionStatusEntity active
     );
+
+    @Modifying
+    @Query("""
+            UPDATE ProductImageEntity img
+            SET img.sortOrder = :sortOrder
+            WHERE img.id = :id AND img.product.id = :productId AND img.status = :active
+            """)
+    int updateSortOrder(
+            @Param("id") UUID id,
+            @Param("productId") UUID productId,
+            @Param("sortOrder") int sortOrder,
+            @Param("active") OptionStatusEntity active
+    );
 }

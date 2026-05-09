@@ -3,7 +3,9 @@ package com.project.young.productservice.application.service;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.dto.command.CommitProductImageCommand;
+import com.project.young.productservice.application.dto.command.ReorderProductImagesCommand;
 import com.project.young.productservice.application.dto.result.CommitProductImageResult;
+import com.project.young.productservice.application.dto.result.ReorderProductImagesResult;
 import com.project.young.productservice.application.port.output.ProductImagePersistencePort;
 import com.project.young.productservice.application.port.output.ProductImageStoragePort;
 import com.project.young.productservice.domain.entity.Product;
@@ -32,6 +34,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class ProductImageApplicationServiceTest {
@@ -156,6 +159,88 @@ class ProductImageApplicationServiceTest {
         assertThat(result.id()).isEqualTo(imageId);
         assertThat(result.role()).isEqualTo("GALLERY");
         verify(productRepository, never()).update(product);
+    }
+
+    @Test
+    @DisplayName("reorderImages: 활성 이미지 전체 ID와 일치하면 순서를 재정렬한다")
+    void reorderImages_ReindexesAllActiveImages() {
+        UUID productId = UUID.randomUUID();
+        UUID img1 = UUID.randomUUID();
+        UUID img2 = UUID.randomUUID();
+        Product product = createProduct(productId, ProductStatus.DRAFT);
+
+        when(productRepository.findById(any(ProductId.class))).thenReturn(Optional.of(product));
+        doReturn(
+                java.util.List.of(
+                        new ProductImagePersistencePort.ProductImageRow(img1, "products/1.jpg", "https://pub/1.jpg", ProductImageRole.MAIN, 0),
+                        new ProductImagePersistencePort.ProductImageRow(img2, "products/2.jpg", "https://pub/2.jpg", ProductImageRole.GALLERY, 1)
+                ),
+                java.util.List.of(
+                        new ProductImagePersistencePort.ProductImageRow(img2, "products/2.jpg", "https://pub/2.jpg", ProductImageRole.GALLERY, 0),
+                        new ProductImagePersistencePort.ProductImageRow(img1, "products/1.jpg", "https://pub/1.jpg", ProductImageRole.MAIN, 1)
+                )
+        ).when(productImagePersistence).findAllActiveByProductId(productId);
+        when(productImagePersistence.updateSortOrder(img2, productId, 0)).thenReturn(1);
+        when(productImagePersistence.updateSortOrder(img1, productId, 1)).thenReturn(1);
+
+        ReorderProductImagesCommand command = ReorderProductImagesCommand.builder()
+                .orderedImageIds(java.util.List.of(img2, img1))
+                .build();
+
+        ReorderProductImagesResult result = productImageApplicationService.reorderImages(productId, command);
+
+        assertThat(result.productId()).isEqualTo(productId);
+        assertThat(result.reorderedCount()).isEqualTo(2);
+        verify(productImagePersistence).updateSortOrder(img2, productId, 0);
+        verify(productImagePersistence).updateSortOrder(img1, productId, 1);
+        verify(productImagePersistence).demoteActiveMainsToGallery(productId);
+        verify(productImagePersistence).updateRole(img2, productId, ProductImageRole.MAIN);
+        verify(productRepository).update(product);
+    }
+
+    @Test
+    @DisplayName("reorderImages: 활성 이미지 전체를 포함하지 않으면 예외를 던진다")
+    void reorderImages_ThrowsWhenIdsDoNotMatchActiveSet() {
+        UUID productId = UUID.randomUUID();
+        UUID img1 = UUID.randomUUID();
+        UUID img2 = UUID.randomUUID();
+        Product product = createProduct(productId, ProductStatus.DRAFT);
+
+        when(productRepository.findById(any(ProductId.class))).thenReturn(Optional.of(product));
+        when(productImagePersistence.findAllActiveByProductId(productId)).thenReturn(java.util.List.of(
+                new ProductImagePersistencePort.ProductImageRow(img1, "products/1.jpg", "https://pub/1.jpg", ProductImageRole.MAIN, 0),
+                new ProductImagePersistencePort.ProductImageRow(img2, "products/2.jpg", "https://pub/2.jpg", ProductImageRole.GALLERY, 1)
+        ));
+
+        ReorderProductImagesCommand command = ReorderProductImagesCommand.builder()
+                .orderedImageIds(java.util.List.of(img1))
+                .build();
+
+        assertThatThrownBy(() -> productImageApplicationService.reorderImages(productId, command))
+                .isInstanceOf(ProductDomainException.class)
+                .hasMessageContaining("must include all active");
+    }
+
+    @Test
+    @DisplayName("deleteImage: 삭제 후 활성 이미지가 없으면 기본 메인 이미지로 복구한다")
+    void deleteImage_WhenNoActiveImagesLeft_SetsDefaultMainImage() {
+        UUID productId = UUID.randomUUID();
+        UUID imageId = UUID.randomUUID();
+        Product product = createProduct(productId, ProductStatus.DRAFT);
+
+        when(productRepository.findById(any(ProductId.class))).thenReturn(Optional.of(product));
+        when(productImagePersistence.findActiveByIdAndProduct(imageId, productId))
+                .thenReturn(Optional.of(new ProductImagePersistencePort.ProductImageRow(
+                        imageId, "products/1.jpg", "https://pub/1.jpg", ProductImageRole.MAIN, 0
+                )));
+        when(productImagePersistence.softDelete(imageId, productId)).thenReturn(1);
+        when(productImagePersistence.findAllActiveByProductId(productId)).thenReturn(java.util.List.of());
+
+        productImageApplicationService.deleteImage(productId, imageId);
+
+        verify(productImagePersistence).softDelete(imageId, productId);
+        verify(productRepository, times(1)).update(product);
+        assertThat(product.getMainImageUrl()).isEqualTo(ProductImageApplicationService.DEFAULT_PRODUCT_IMAGE_URL);
     }
 
     private Product createProduct(UUID productId, ProductStatus status) {

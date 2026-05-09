@@ -155,4 +155,27 @@ class ProductImagePersistenceAdapterTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Failed to update image role");
     }
+
+    @Test
+    @DisplayName("updateSortOrder: ACTIVE 조건으로 정렬 인덱스를 갱신한다")
+    void updateSortOrder_DelegatesToRepository() {
+        UUID productId = UUID.randomUUID();
+        UUID imageId = UUID.randomUUID();
+        when(productImageJpaRepository.updateSortOrder(
+                imageId,
+                productId,
+                4,
+                OptionStatusEntity.ACTIVE
+        )).thenReturn(1);
+
+        int updated = adapter.updateSortOrder(imageId, productId, 4);
+
+        assertThat(updated).isEqualTo(1);
+        verify(productImageJpaRepository).updateSortOrder(
+                imageId,
+                productId,
+                4,
+                OptionStatusEntity.ACTIVE
+        );
+    }
 }

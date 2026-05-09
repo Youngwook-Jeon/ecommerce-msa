@@ -26,6 +26,8 @@ public interface ProductImagePersistencePort {
 
     void updateRole(UUID imageId, UUID productId, ProductImageRole newRole);
 
+    int updateSortOrder(UUID imageId, UUID productId, int sortOrder);
+
     record ProductImageRow(
             UUID id,
             String storageKey,

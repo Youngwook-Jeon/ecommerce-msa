@@ -3,10 +3,12 @@ package com.project.young.productservice.web.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.productservice.application.dto.result.CommitProductImageResult;
 import com.project.young.productservice.application.dto.result.PresignProductImageUploadResult;
+import com.project.young.productservice.application.dto.result.ReorderProductImagesResult;
 import com.project.young.productservice.application.service.ProductImageApplicationService;
 import com.project.young.productservice.web.config.SecurityConfig;
 import com.project.young.productservice.web.dto.ProductImageCommitRequest;
 import com.project.young.productservice.web.dto.ProductImagePresignRequest;
+import com.project.young.productservice.web.dto.ProductImageReorderRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -122,32 +125,6 @@ class AdminProductImageControllerTest {
     }
 
     @Nested
-    class SetMainTests {
-
-        @Test
-        @DisplayName("ADMIN set-main 200")
-        @WithMockUser(authorities = "ADMIN")
-        void setMain_ok() throws Exception {
-            UUID productId = UUID.randomUUID();
-            UUID imageId = UUID.randomUUID();
-            when(productImageApplicationService.setMainImage(productId, imageId))
-                    .thenReturn(CommitProductImageResult.builder()
-                            .id(imageId)
-                            .publicUrl("https://pub/x.jpg")
-                            .role("MAIN")
-                            .sortOrder(0)
-                            .build());
-
-            mockMvc.perform(patch("/admin/products/{productId}/images/{imageId}/set-main", productId, imageId)
-                            .with(csrf()))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.id").value(imageId.toString()));
-
-            verify(productImageApplicationService).setMainImage(productId, imageId);
-        }
-    }
-
-    @Nested
     class DeleteTests {
 
         @Test
@@ -162,6 +139,39 @@ class AdminProductImageControllerTest {
                     .andExpect(status().isNoContent());
 
             verify(productImageApplicationService).deleteImage(productId, imageId);
+        }
+    }
+
+    @Nested
+    class ReorderTests {
+
+        @Test
+        @DisplayName("ADMIN reorder images 200")
+        @WithMockUser(authorities = "ADMIN")
+        void reorder_ok() throws Exception {
+            UUID productId = UUID.randomUUID();
+            UUID image1 = UUID.randomUUID();
+            UUID image2 = UUID.randomUUID();
+            when(productImageApplicationService.reorderImages(eq(productId), any()))
+                    .thenReturn(ReorderProductImagesResult.builder()
+                            .productId(productId)
+                            .reorderedCount(2)
+                            .orderedImageIds(List.of(image2, image1))
+                            .build());
+
+            ProductImageReorderRequest body = ProductImageReorderRequest.builder()
+                    .orderedImageIds(List.of(image2, image1))
+                    .build();
+
+            mockMvc.perform(patch("/admin/products/{productId}/images/reorder", productId)
+                            .with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(body)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.productId").value(productId.toString()))
+                    .andExpect(jsonPath("$.reorderedCount").value(2));
+
+            verify(productImageApplicationService).reorderImages(eq(productId), any());
         }
     }
 }
