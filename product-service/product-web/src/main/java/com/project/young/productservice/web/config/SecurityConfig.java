@@ -43,7 +43,8 @@ public class SecurityConfig {
                         "/categories/**",
                         "/queries/categories/hierarchy",
                         "/queries/products/**",
-                        "/queries/option-groups/**"
+                        "/queries/option-groups/**",
+                        "/public/**"
                 ).permitAll()
                 .anyRequest().authenticated());
 

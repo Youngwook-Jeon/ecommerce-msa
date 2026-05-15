@@ -61,9 +61,11 @@ public class SecurityConfig {
             @Value("${gateway-uri}") URI gatewayUri,
             @Value("${pre-authorization-status:FOUND}") HttpStatus preAuthorizationStatus,
             @Value("${post-authorization-status:FOUND}") HttpStatus postAuthorizationStatus,
-            @Value("${post-logout-redirect-uri}") String postLogoutRedirectUri) {
+            @Value("${post-logout-redirect-uri}") String postLogoutRedirectUri,
+            @Value("${api-version:v1}") String apiVersion) {
 
         http.authorizeExchange(auth -> auth
+                .pathMatchers(HttpMethod.GET, PublicApiPaths.productPublic(apiVersion)).permitAll()
                 .pathMatchers("/dashboard/admin/**").hasAuthority("ADMIN")
 //                .pathMatchers("/profile/**").authenticated()
                 .anyExchange().permitAll()

@@ -1,4 +1,4 @@
-package com.project.young.productservice.web.controller;
+package com.project.young.productservice.web;
 
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
