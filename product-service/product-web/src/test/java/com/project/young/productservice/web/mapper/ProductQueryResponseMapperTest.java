@@ -71,6 +71,7 @@ class ProductQueryResponseMapperTest {
                                     .optionGroupId(UUID.randomUUID())
                                     .stepOrder(1)
                                     .required(true)
+                                    .drivesVariantImages(false)
                                     .status(OptionStatus.ACTIVE)
                                     .optionValues(List.of(
                                             ReadProductOptionValueView.builder()

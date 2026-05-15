@@ -9,6 +9,7 @@ import com.project.young.productservice.application.dto.result.PresignProductIma
 import com.project.young.productservice.application.dto.result.ReorderProductImagesResult;
 import com.project.young.productservice.application.port.output.ProductImagePersistencePort;
 import com.project.young.productservice.application.port.output.ProductImageStoragePort;
+import com.project.young.productservice.application.port.output.VariantMainImageSyncPort;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.exception.ProductDomainException;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
@@ -45,15 +46,18 @@ public class ProductImageApplicationService {
     private final ProductRepository productRepository;
     private final ProductImagePersistencePort productImagePersistence;
     private final ProductImageStoragePort productImageStorage;
+    private final VariantMainImageSyncPort variantMainImageSyncPort;
 
     public ProductImageApplicationService(
             ProductRepository productRepository,
             ProductImagePersistencePort productImagePersistence,
-            ProductImageStoragePort productImageStorage
+            ProductImageStoragePort productImageStorage,
+            VariantMainImageSyncPort variantMainImageSyncPort
     ) {
         this.productRepository = productRepository;
         this.productImagePersistence = productImagePersistence;
         this.productImageStorage = productImageStorage;
+        this.variantMainImageSyncPort = variantMainImageSyncPort;
     }
 
     @Transactional(readOnly = true)
@@ -152,6 +156,7 @@ public class ProductImageApplicationService {
         if (command.getRole() == ProductImageRole.MAIN) {
             product.changeMainImageUrl(publicUrl);
             productRepository.update(product);
+            variantMainImageSyncPort.syncAllForProduct(productId);
         }
 
         return CommitProductImageResult.builder()
@@ -267,6 +272,7 @@ public class ProductImageApplicationService {
         if (activeRows.isEmpty()) {
             product.changeMainImageUrl(DEFAULT_PRODUCT_IMAGE_URL);
             productRepository.update(product);
+            variantMainImageSyncPort.syncAllForProduct(productId);
             return;
         }
 
@@ -275,6 +281,7 @@ public class ProductImageApplicationService {
         productImagePersistence.updateRole(first.id(), productId, ProductImageRole.MAIN);
         product.changeMainImageUrl(first.publicUrl());
         productRepository.update(product);
+        variantMainImageSyncPort.syncAllForProduct(productId);
     }
 
     @FunctionalInterface

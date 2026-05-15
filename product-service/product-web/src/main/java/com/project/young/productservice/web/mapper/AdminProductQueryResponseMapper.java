@@ -74,6 +74,7 @@ public class AdminProductQueryResponseMapper {
                 .optionGroupId(view.optionGroupId())
                 .stepOrder(view.stepOrder())
                 .required(view.required())
+                .drivesVariantImages(view.drivesVariantImages())
                 .status(optionStatusWebConverter.toStringValue(view.status()))
                 .optionValues(view.optionValues().stream().map(this::toReadProductOptionValueResponse).toList())
                 .build();
@@ -86,6 +87,7 @@ public class AdminProductQueryResponseMapper {
                 .priceDelta(view.priceDelta())
                 .isDefault(view.isDefault())
                 .status(optionStatusWebConverter.toStringValue(view.status()))
+                .images(view.images().stream().map(this::toReadProductImageResponse).toList())
                 .build();
     }
 
@@ -96,6 +98,7 @@ public class AdminProductQueryResponseMapper {
                 .stockQuantity(view.stockQuantity())
                 .status(productStatusWebConverter.toStringValue(view.status()))
                 .calculatedPrice(view.calculatedPrice())
+                .mainImageUrl(view.mainImageUrl())
                 .selectedProductOptionValueIds(view.selectedProductOptionValueIds())
                 .build();
     }

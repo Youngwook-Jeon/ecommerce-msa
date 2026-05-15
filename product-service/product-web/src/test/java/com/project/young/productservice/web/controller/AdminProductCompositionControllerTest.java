@@ -17,6 +17,7 @@ import com.project.young.productservice.application.dto.result.DeleteProductVari
 import com.project.young.productservice.application.dto.result.ReorderProductOptionGroupsResult;
 import com.project.young.productservice.application.dto.result.UpdateProductVariantResult;
 import com.project.young.productservice.application.service.ProductApplicationService;
+import com.project.young.productservice.application.service.ProductOptionGroupVisualApplicationService;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import com.project.young.productservice.web.config.SecurityConfig;
@@ -68,6 +69,9 @@ class AdminProductCompositionControllerTest {
 
     @MockitoBean
     private ProductApplicationService productApplicationService;
+
+    @MockitoBean
+    private ProductOptionGroupVisualApplicationService productOptionGroupVisualApplicationService;
 
     @MockitoBean
     private ProductResponseMapper productResponseMapper;

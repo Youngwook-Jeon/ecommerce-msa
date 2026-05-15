@@ -157,6 +157,7 @@ public class ProductReadRepositoryImpl implements ProductReadRepository {
                 .optionGroupId(entity.getOptionGroupId())
                 .stepOrder(entity.getStepOrder())
                 .required(entity.isRequired())
+                .drivesVariantImages(entity.isDrivesVariantImages())
                 .status(productDataAccessMapper.toDomainOptionStatus(entity.getStatus()))
                 .optionValues(optionValues)
                 .build();
@@ -185,6 +186,7 @@ public class ProductReadRepositoryImpl implements ProductReadRepository {
                 .stockQuantity(entity.getStockQuantity())
                 .status(productDataAccessMapper.toDomainStatus(entity.getStatus()))
                 .calculatedPrice(entity.getCalculatedPrice())
+                .mainImageUrl(entity.getMainImageUrl())
                 .selectedProductOptionValueIds(selectedOptionIds)
                 .build();
     }

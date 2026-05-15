@@ -13,6 +13,7 @@ public record ReadProductVariantResponse(
         int stockQuantity,
         String status,
         BigDecimal calculatedPrice,
+        String mainImageUrl,
         List<UUID> selectedProductOptionValueIds
 ) {
     public ReadProductVariantResponse {

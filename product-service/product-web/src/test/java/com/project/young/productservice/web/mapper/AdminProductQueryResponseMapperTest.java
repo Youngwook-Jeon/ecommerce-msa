@@ -106,6 +106,7 @@ class AdminProductQueryResponseMapperTest {
                 .optionGroupId(ogId)
                 .stepOrder(1)
                 .required(true)
+                .drivesVariantImages(false)
                 .status(OptionStatus.ACTIVE)
                 .optionValues(List.of(valueView))
                 .build();
@@ -115,6 +116,7 @@ class AdminProductQueryResponseMapperTest {
                 .stockQuantity(10)
                 .status(ProductStatus.ACTIVE)
                 .calculatedPrice(new BigDecimal("100000"))
+                .mainImageUrl("https://example.com/x.jpg")
                 .selectedProductOptionValueIds(List.of(povId))
                 .build();
 

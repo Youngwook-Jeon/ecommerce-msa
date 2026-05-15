@@ -7,8 +7,12 @@ import com.project.young.productservice.application.dto.result.ReorderProductIma
 import com.project.young.productservice.application.service.ProductImageApplicationService;
 import com.project.young.productservice.web.config.SecurityConfig;
 import com.project.young.productservice.web.dto.ProductImageCommitRequest;
+import com.project.young.productservice.web.dto.ProductImageCommitResponse;
 import com.project.young.productservice.web.dto.ProductImagePresignRequest;
+import com.project.young.productservice.web.dto.ProductImagePresignResponse;
 import com.project.young.productservice.web.dto.ProductImageReorderRequest;
+import com.project.young.productservice.web.dto.ProductImageReorderResponse;
+import com.project.young.productservice.web.mapper.ProductImageResponseMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -49,6 +53,9 @@ class AdminProductImageControllerTest {
     @MockitoBean
     private ProductImageApplicationService productImageApplicationService;
 
+    @MockitoBean
+    private ProductImageResponseMapper productImageResponseMapper;
+
     @Nested
     class PresignTests {
 
@@ -57,15 +64,25 @@ class AdminProductImageControllerTest {
         @WithMockUser(authorities = "ADMIN")
         void presign_ok() throws Exception {
             UUID productId = UUID.randomUUID();
-            when(productImageApplicationService.presignUpload(eq(productId), any()))
-                    .thenReturn(PresignProductImageUploadResult.builder()
-                            .uploadUrl("https://example.com/put")
-                            .httpMethod("PUT")
-                            .headers(Map.of("Content-Type", "image/jpeg"))
-                            .objectKey("products/" + productId + "/2026/01/x.jpg")
-                            .publicUrl("https://pub/x.jpg")
-                            .expiresAt(Instant.parse("2026-01-01T00:00:00Z"))
-                            .build());
+            PresignProductImageUploadResult result = PresignProductImageUploadResult.builder()
+                    .uploadUrl("https://example.com/put")
+                    .httpMethod("PUT")
+                    .headers(Map.of("Content-Type", "image/jpeg"))
+                    .objectKey("products/" + productId + "/2026/01/x.jpg")
+                    .publicUrl("https://pub/x.jpg")
+                    .expiresAt(Instant.parse("2026-01-01T00:00:00Z"))
+                    .build();
+            ProductImagePresignResponse response = ProductImagePresignResponse.builder()
+                    .uploadUrl(result.uploadUrl())
+                    .httpMethod(result.httpMethod())
+                    .headers(result.headers())
+                    .objectKey(result.objectKey())
+                    .publicUrl(result.publicUrl())
+                    .expiresAt(result.expiresAt())
+                    .build();
+
+            when(productImageApplicationService.presignUpload(eq(productId), any())).thenReturn(result);
+            when(productImageResponseMapper.toProductImagePresignResponse(result)).thenReturn(response);
 
             ProductImagePresignRequest body = ProductImagePresignRequest.builder()
                     .fileName("a.jpg")
@@ -84,6 +101,7 @@ class AdminProductImageControllerTest {
                     .andExpect(jsonPath("$.uploadUrl").value("https://example.com/put"));
 
             verify(productImageApplicationService).presignUpload(eq(productId), any());
+            verify(productImageResponseMapper).toProductImagePresignResponse(result);
         }
     }
 
@@ -96,13 +114,22 @@ class AdminProductImageControllerTest {
         void commit_created() throws Exception {
             UUID productId = UUID.randomUUID();
             UUID imageId = UUID.randomUUID();
-            when(productImageApplicationService.commitUpload(eq(productId), any()))
-                    .thenReturn(CommitProductImageResult.builder()
-                            .id(imageId)
-                            .publicUrl("https://pub/x.jpg")
-                            .role("MAIN")
-                            .sortOrder(0)
-                            .build());
+            CommitProductImageResult result = CommitProductImageResult.builder()
+                    .id(imageId)
+                    .publicUrl("https://pub/x.jpg")
+                    .role("MAIN")
+                    .sortOrder(0)
+                    .build();
+            ProductImageCommitResponse response = ProductImageCommitResponse.builder()
+                    .id(imageId)
+                    .publicUrl("https://pub/x.jpg")
+                    .role("MAIN")
+                    .sortOrder(0)
+                    .message("Image committed successfully")
+                    .build();
+
+            when(productImageApplicationService.commitUpload(eq(productId), any())).thenReturn(result);
+            when(productImageResponseMapper.toProductImageCommitResponse(result)).thenReturn(response);
 
             ProductImageCommitRequest body = ProductImageCommitRequest.builder()
                     .objectKey("products/" + productId + "/2026/01/x.jpg")
@@ -121,6 +148,7 @@ class AdminProductImageControllerTest {
                     .andExpect(jsonPath("$.role").value("MAIN"));
 
             verify(productImageApplicationService).commitUpload(eq(productId), any());
+            verify(productImageResponseMapper).toProductImageCommitResponse(result);
         }
     }
 
@@ -152,12 +180,20 @@ class AdminProductImageControllerTest {
             UUID productId = UUID.randomUUID();
             UUID image1 = UUID.randomUUID();
             UUID image2 = UUID.randomUUID();
-            when(productImageApplicationService.reorderImages(eq(productId), any()))
-                    .thenReturn(ReorderProductImagesResult.builder()
-                            .productId(productId)
-                            .reorderedCount(2)
-                            .orderedImageIds(List.of(image2, image1))
-                            .build());
+            ReorderProductImagesResult result = ReorderProductImagesResult.builder()
+                    .productId(productId)
+                    .reorderedCount(2)
+                    .orderedImageIds(List.of(image2, image1))
+                    .build();
+            ProductImageReorderResponse response = ProductImageReorderResponse.builder()
+                    .productId(productId)
+                    .reorderedCount(2)
+                    .orderedImageIds(List.of(image2, image1))
+                    .message("Images reordered successfully")
+                    .build();
+
+            when(productImageApplicationService.reorderImages(eq(productId), any())).thenReturn(result);
+            when(productImageResponseMapper.toProductImageReorderResponse(result)).thenReturn(response);
 
             ProductImageReorderRequest body = ProductImageReorderRequest.builder()
                     .orderedImageIds(List.of(image2, image1))
@@ -172,6 +208,7 @@ class AdminProductImageControllerTest {
                     .andExpect(jsonPath("$.reorderedCount").value(2));
 
             verify(productImageApplicationService).reorderImages(eq(productId), any());
+            verify(productImageResponseMapper).toProductImageReorderResponse(result);
         }
     }
 }

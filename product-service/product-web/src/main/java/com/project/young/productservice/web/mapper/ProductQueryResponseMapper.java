@@ -79,6 +79,7 @@ public class ProductQueryResponseMapper {
                 .optionGroupId(view.optionGroupId())
                 .stepOrder(view.stepOrder())
                 .required(view.required())
+                .drivesVariantImages(view.drivesVariantImages())
                 .status(optionStatusWebConverter.toStringValue(view.status()))
                 .optionValues(view.optionValues().stream().map(this::toReadProductOptionValueResponse).toList())
                 .build();
@@ -91,6 +92,7 @@ public class ProductQueryResponseMapper {
                 .priceDelta(view.priceDelta())
                 .isDefault(view.isDefault())
                 .status(optionStatusWebConverter.toStringValue(view.status()))
+                .images(List.of())
                 .build();
     }
 
@@ -101,6 +103,7 @@ public class ProductQueryResponseMapper {
                 .stockQuantity(view.stockQuantity())
                 .status(productStatusWebConverter.toStringValue(view.status()))
                 .calculatedPrice(view.calculatedPrice())
+                .mainImageUrl(view.mainImageUrl())
                 .selectedProductOptionValueIds(view.selectedProductOptionValueIds())
                 .build();
     }

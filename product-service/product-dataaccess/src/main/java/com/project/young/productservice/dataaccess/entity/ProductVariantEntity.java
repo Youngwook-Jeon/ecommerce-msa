@@ -60,6 +60,9 @@ public class ProductVariantEntity {
     @Column(name = "calculated_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal calculatedPrice;
 
+    @Column(name = "main_image_url", length = 1000)
+    private String mainImageUrl;
+
     @Builder.Default
     @OneToMany(mappedBy = "variant", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
     private Set<VariantOptionValueEntity> selectedOptionValues = new HashSet<>();

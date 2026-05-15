@@ -8,6 +8,7 @@ import com.project.young.productservice.application.dto.result.CommitProductImag
 import com.project.young.productservice.application.dto.result.ReorderProductImagesResult;
 import com.project.young.productservice.application.port.output.ProductImagePersistencePort;
 import com.project.young.productservice.application.port.output.ProductImageStoragePort;
+import com.project.young.productservice.application.port.output.VariantMainImageSyncPort;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.exception.ProductDomainException;
 import com.project.young.productservice.domain.repository.ProductRepository;
@@ -47,6 +48,9 @@ class ProductImageApplicationServiceTest {
 
     @Mock
     private ProductImageStoragePort productImageStorage;
+
+    @Mock
+    private VariantMainImageSyncPort variantMainImageSyncPort;
 
     @InjectMocks
     private ProductImageApplicationService productImageApplicationService;

@@ -5,6 +5,7 @@ import com.project.young.productservice.application.dto.command.*;
 import com.project.young.productservice.application.dto.result.*;
 import com.project.young.productservice.application.mapper.ProductDataMapper;
 import com.project.young.productservice.application.port.output.IdGenerator;
+import com.project.young.productservice.application.port.output.VariantMainImageSyncPort;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.entity.ProductOptionGroup;
 import com.project.young.productservice.domain.entity.ProductOptionValue;
@@ -31,15 +32,18 @@ public class ProductApplicationService {
     private final ProductDomainService productDomainService;
     private final ProductDataMapper productDataMapper;
     private final IdGenerator idGenerator;
+    private final VariantMainImageSyncPort variantMainImageSyncPort;
 
     public ProductApplicationService(ProductRepository productRepository,
                                      ProductDomainService productDomainService,
                                      ProductDataMapper productDataMapper,
-                                     IdGenerator idGenerator) {
+                                     IdGenerator idGenerator,
+                                     VariantMainImageSyncPort variantMainImageSyncPort) {
         this.productRepository = productRepository;
         this.productDomainService = productDomainService;
         this.productDataMapper = productDataMapper;
         this.idGenerator = idGenerator;
+        this.variantMainImageSyncPort = variantMainImageSyncPort;
     }
 
     @Transactional
@@ -281,6 +285,10 @@ public class ProductApplicationService {
         }
 
         productRepository.update(product);
+
+        for (AddProductVariantResult result : results) {
+            variantMainImageSyncPort.syncForVariant(result.productVariantId());
+        }
 
         return results;
     }

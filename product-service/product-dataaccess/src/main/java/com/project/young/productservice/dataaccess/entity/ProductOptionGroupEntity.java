@@ -43,6 +43,9 @@ public class ProductOptionGroupEntity {
     @Column(name = "is_required", nullable = false)
     private boolean isRequired;
 
+    @Column(name = "drives_variant_images", nullable = false)
+    private boolean drivesVariantImages;
+
     @Builder.Default
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)

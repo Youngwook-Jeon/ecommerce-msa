@@ -12,6 +12,7 @@ public record ReadProductOptionGroupView(
         UUID optionGroupId,
         double stepOrder,
         boolean required,
+        boolean drivesVariantImages,
         OptionStatus status,
         List<ReadProductOptionValueView> optionValues
 ) {

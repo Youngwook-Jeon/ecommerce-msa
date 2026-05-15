@@ -12,6 +12,7 @@ import com.project.young.productservice.application.dto.result.DeleteProductResu
 import com.project.young.productservice.application.dto.result.UpdateProductResult;
 import com.project.young.productservice.application.mapper.ProductDataMapper;
 import com.project.young.productservice.application.port.output.IdGenerator;
+import com.project.young.productservice.application.port.output.VariantMainImageSyncPort;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.entity.ProductVariant;
 import com.project.young.productservice.domain.exception.ProductDomainException;
@@ -52,6 +53,9 @@ class ProductApplicationServiceTest {
 
     @Mock
     private IdGenerator idGenerator;
+
+    @Mock
+    private VariantMainImageSyncPort variantMainImageSyncPort;
 
     @InjectMocks
     private ProductApplicationService productApplicationService;

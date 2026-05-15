@@ -16,6 +16,7 @@ import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.repository.AdminProductJpaRepository;
 import com.project.young.productservice.dataaccess.repository.AdminProductSearchQueryRepository;
 import com.project.young.productservice.dataaccess.repository.ProductImageJpaRepository;
+import com.project.young.productservice.dataaccess.repository.ProductOptionValueImageJpaRepository;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +55,9 @@ class AdminProductReadRepositoryImplTest {
 
     @Mock
     private ProductImageJpaRepository productImageJpaRepository;
+
+    @Mock
+    private ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository;
 
     @InjectMocks
     private AdminProductReadRepositoryImpl adminProductReadRepository;

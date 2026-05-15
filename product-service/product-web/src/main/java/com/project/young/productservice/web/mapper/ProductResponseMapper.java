@@ -12,6 +12,7 @@ import com.project.young.productservice.application.dto.result.DeleteProductVari
 import com.project.young.productservice.application.dto.result.UpdateProductResult;
 import com.project.young.productservice.application.dto.result.UpdateProductVariantResult;
 import com.project.young.productservice.application.dto.result.ReorderProductOptionGroupsResult;
+import com.project.young.productservice.application.dto.result.UpdateProductOptionGroupVisualResult;
 import com.project.young.productservice.web.converter.ConditionTypeWebConverter;
 import com.project.young.productservice.web.converter.OptionStatusWebConverter;
 import com.project.young.productservice.web.converter.ProductStatusWebConverter;
@@ -26,6 +27,7 @@ import com.project.young.productservice.web.dto.DeleteProductResponse;
 import com.project.young.productservice.web.dto.DeleteProductVariantResponse;
 import com.project.young.productservice.web.dto.UpdateProductResponse;
 import com.project.young.productservice.web.dto.ReorderProductOptionGroupsResponse;
+import com.project.young.productservice.web.dto.UpdateProductOptionGroupVisualResponse;
 import com.project.young.productservice.web.dto.UpdateProductVariantResponse;
 import com.project.young.productservice.web.message.ProductResponseMessageFactory;
 import org.springframework.stereotype.Component;
@@ -188,6 +190,17 @@ public class ProductResponseMapper {
                 .productId(result.productId())
                 .updatedCount(result.updatedCount())
                 .message(messageFactory.productOptionGroupsReordered())
+                .build();
+    }
+
+    public UpdateProductOptionGroupVisualResponse toUpdateProductOptionGroupVisualResponse(
+            UpdateProductOptionGroupVisualResult result
+    ) {
+        return UpdateProductOptionGroupVisualResponse.builder()
+                .productId(result.productId())
+                .productOptionGroupId(result.productOptionGroupId())
+                .drivesVariantImages(result.drivesVariantImages())
+                .message(messageFactory.productOptionGroupVisualUpdated())
                 .build();
     }
 }

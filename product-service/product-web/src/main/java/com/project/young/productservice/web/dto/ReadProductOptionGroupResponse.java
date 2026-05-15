@@ -11,6 +11,7 @@ public record ReadProductOptionGroupResponse(
         UUID optionGroupId,
         double stepOrder,
         boolean required,
+        boolean drivesVariantImages,
         String status,
         List<ReadProductOptionValueResponse> optionValues
 ) {

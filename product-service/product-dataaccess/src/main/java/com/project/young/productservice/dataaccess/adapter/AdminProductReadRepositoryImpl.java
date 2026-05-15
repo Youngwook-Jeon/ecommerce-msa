@@ -19,9 +19,11 @@ import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductImageRoleEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.projection.AdminProductListProjection;
+import com.project.young.productservice.dataaccess.entity.ProductOptionValueImageEntity;
 import com.project.young.productservice.dataaccess.repository.AdminProductJpaRepository;
 import com.project.young.productservice.dataaccess.repository.AdminProductSearchQueryRepository;
 import com.project.young.productservice.dataaccess.repository.ProductImageJpaRepository;
+import com.project.young.productservice.dataaccess.repository.ProductOptionValueImageJpaRepository;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -30,8 +32,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -43,15 +48,18 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
     private final AdminProductSearchQueryRepository adminProductSearchQueryRepository;
     private final ProductDataAccessMapper productDataAccessMapper;
     private final ProductImageJpaRepository productImageJpaRepository;
+    private final ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository;
 
     public AdminProductReadRepositoryImpl(AdminProductJpaRepository adminProductJpaRepository,
                                           AdminProductSearchQueryRepository adminProductSearchQueryRepository,
                                           ProductDataAccessMapper productDataAccessMapper,
-                                          ProductImageJpaRepository productImageJpaRepository) {
+                                          ProductImageJpaRepository productImageJpaRepository,
+                                          ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository) {
         this.adminProductJpaRepository = adminProductJpaRepository;
         this.adminProductSearchQueryRepository = adminProductSearchQueryRepository;
         this.productDataAccessMapper = productDataAccessMapper;
         this.productImageJpaRepository = productImageJpaRepository;
+        this.productOptionValueImageJpaRepository = productOptionValueImageJpaRepository;
     }
 
     @Override
@@ -75,7 +83,7 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 .map(this::toReadProductImageView)
                 .toList();
 
-        return toAdminReadProductDetailView(entity, images);
+        return toAdminReadProductDetailView(entity, images, loadOptionValueImages(entity));
     }
 
     @Override
@@ -147,7 +155,8 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
 
     private AdminProductDetailResult toAdminReadProductDetailView(
             ProductEntity entity,
-            List<ReadProductImageView> images
+            List<ReadProductImageView> images,
+            Map<UUID, List<ReadProductImageView>> optionValueImagesById
     ) {
         Objects.requireNonNull(entity, "entity must not be null.");
 
@@ -156,7 +165,7 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
         List<ReadProductOptionGroupView> optionGroups = entity.getOptionGroups() == null
                 ? List.of()
                 : entity.getOptionGroups().stream()
-                .map(this::toReadProductOptionGroupView)
+                .map(group -> toReadProductOptionGroupView(group, optionValueImagesById))
                 .toList();
 
         List<ReadProductVariantView> variants = entity.getVariants() == null
@@ -193,11 +202,14 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 .build();
     }
 
-    private ReadProductOptionGroupView toReadProductOptionGroupView(ProductOptionGroupEntity groupEntity) {
+    private ReadProductOptionGroupView toReadProductOptionGroupView(
+            ProductOptionGroupEntity groupEntity,
+            Map<UUID, List<ReadProductImageView>> optionValueImagesById
+    ) {
         List<ReadProductOptionValueView> optionValues = groupEntity.getOptionValues() == null
                 ? List.of()
                 : groupEntity.getOptionValues().stream()
-                .map(this::toReadProductOptionValueView)
+                .map(value -> toReadProductOptionValueView(value, optionValueImagesById))
                 .toList();
 
         return ReadProductOptionGroupView.builder()
@@ -205,18 +217,23 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 .optionGroupId(groupEntity.getOptionGroupId())
                 .stepOrder(groupEntity.getStepOrder())
                 .required(groupEntity.isRequired())
+                .drivesVariantImages(groupEntity.isDrivesVariantImages())
                 .status(productDataAccessMapper.toDomainOptionStatus(groupEntity.getStatus()))
                 .optionValues(optionValues)
                 .build();
     }
 
-    private ReadProductOptionValueView toReadProductOptionValueView(ProductOptionValueEntity valueEntity) {
+    private ReadProductOptionValueView toReadProductOptionValueView(
+            ProductOptionValueEntity valueEntity,
+            Map<UUID, List<ReadProductImageView>> optionValueImagesById
+    ) {
         return ReadProductOptionValueView.builder()
                 .productOptionValueId(valueEntity.getId())
                 .optionValueId(valueEntity.getOptionValueId())
                 .priceDelta(valueEntity.getPriceDelta())
                 .isDefault(valueEntity.isDefault())
                 .status(productDataAccessMapper.toDomainOptionStatus(valueEntity.getStatus()))
+                .images(optionValueImagesById.getOrDefault(valueEntity.getId(), List.of()))
                 .build();
     }
 
@@ -233,7 +250,49 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 .stockQuantity(variantEntity.getStockQuantity())
                 .status(productDataAccessMapper.toDomainStatus(variantEntity.getStatus()))
                 .calculatedPrice(variantEntity.getCalculatedPrice())
+                .mainImageUrl(variantEntity.getMainImageUrl())
                 .selectedProductOptionValueIds(selectedOptionIds)
+                .build();
+    }
+
+    private Map<UUID, List<ReadProductImageView>> loadOptionValueImages(ProductEntity entity) {
+        if (entity.getOptionGroups() == null || entity.getOptionGroups().isEmpty()) {
+            return Map.of();
+        }
+        List<UUID> povIds = entity.getOptionGroups().stream()
+                .filter(group -> group.getOptionValues() != null)
+                .flatMap(group -> group.getOptionValues().stream())
+                .map(ProductOptionValueEntity::getId)
+                .toList();
+        if (povIds.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<UUID, List<ReadProductImageView>> grouped = new HashMap<>();
+        for (UUID povId : povIds) {
+            grouped.put(povId, new ArrayList<>());
+        }
+
+        productOptionValueImageJpaRepository
+                .findByProductOptionValue_IdInAndStatusOrderBySortOrderAsc(povIds, OptionStatusEntity.ACTIVE)
+                .stream()
+                .sorted(Comparator
+                        .comparing((ProductOptionValueImageEntity e) -> e.getRole() == ProductImageRoleEntity.MAIN ? 0 : 1)
+                        .thenComparingInt(ProductOptionValueImageEntity::getSortOrder))
+                .forEach(image -> grouped
+                        .computeIfAbsent(image.getProductOptionValue().getId(), ignored -> new ArrayList<>())
+                        .add(toReadProductImageView(image)));
+
+        return grouped;
+    }
+
+    private ReadProductImageView toReadProductImageView(ProductOptionValueImageEntity e) {
+        return ReadProductImageView.builder()
+                .id(e.getId())
+                .publicUrl(e.getPublicUrl())
+                .role(e.getRole().name())
+                .status(e.getStatus().name())
+                .sortOrder(e.getSortOrder())
                 .build();
     }
 }

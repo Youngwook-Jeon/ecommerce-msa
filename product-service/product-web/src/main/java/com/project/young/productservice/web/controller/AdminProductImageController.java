@@ -3,9 +3,6 @@ package com.project.young.productservice.web.controller;
 import com.project.young.productservice.application.dto.command.CommitProductImageCommand;
 import com.project.young.productservice.application.dto.command.PresignProductImageUploadCommand;
 import com.project.young.productservice.application.dto.command.ReorderProductImagesCommand;
-import com.project.young.productservice.application.dto.result.CommitProductImageResult;
-import com.project.young.productservice.application.dto.result.PresignProductImageUploadResult;
-import com.project.young.productservice.application.dto.result.ReorderProductImagesResult;
 import com.project.young.productservice.application.service.ProductImageApplicationService;
 import com.project.young.productservice.domain.valueobject.ProductImageRole;
 import com.project.young.productservice.web.dto.ProductImageCommitRequest;
@@ -14,6 +11,7 @@ import com.project.young.productservice.web.dto.ProductImagePresignRequest;
 import com.project.young.productservice.web.dto.ProductImagePresignResponse;
 import com.project.young.productservice.web.dto.ProductImageReorderRequest;
 import com.project.young.productservice.web.dto.ProductImageReorderResponse;
+import com.project.young.productservice.web.mapper.ProductImageResponseMapper;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -36,9 +34,14 @@ import java.util.UUID;
 public class AdminProductImageController {
 
     private final ProductImageApplicationService productImageApplicationService;
+    private final ProductImageResponseMapper productImageResponseMapper;
 
-    public AdminProductImageController(ProductImageApplicationService productImageApplicationService) {
+    public AdminProductImageController(
+            ProductImageApplicationService productImageApplicationService,
+            ProductImageResponseMapper productImageResponseMapper
+    ) {
         this.productImageApplicationService = productImageApplicationService;
+        this.productImageResponseMapper = productImageResponseMapper;
     }
 
     @PostMapping("/presign-upload")
@@ -55,15 +58,9 @@ public class AdminProductImageController {
                 .sortOrder(request.getSortOrder())
                 .build();
 
-        PresignProductImageUploadResult result = productImageApplicationService.presignUpload(productId, command);
-        return ResponseEntity.ok(ProductImagePresignResponse.builder()
-                .uploadUrl(result.uploadUrl())
-                .httpMethod(result.httpMethod())
-                .headers(result.headers())
-                .objectKey(result.objectKey())
-                .publicUrl(result.publicUrl())
-                .expiresAt(result.expiresAt())
-                .build());
+        return ResponseEntity.ok(productImageResponseMapper.toProductImagePresignResponse(
+                productImageApplicationService.presignUpload(productId, command)
+        ));
     }
 
     @PostMapping("/commit")
@@ -80,14 +77,11 @@ public class AdminProductImageController {
                 .sortOrder(request.getSortOrder())
                 .build();
 
-        CommitProductImageResult result = productImageApplicationService.commitUpload(productId, command);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ProductImageCommitResponse.builder()
-                .id(result.id())
-                .publicUrl(result.publicUrl())
-                .role(result.role())
-                .sortOrder(result.sortOrder())
-                .message("Image committed.")
-                .build());
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                productImageResponseMapper.toProductImageCommitResponse(
+                        productImageApplicationService.commitUpload(productId, command)
+                )
+        );
     }
 
     @DeleteMapping("/{imageId}")
@@ -109,13 +103,10 @@ public class AdminProductImageController {
         ReorderProductImagesCommand command = ReorderProductImagesCommand.builder()
                 .orderedImageIds(request.getOrderedImageIds())
                 .build();
-        ReorderProductImagesResult result = productImageApplicationService.reorderImages(productId, command);
-        return ResponseEntity.ok(ProductImageReorderResponse.builder()
-                .productId(result.productId())
-                .reorderedCount(result.reorderedCount())
-                .orderedImageIds(result.orderedImageIds())
-                .message("Images reordered.")
-                .build());
+
+        return ResponseEntity.ok(productImageResponseMapper.toProductImageReorderResponse(
+                productImageApplicationService.reorderImages(productId, command)
+        ));
     }
 
     private static ProductImageRole parseRole(String raw) {

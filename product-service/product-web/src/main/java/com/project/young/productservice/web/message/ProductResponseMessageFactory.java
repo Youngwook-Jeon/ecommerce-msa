@@ -56,4 +56,8 @@ public class ProductResponseMessageFactory {
     public String productOptionGroupsReordered() {
         return "Product option groups reordered successfully";
     }
+
+    public String productOptionGroupVisualUpdated() {
+        return "Product option group visual flag updated successfully";
+    }
 }

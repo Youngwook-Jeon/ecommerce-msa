@@ -5,6 +5,7 @@ import com.project.young.productservice.application.dto.result.AddProductOptionV
 import com.project.young.productservice.application.dto.result.AddProductVariantResult;
 import com.project.young.productservice.application.dto.result.CreateProductResult;
 import com.project.young.productservice.application.dto.result.DeleteProductResult;
+import com.project.young.productservice.application.dto.result.UpdateProductOptionGroupVisualResult;
 import com.project.young.productservice.application.dto.result.UpdateProductResult;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
@@ -16,6 +17,7 @@ import com.project.young.productservice.web.dto.AddProductOptionValueToGroupResp
 import com.project.young.productservice.web.dto.AddProductVariantResponse;
 import com.project.young.productservice.web.dto.CreateProductResponse;
 import com.project.young.productservice.web.dto.DeleteProductResponse;
+import com.project.young.productservice.web.dto.UpdateProductOptionGroupVisualResponse;
 import com.project.young.productservice.web.dto.UpdateProductResponse;
 import com.project.young.productservice.web.message.ProductResponseMessageFactory;
 import org.junit.jupiter.api.BeforeEach;
@@ -193,6 +195,15 @@ class ProductResponseMapperTest {
             assertThat(r.sku()).isEqualTo("SKU");
             assertThat(r.status()).isEqualTo("ACTIVE");
             assertThat(r.message()).containsIgnoringCase("variant");
+
+            UpdateProductOptionGroupVisualResponse visual = productResponseMapper.toUpdateProductOptionGroupVisualResponse(
+                    UpdateProductOptionGroupVisualResult.builder()
+                            .productId(pid)
+                            .productOptionGroupId(pog)
+                            .drivesVariantImages(true)
+                            .build());
+            assertThat(visual.drivesVariantImages()).isTrue();
+            assertThat(visual.message()).containsIgnoringCase("visual");
         }
     }
 }

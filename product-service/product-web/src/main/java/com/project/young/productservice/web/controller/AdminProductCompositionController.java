@@ -6,16 +6,10 @@ import com.project.young.productservice.application.dto.command.AddProductVarian
 import com.project.young.productservice.application.dto.command.ChangeProductOptionGroupStepOrderCommand;
 import com.project.young.productservice.application.dto.command.ReorderProductOptionGroupsCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductVariantCommand;
+import com.project.young.productservice.application.dto.command.UpdateProductOptionGroupVisualCommand;
 import com.project.young.productservice.application.service.ProductApplicationService;
-import com.project.young.productservice.web.dto.AddProductOptionGroupResponse;
-import com.project.young.productservice.web.dto.AddProductOptionValuesToGroupResponse;
-import com.project.young.productservice.web.dto.AddProductVariantsResponse;
-import com.project.young.productservice.web.dto.ChangeProductOptionGroupStepOrderResponse;
-import com.project.young.productservice.web.dto.DeleteProductOptionGroupResponse;
-import com.project.young.productservice.web.dto.DeleteProductOptionValueResponse;
-import com.project.young.productservice.web.dto.DeleteProductVariantResponse;
-import com.project.young.productservice.web.dto.ReorderProductOptionGroupsResponse;
-import com.project.young.productservice.web.dto.UpdateProductVariantResponse;
+import com.project.young.productservice.application.service.ProductOptionGroupVisualApplicationService;
+import com.project.young.productservice.web.dto.*;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
@@ -44,11 +38,14 @@ import java.util.stream.Collectors;
 public class AdminProductCompositionController {
 
     private final ProductApplicationService productApplicationService;
+    private final ProductOptionGroupVisualApplicationService productOptionGroupVisualApplicationService;
     private final ProductResponseMapper productResponseMapper;
 
     public AdminProductCompositionController(ProductApplicationService productApplicationService,
+                                             ProductOptionGroupVisualApplicationService productOptionGroupVisualApplicationService,
                                              ProductResponseMapper productResponseMapper) {
         this.productApplicationService = productApplicationService;
+        this.productOptionGroupVisualApplicationService = productOptionGroupVisualApplicationService;
         this.productResponseMapper = productResponseMapper;
     }
 
@@ -142,6 +139,27 @@ public class AdminProductCompositionController {
         return ResponseEntity.ok(
                 productResponseMapper.toReorderProductOptionGroupsResponse(
                         productApplicationService.reorderProductOptionGroups(productId, command)
+                )
+        );
+    }
+
+    @PatchMapping("/{productId}/option-groups/{productOptionGroupId}/visual")
+    public ResponseEntity<UpdateProductOptionGroupVisualResponse> updateOptionGroupVisual(
+            @PathVariable("productId") UUID productId,
+            @PathVariable("productOptionGroupId") UUID productOptionGroupId,
+            @Valid @RequestBody UpdateProductOptionGroupVisualRequest request
+    ) {
+        log.info("REST update visual option group productId={}, productOptionGroupId={}, drives={}",
+                productId, productOptionGroupId, request.getDrivesVariantImages());
+        return ResponseEntity.ok(
+                productResponseMapper.toUpdateProductOptionGroupVisualResponse(
+                        productOptionGroupVisualApplicationService.updateVisualFlag(
+                                productId,
+                                productOptionGroupId,
+                                UpdateProductOptionGroupVisualCommand.builder()
+                                        .drivesVariantImages(Boolean.TRUE.equals(request.getDrivesVariantImages()))
+                                        .build()
+                        )
                 )
         );
     }

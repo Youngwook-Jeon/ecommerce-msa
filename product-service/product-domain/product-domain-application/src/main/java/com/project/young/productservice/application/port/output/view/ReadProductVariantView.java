@@ -14,6 +14,7 @@ public record ReadProductVariantView(
         int stockQuantity,
         ProductStatus status,
         BigDecimal calculatedPrice,
+        String mainImageUrl,
         List<UUID> selectedProductOptionValueIds
 ) {
     public ReadProductVariantView {
