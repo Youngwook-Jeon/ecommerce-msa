@@ -9,4 +9,9 @@ public interface CategoryReadRepository {
     List<ReadCategoryView> findAllActiveCategoryHierarchy();
 
     List<ReadCategoryView> findAllCategoryHierarchy();
+
+    /**
+     * @return true when an ACTIVE category exists with the given id (implemented in product-dataaccess).
+     */
+    boolean existsActiveById(long categoryId);
 }

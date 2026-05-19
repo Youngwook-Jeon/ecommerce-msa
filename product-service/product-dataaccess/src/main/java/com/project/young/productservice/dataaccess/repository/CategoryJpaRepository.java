@@ -14,6 +14,8 @@ public interface CategoryJpaRepository extends JpaRepository<CategoryEntity, Lon
 
     boolean existsByNameAndIdNot(String name, Long idToExclude);
 
+    boolean existsByIdAndStatus(Long id, CategoryStatusEntity status);
+
     @Query("SELECT c FROM CategoryEntity c LEFT JOIN FETCH c.parent WHERE c.status = :status")
     List<CategoryEntity> findAllWithParentByStatus(@Param("status") CategoryStatusEntity status);
 

@@ -43,6 +43,11 @@ public class CategoryReadRepositoryImpl implements CategoryReadRepository {
         return buildHierarchyFromEntities(allCategories);
     }
 
+    @Override
+    public boolean existsActiveById(long categoryId) {
+        return categoryJpaRepository.existsByIdAndStatus(categoryId, CategoryStatusEntity.ACTIVE);
+    }
+
     private List<ReadCategoryView> buildHierarchyFromEntities(List<CategoryEntity> entities) {
         if (entities.isEmpty()) {
             return Collections.emptyList();

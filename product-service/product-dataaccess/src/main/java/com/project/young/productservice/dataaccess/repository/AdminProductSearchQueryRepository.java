@@ -7,8 +7,6 @@ import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.types.Order;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Projections;
-import com.querydsl.core.types.dsl.Expressions;
-import com.querydsl.core.types.dsl.StringExpression;
 import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import org.springframework.data.domain.Page;
@@ -97,9 +95,8 @@ public class AdminProductSearchQueryRepository {
         String keyword = condition.normalizedKeyword();
         if (keyword != null) {
             String pattern = "%" + keyword.toLowerCase() + "%";
-            StringExpression descriptionSafe = Expressions.stringTemplate("coalesce({0}, '')", productEntity.description);
             b.and(productEntity.name.lower().like(pattern)
-                    .or(descriptionSafe.lower().like(pattern)));
+                    .or(productEntity.description.lower().like(pattern)));
         }
 
         if (condition.categoryId() != null) {

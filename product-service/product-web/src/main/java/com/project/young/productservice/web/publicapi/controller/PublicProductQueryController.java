@@ -1,12 +1,18 @@
 package com.project.young.productservice.web.publicapi.controller;
 
+import com.project.young.productservice.application.dto.query.PublicProductListQuery;
+import com.project.young.productservice.application.dto.result.PublicProductListPageResult;
+import com.project.young.productservice.application.service.PublicProductQueryService;
 import com.project.young.productservice.web.publicapi.dto.PublicProductPageResponse;
+import com.project.young.productservice.web.publicapi.mapper.PublicProductQueryResponseMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.math.BigDecimal;
 
 /**
  * Storefront read API. Gateway path: {@code /api/v1/product_service/public/products}.
@@ -16,12 +22,37 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class PublicProductQueryController {
 
+    private final PublicProductQueryService publicProductQueryService;
+    private final PublicProductQueryResponseMapper publicProductQueryResponseMapper;
+
+    public PublicProductQueryController(
+            PublicProductQueryService publicProductQueryService,
+            PublicProductQueryResponseMapper publicProductQueryResponseMapper
+    ) {
+        this.publicProductQueryService = publicProductQueryService;
+        this.publicProductQueryResponseMapper = publicProductQueryResponseMapper;
+    }
+
     @GetMapping
     public ResponseEntity<PublicProductPageResponse> listProducts(
+            @RequestParam(name = "categoryId", required = true) long categoryId,
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size
+            @RequestParam(name = "size", defaultValue = "24") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "sort", required = false) String sort,
+            @RequestParam(name = "brand", required = false) String brand,
+            @RequestParam(name = "minPrice", required = false) BigDecimal minPrice,
+            @RequestParam(name = "maxPrice", required = false) BigDecimal maxPrice
     ) {
-        log.info("REST request to list public products: page={}, size={}", page, size);
-        return ResponseEntity.ok(PublicProductPageResponse.empty(page, size));
+        log.info(
+                "REST request to list public products: categoryId={}, page={}, size={}, q={}, sort={}, brand={}, minPrice={}, maxPrice={}",
+                categoryId, page, size, q, sort, brand, minPrice, maxPrice
+        );
+
+        PublicProductListPageResult result = publicProductQueryService.listProductsByCategory(
+                new PublicProductListQuery(categoryId, page, size, q, sort, brand, minPrice, maxPrice)
+        );
+
+        return ResponseEntity.ok(publicProductQueryResponseMapper.toPublicProductPageResponse(result));
     }
 }
