@@ -5,6 +5,10 @@ issuer-uri: http://localhost:8080/realms/Ecomart
 
 product-service:
   product-topic-name: product
+  public-search:
+    # NAME_BRAND (default, combined name+brand pg_trgm GIN) | NAME_DESCRIPTION_LEGACY (benchmark / legacy)
+    keyword-search:
+      strategy: NAME_BRAND
 
 schema:
   name: product

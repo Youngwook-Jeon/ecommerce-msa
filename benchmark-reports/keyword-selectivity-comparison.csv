@@ -1,0 +1,8 @@
+tier_label,keyword,match_count,active_total,selectivity_percent,default_plan,default_seq_scan,default_uses_gin,default_execution_ms,isolated_default_plan,isolated_default_seq_scan,isolated_default_uses_gin,isolated_default_execution_ms,gin_forced_seq_scan,gin_forced_uses_gin,gin_forced_execution_ms,seq_scan_forced_seq_scan,seq_scan_forced_uses_gin,seq_scan_forced_execution_ms,seq_over_gin_ratio
+~0.002% (1건),xqzbenchuniq,1,50001,0.0020,Bitmap/GIN,false,true,2.1410,Bitmap/GIN,false,true,1.8880,false,true,2.0720,true,false,17.1380,8.2712
+~0.1%,kwt0p1,51,50001,0.1020,Bitmap/GIN,false,true,1.3920,Bitmap/GIN,false,true,1.3030,false,true,1.4250,true,false,16.4860,11.5691
+~1%,kwt1,495,50001,0.9900,Bitmap/GIN,false,true,1.3660,Bitmap/GIN,false,true,1.3950,false,true,1.4470,true,false,16.1770,11.1797
+~2%,kwt2,934,50001,1.8680,Bitmap/GIN,false,true,1.8930,Bitmap/GIN,false,true,1.8350,false,true,1.8550,true,false,15.6300,8.4259
+~5%,kwt5,2109,50001,4.2179,Seq Scan,true,false,15.8690,Seq Scan,true,false,15.1880,false,true,2.5870,true,false,15.1960,5.8740
+~9%,kwt9,4218,50001,8.4358,Seq Scan,true,false,17.5420,Seq Scan,true,false,17.2300,false,true,4.4590,true,false,17.3200,3.8843
+~9% (데님·기존 시드),데님,4014,50001,8.0278,Seq Scan,true,false,18.6040,Seq Scan,true,false,17.2850,false,true,70.8380,true,false,17.5110,0.2472

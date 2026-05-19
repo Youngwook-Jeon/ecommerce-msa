@@ -3,6 +3,7 @@ package com.project.young.productservice.dataaccess.repository;
 import com.project.young.productservice.application.dto.condition.PublicProductSearchCondition;
 import com.project.young.productservice.application.dto.query.PublicProductSort;
 import com.project.young.productservice.dataaccess.config.ProductDataAccessConfig;
+import com.project.young.productservice.dataaccess.config.PublicProductSearchProperties;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
@@ -162,8 +163,8 @@ class PublicProductSearchQueryRepositoryTest {
         }
 
         @Test
-        @DisplayName("q는 이름·설명 LIKE 검색")
-        void search_filtersByKeywordOnNameOrDescription() {
+        @DisplayName("q는 이름·brand LIKE 검색 (기본 NAME_BRAND)")
+        void search_filtersByKeywordOnNameOrBrand() {
             PublicProductSearchCondition condition = new PublicProductSearchCondition(
                     activeCategory.getId(), "데님", null, null, null);
 
@@ -174,6 +175,61 @@ class PublicProductSearchQueryRepositoryTest {
             assertThat(page.getContent())
                     .extracting(PublicProductListProjection::name)
                     .containsExactlyInAnyOrder("와이드핏 데님", "저가 데님");
+        }
+
+        @Test
+        @DisplayName("q가 brand에만 포함되어도 NAME_BRAND로 조회")
+        void search_filtersByKeywordOnBrand() {
+            PublicProductSearchCondition condition = new PublicProductSearchCondition(
+                    activeCategory.getId(), "브랜드E", null, null, null);
+
+            Page<PublicProductListProjection> page = publicProductSearchQueryRepository.search(
+                    condition, PublicProductSort.NEWEST, PageRequest.of(0, 10));
+
+            assertThat(page.getTotalElements()).isEqualTo(1);
+            assertThat(page.getContent().getFirst().name()).isEqualTo("고가 코튼");
+        }
+
+        @Test
+        @DisplayName("설명에만 키워드가 있으면 기본 NAME_BRAND에서는 제외")
+        void search_nameBrand_excludesDescriptionOnlyMatch() {
+            persistProduct("무관한 이름", "여기만 데님 키워드", "브랜드Z",
+                    activeCategory, ProductStatusEntity.ACTIVE, new BigDecimal("10000"));
+            testEntityManager.flush();
+            testEntityManager.clear();
+
+            PublicProductSearchCondition condition = new PublicProductSearchCondition(
+                    activeCategory.getId(), "데님", null, null, null);
+
+            Page<PublicProductListProjection> page = publicProductSearchQueryRepository.search(
+                    condition, PublicProductSort.NEWEST, PageRequest.of(0, 50));
+
+            assertThat(page.getContent())
+                    .extracting(PublicProductListProjection::name)
+                    .doesNotContain("무관한 이름");
+        }
+
+        @Test
+        @DisplayName("NAME_DESCRIPTION_LEGACY는 설명 매칭 상품 포함")
+        void search_legacyStrategy_includesDescriptionMatch() {
+            persistProduct("무관한 이름", "여기만 데님 키워드", "브랜드Z",
+                    activeCategory, ProductStatusEntity.ACTIVE, new BigDecimal("10000"));
+            testEntityManager.flush();
+            testEntityManager.clear();
+
+            PublicProductSearchCondition condition = new PublicProductSearchCondition(
+                    activeCategory.getId(), "데님", null, null, null);
+
+            Page<PublicProductListProjection> page = publicProductSearchQueryRepository.search(
+                    condition,
+                    PublicProductSort.NEWEST,
+                    PageRequest.of(0, 50),
+                    PublicProductKeywordSearchStrategy.NAME_DESCRIPTION_LEGACY
+            );
+
+            assertThat(page.getContent())
+                    .extracting(PublicProductListProjection::name)
+                    .contains("무관한 이름");
         }
 
         @Test
@@ -348,6 +404,7 @@ class PublicProductSearchQueryRepositoryTest {
 
     @Configuration
     @Import({ProductDataAccessConfig.class, PublicProductSearchQueryRepository.class})
+    @org.springframework.boot.context.properties.EnableConfigurationProperties(PublicProductSearchProperties.class)
     static class Config {
     }
 }

@@ -13,6 +13,7 @@ Spring Boot 기반의 **마이크로서비스 이커머스 백엔드**입니다.
 | 영역 | 한 줄 요약 |
 |------|------------|
 | 조회 최적화 | 카테시안 곱·N+1 방어, 배치 fetch·쿼리 분리 |
+| **공개 PLP 키워드 검색** | `pg_trgm` GIN(이름+브랜드 통합), 선택도별 **~8–11배** GIN 우위 검증 |
 | 도메인 동기화 | 옵션 값 이미지 → Variant 썸네일 일괄 반영 |
 | 이미지 파이프라인 | R2 Presigned URL로 서버 우회 업로드 |
 | 아키텍처 | 헥사고날·DDD로 도메인과 인프라 격리 |
@@ -53,6 +54,22 @@ JPA 엔티티와 비즈니스 규칙이 한 레이어에 섞이면 상태 전이
 **적용**
 - `product-domain-core`를 DB · Kafka · R2와 **포트/어댑터**로 격리
 - **JPA Entity ↔ Domain Model** 매핑 분리, Aggregate 단위로 비즈니스 룰 응집
+
+### 5. 공개 PLP 키워드 검색 (`pg_trgm` GIN · 선택도)
+
+**문제**  
+상품 목록 검색 시 `LIKE '%키워드%'` 로 인한 풀 스캔 성능 저하 우려 및 `name OR brand OR description` 조건 결합 시 발생하는 **BitmapOr** 오버헤드.
+
+**적용 및 검증**
+- `description`을 검색 대상에서 제외하고, `name`과 `brand`를 결합한 **단일 GIN 인덱스(`pg_trgm`)** 구축  
+  (`lower(coalesce(name,'')) || ' ' || lower(coalesce(brand,''))`)
+- Testcontainers(PostgreSQL) 기반 5만 건 시드 데이터로 **선택도 구간별 플래너 실행 계획 및 시간 벤치마크** 진행
+
+**핵심 결과 (GIN vs Seq Scan)**
+- **희귀 키워드 (선택도 ~2% 미만):** GIN 인덱스가 풀 스캔 대비 **약 8~11배 빠른 성능(1~2ms)** 입증
+- **넓은 키워드 (선택도 ~5% 이상) 및 2글자 단어:** 옵티마이저가 랜덤 I/O 비용 및 Trigram Recheck 오버헤드를 계산하여 풀 스캔을 선택하는 정상 동작 확인 
+
+👉 **[상세 벤치마크 리포트 및 분석 결과 보기 (CSV/Markdown)](benchmark-reports/keyword-selectivity-comparison.md)**
 
 ---
 
@@ -340,6 +357,7 @@ Realm: `Ecomart`
 - **Dataaccess:** JPA Repository, Adapter (Testcontainers PostgreSQL)
 - **Web:** `@WebMvcTest`, Security `@WithMockUser`
 - **Integration:** `ProductApiIntegrationTest`, `CategoryApiIntegrationTest`
+- **Benchmark (수동):** `PublicProductKeywordSearchBenchmarkIT` — PLP 키워드 선택도·GIN vs Seq Scan 리포트 (`RUN_KEYWORD_BENCHMARK=true`, [§5](#5-공개-plp-키워드-검색-pg_trgm-gin--선택도) 참고)
 
 ---
 

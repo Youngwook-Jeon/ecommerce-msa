@@ -2,6 +2,7 @@ package com.project.young.productservice.dataaccess.repository;
 
 import com.project.young.productservice.application.dto.condition.PublicProductSearchCondition;
 import com.project.young.productservice.application.dto.query.PublicProductSort;
+import com.project.young.productservice.dataaccess.config.PublicProductSearchProperties;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.projection.PublicProductListProjection;
@@ -29,15 +30,35 @@ import static com.project.young.productservice.dataaccess.entity.QProductEntity.
 public class PublicProductSearchQueryRepository {
 
     private final JPAQueryFactory queryFactory;
+    private final PublicProductSearchProperties searchProperties;
 
-    public PublicProductSearchQueryRepository(JPAQueryFactory queryFactory) {
+    public PublicProductSearchQueryRepository(
+            JPAQueryFactory queryFactory,
+            PublicProductSearchProperties searchProperties
+    ) {
         this.queryFactory = queryFactory;
+        this.searchProperties = searchProperties;
     }
 
+    /**
+     * 운영 기본 경로. {@link PublicProductSearchProperties#resolvedKeywordStrategy()} 사용 (기본 {@link PublicProductKeywordSearchStrategy#NAME_BRAND}).
+     */
     public Page<PublicProductListProjection> search(
             PublicProductSearchCondition condition,
             PublicProductSort sort,
             Pageable pageable
+    ) {
+        return search(condition, sort, pageable, searchProperties.resolvedKeywordStrategy());
+    }
+
+    /**
+     * 키워드 전략을 지정해 검색. 레거시·인덱스 경로 실행 시간 비교용.
+     */
+    public Page<PublicProductListProjection> search(
+            PublicProductSearchCondition condition,
+            PublicProductSort sort,
+            Pageable pageable,
+            PublicProductKeywordSearchStrategy keywordStrategy
     ) {
         if (condition == null) {
             throw new IllegalArgumentException("PublicProductSearchCondition cannot be null");
@@ -45,8 +66,11 @@ public class PublicProductSearchQueryRepository {
         if (sort == null) {
             throw new IllegalArgumentException("PublicProductSort cannot be null");
         }
+        if (keywordStrategy == null) {
+            throw new IllegalArgumentException("PublicProductKeywordSearchStrategy cannot be null");
+        }
 
-        BooleanBuilder where = buildWhere(condition);
+        BooleanBuilder where = buildWhere(condition, keywordStrategy);
 
         JPAQuery<PublicProductListProjection> query = queryFactory
                 .select(Projections.constructor(
@@ -83,7 +107,10 @@ public class PublicProductSearchQueryRepository {
         return total != null ? total : 0L;
     }
 
-    private BooleanBuilder buildWhere(PublicProductSearchCondition condition) {
+    private BooleanBuilder buildWhere(
+            PublicProductSearchCondition condition,
+            PublicProductKeywordSearchStrategy keywordStrategy
+    ) {
         BooleanBuilder builder = new BooleanBuilder();
 
         builder.and(productEntity.status.eq(ProductStatusEntity.ACTIVE));
@@ -95,12 +122,11 @@ public class PublicProductSearchQueryRepository {
             builder.and(productEntity.brand.eq(brand));
         }
 
-        String keyword = condition.normalizedKeyword();
-        if (keyword != null) {
-            String pattern = "%" + keyword.toLowerCase() + "%";
-            builder.and(productEntity.name.lower().like(pattern)
-                    .or(productEntity.description.lower().like(pattern)));
-        }
+        PublicProductKeywordPredicates.appendKeywordPredicate(
+                builder,
+                condition.normalizedKeyword(),
+                keywordStrategy
+        );
 
         if (condition.minPrice() != null) {
             builder.and(productEntity.basePrice.goe(condition.minPrice()));
@@ -124,11 +150,10 @@ public class PublicProductSearchQueryRepository {
             case RELEVANCE -> {
                 String keyword = condition.normalizedKeyword();
                 if (keyword != null) {
-                    String pattern = "%" + keyword.toLowerCase() + "%";
                     orders.add(new OrderSpecifier<>(
                             Order.DESC,
                             new CaseBuilder()
-                                    .when(productEntity.name.lower().like(pattern))
+                                    .when(PublicProductKeywordPredicates.nameMatchForRelevance(keyword))
                                     .then(1)
                                     .otherwise(0)
                     ));
