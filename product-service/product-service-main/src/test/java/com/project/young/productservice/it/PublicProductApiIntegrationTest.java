@@ -48,6 +48,7 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasItem;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -70,6 +71,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PublicProductApiIntegrationTest {
 
     private static final String PUBLIC_PRODUCTS = "/public/products";
+    private static final String PUBLIC_PRODUCT_FACETS = "/public/products/facets";
 
     /** {@code @PreAuthorize("hasAuthority('ADMIN')")} 와 동일한 authority 문자열 */
     private static final GrantedAuthority[] ADMIN_AUTHORITIES = {
@@ -247,6 +249,86 @@ class PublicProductApiIntegrationTest {
                     .andExpect(jsonPath("$.content", hasSize(2)))
                     .andExpect(jsonPath("$.totalElements").value(3))
                     .andExpect(jsonPath("$.totalPages").value(2));
+        }
+    }
+
+    @Nested
+    @DisplayName("GET /public/products/facets — 퍼싯 조회")
+    class FacetTests {
+
+        @Test
+        @DisplayName("categoryId 누락 시 400")
+        void facets_withoutCategoryId_returnsBadRequest() throws Exception {
+            mockMvc.perform(get(PUBLIC_PRODUCT_FACETS))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("Bad Request"));
+        }
+
+        @Test
+        @DisplayName("존재하지 않는 categoryId면 404")
+        void facets_unknownCategory_returnsNotFound() throws Exception {
+            mockMvc.perform(get(PUBLIC_PRODUCT_FACETS).param("categoryId", "99999"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.message", containsString("Category not found")));
+        }
+
+        @Test
+        @DisplayName("invalid facet 값이면 400")
+        void facets_invalidFacet_returnsBadRequest() throws Exception {
+            Long categoryId = createCategory("퍼싯 카테고리");
+
+            mockMvc.perform(get(PUBLIC_PRODUCT_FACETS)
+                            .param("categoryId", String.valueOf(categoryId))
+                            .param("facet", "invalid"))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("Bad Request"));
+        }
+
+        @Test
+        @DisplayName("브랜드/가격 퍼싯과 totalMatching을 반환한다")
+        void facets_returnsBrandAndPriceBuckets() throws Exception {
+            Long categoryId = createCategory("퍼싯 카테고리");
+
+            UUID a = createDraftProduct("저가 데님", "BrandA", new BigDecimal("15"), categoryId);
+            UUID b = createDraftProduct("중가 데님", "BrandB", new BigDecimal("75"), categoryId);
+            UUID c = createDraftProduct("고가 코튼", "BrandB", new BigDecimal("250"), categoryId);
+            publishProduct(a);
+            publishProduct(b);
+            publishProduct(c);
+
+            mockMvc.perform(get(PUBLIC_PRODUCT_FACETS)
+                            .param("categoryId", String.valueOf(categoryId))
+                            .param("facet", "brand")
+                            .param("facet", "price"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.categoryId").value(categoryId))
+                    .andExpect(jsonPath("$.totalMatching").value(3))
+                    .andExpect(jsonPath("$.brands[?(@.value=='BrandA')].count").value(hasItem(1)))
+                    .andExpect(jsonPath("$.brands[?(@.value=='BrandB')].count").value(hasItem(2)))
+                    .andExpect(jsonPath("$.priceBuckets[?(@.id=='under_25')].count").value(hasItem(1)))
+                    .andExpect(jsonPath("$.priceBuckets[?(@.id=='50_100')].count").value(hasItem(1)))
+                    .andExpect(jsonPath("$.priceBuckets[?(@.id=='200_plus')].count").value(hasItem(1)));
+        }
+
+        @Test
+        @DisplayName("brand 필터는 totalMatching에만 적용되고 brand 퍼싯은 disjunctive로 집계된다")
+        void facets_brandFilter_keepsDisjunctiveBrandCounts() throws Exception {
+            Long categoryId = createCategory("퍼싯 브랜드 카테고리");
+
+            UUID m = createDraftProduct("러닝화", "BrandM", new BigDecimal("160"), categoryId);
+            UUID n = createDraftProduct("샌들", "BrandN", new BigDecimal("150"), categoryId);
+            publishProduct(m);
+            publishProduct(n);
+
+            mockMvc.perform(get(PUBLIC_PRODUCT_FACETS)
+                            .param("categoryId", String.valueOf(categoryId))
+                            .param("brands", "BrandN")
+                            .param("facet", "brand"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalMatching").value(1))
+                    .andExpect(jsonPath("$.brands[?(@.value=='BrandM')].count").value(hasItem(1)))
+                    .andExpect(jsonPath("$.brands[?(@.value=='BrandN')].count").value(hasItem(1)))
+                    .andExpect(jsonPath("$.brands[?(@.value=='BrandN')].selected").value(hasItem(true)));
         }
     }
 
