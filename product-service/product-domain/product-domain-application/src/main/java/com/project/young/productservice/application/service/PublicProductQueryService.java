@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 @Transactional(readOnly = true)
@@ -66,7 +67,7 @@ public class PublicProductQueryService {
         PublicProductSearchCondition condition = new PublicProductSearchCondition(
                 categoryId,
                 query.q(),
-                query.brand(),
+                normalizeBrands(query.brands()),
                 query.minPrice(),
                 query.maxPrice()
         );
@@ -84,6 +85,17 @@ public class PublicProductQueryService {
         if (minPrice != null && maxPrice != null && minPrice.compareTo(maxPrice) > 0) {
             throw new IllegalArgumentException("minPrice must be <= maxPrice");
         }
+    }
+
+    private static List<String> normalizeBrands(List<String> brands) {
+        if (brands == null || brands.isEmpty()) {
+            return List.of();
+        }
+        return brands.stream()
+                .filter(value -> value != null && !value.isBlank())
+                .map(String::trim)
+                .distinct()
+                .toList();
     }
 
     private record ValidatedListCriteria(

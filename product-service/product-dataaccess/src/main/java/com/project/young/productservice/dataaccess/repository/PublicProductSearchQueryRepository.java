@@ -117,9 +117,9 @@ public class PublicProductSearchQueryRepository {
         builder.and(categoryEntity.status.eq(CategoryStatusEntity.ACTIVE));
         builder.and(categoryEntity.id.eq(condition.categoryId()));
 
-        String brand = condition.normalizedBrand();
-        if (brand != null) {
-            builder.and(productEntity.brand.eq(brand));
+        List<String> brands = condition.normalizedBrands();
+        if (!brands.isEmpty()) {
+            builder.and(productEntity.brand.in(brands));
         }
 
         PublicProductKeywordPredicates.appendKeywordPredicate(

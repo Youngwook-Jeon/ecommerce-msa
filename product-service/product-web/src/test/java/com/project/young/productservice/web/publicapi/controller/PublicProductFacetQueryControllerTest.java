@@ -10,6 +10,7 @@ import com.project.young.productservice.web.controller.TestConfig;
 import com.project.young.productservice.web.exception.handler.ProductServiceGlobalExceptionHandler;
 import com.project.young.productservice.web.publicapi.dto.PublicProductFacetRequest;
 import com.project.young.productservice.web.publicapi.dto.PublicProductFacetResponse;
+import com.project.young.productservice.web.publicapi.dto.PublicProductFacetGroupResponse;
 import com.project.young.productservice.web.publicapi.mapper.PublicProductFacetRequestMapper;
 import com.project.young.productservice.web.publicapi.mapper.PublicProductFacetResponseMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -74,8 +75,7 @@ class PublicProductFacetQueryControllerTest {
         PublicProductFacetResponse response = PublicProductFacetResponse.builder()
                 .categoryId(CATEGORY_ID)
                 .totalMatching(0L)
-                .brands(List.of())
-                .priceBuckets(List.of())
+                .facets(List.of())
                 .build();
 
         when(publicProductFacetRequestMapper.toQuery(any(PublicProductFacetRequest.class))).thenReturn(query);
@@ -86,8 +86,7 @@ class PublicProductFacetQueryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.categoryId").value(CATEGORY_ID))
                 .andExpect(jsonPath("$.totalMatching").value(0))
-                .andExpect(jsonPath("$.brands").isArray())
-                .andExpect(jsonPath("$.priceBuckets").isArray());
+                .andExpect(jsonPath("$.facets").isArray());
 
         verify(publicProductFacetRequestMapper).toQuery(any(PublicProductFacetRequest.class));
         verify(publicProductFacetQueryService).getFacets(query);
@@ -108,8 +107,14 @@ class PublicProductFacetQueryControllerTest {
         PublicProductFacetResponse response = PublicProductFacetResponse.builder()
                 .categoryId(CATEGORY_ID)
                 .totalMatching(2L)
-                .brands(List.of())
-                .priceBuckets(List.of())
+                .facets(List.of(
+                        PublicProductFacetGroupResponse.builder()
+                                .key("brand")
+                                .type("terms")
+                                .terms(List.of())
+                                .ranges(List.of())
+                                .build()
+                ))
                 .build();
 
         when(publicProductFacetRequestMapper.toQuery(any(PublicProductFacetRequest.class))).thenReturn(query);

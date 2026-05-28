@@ -220,7 +220,7 @@ class PublicProductApiIntegrationTest {
 
             mockMvc.perform(get(PUBLIC_PRODUCTS)
                             .param("categoryId", String.valueOf(categoryId))
-                            .param("brand", "브랜드A")
+                            .param("brands", "브랜드A")
                             .param("q", "데님")
                             .param("minPrice", "10000")
                             .param("maxPrice", "60000")
@@ -303,11 +303,12 @@ class PublicProductApiIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.categoryId").value(categoryId))
                     .andExpect(jsonPath("$.totalMatching").value(3))
-                    .andExpect(jsonPath("$.brands[?(@.value=='BrandA')].count").value(hasItem(1)))
-                    .andExpect(jsonPath("$.brands[?(@.value=='BrandB')].count").value(hasItem(2)))
-                    .andExpect(jsonPath("$.priceBuckets[?(@.id=='under_25')].count").value(hasItem(1)))
-                    .andExpect(jsonPath("$.priceBuckets[?(@.id=='50_100')].count").value(hasItem(1)))
-                    .andExpect(jsonPath("$.priceBuckets[?(@.id=='200_plus')].count").value(hasItem(1)));
+                    .andExpect(jsonPath("$.facets[?(@.key=='brand')].type").value(hasItem("terms")))
+                    .andExpect(jsonPath("$.facets[?(@.key=='brand')].terms[*][?(@.value=='BrandA')].count").value(hasItem(1)))
+                    .andExpect(jsonPath("$.facets[?(@.key=='brand')].terms[*][?(@.value=='BrandB')].count").value(hasItem(2)))
+                    .andExpect(jsonPath("$.facets[?(@.key=='price')].ranges[*][?(@.id=='under_25')].count").value(hasItem(1)))
+                    .andExpect(jsonPath("$.facets[?(@.key=='price')].ranges[*][?(@.id=='50_100')].count").value(hasItem(1)))
+                    .andExpect(jsonPath("$.facets[?(@.key=='price')].ranges[*][?(@.id=='200_plus')].count").value(hasItem(1)));
         }
 
         @Test
@@ -326,9 +327,9 @@ class PublicProductApiIntegrationTest {
                             .param("facet", "brand"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.totalMatching").value(1))
-                    .andExpect(jsonPath("$.brands[?(@.value=='BrandM')].count").value(hasItem(1)))
-                    .andExpect(jsonPath("$.brands[?(@.value=='BrandN')].count").value(hasItem(1)))
-                    .andExpect(jsonPath("$.brands[?(@.value=='BrandN')].selected").value(hasItem(true)));
+                    .andExpect(jsonPath("$.facets[?(@.key=='brand')].terms[*][?(@.value=='BrandM')].count").value(hasItem(1)))
+                    .andExpect(jsonPath("$.facets[?(@.key=='brand')].terms[*][?(@.value=='BrandN')].count").value(hasItem(1)))
+                    .andExpect(jsonPath("$.facets[?(@.key=='brand')].terms[*][?(@.value=='BrandN')].selected").value(hasItem(true)));
         }
     }
 

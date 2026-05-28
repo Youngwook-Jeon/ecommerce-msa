@@ -85,7 +85,7 @@ class PublicProductQueryServiceTest {
                         24,
                         " denim ",
                         "price_asc",
-                        " BrandA ",
+                        List.of(" BrandA "),
                         new BigDecimal("10000"),
                         new BigDecimal("50000")
                 )
@@ -103,7 +103,7 @@ class PublicProductQueryServiceTest {
         PublicProductSearchCondition condition = conditionCaptor.getValue();
         assertThat(condition.categoryId()).isEqualTo(CATEGORY_ID);
         assertThat(condition.normalizedKeyword()).isEqualTo("denim");
-        assertThat(condition.normalizedBrand()).isEqualTo("BrandA");
+        assertThat(condition.normalizedBrands()).containsExactly("BrandA");
         assertThat(condition.minPrice()).isEqualByComparingTo("10000");
         assertThat(condition.maxPrice()).isEqualByComparingTo("50000");
     }

@@ -8,11 +8,9 @@ import java.util.List;
 public record PublicProductFacetResponse(
         long categoryId,
         long totalMatching,
-        List<PublicProductBrandFacetValueResponse> brands,
-        List<PublicProductPriceFacetBucketResponse> priceBuckets
+        List<PublicProductFacetGroupResponse> facets
 ) {
     public PublicProductFacetResponse {
-        brands = brands == null ? List.of() : List.copyOf(brands);
-        priceBuckets = priceBuckets == null ? List.of() : List.copyOf(priceBuckets);
+        facets = facets == null ? List.of() : List.copyOf(facets);
     }
 }

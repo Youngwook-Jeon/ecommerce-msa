@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * Storefront read API. Gateway path: {@code /api/v1/product_service/public/products}.
@@ -40,17 +41,19 @@ public class PublicProductQueryController {
             @RequestParam(name = "size", defaultValue = "24") int size,
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "sort", required = false) String sort,
-            @RequestParam(name = "brand", required = false) String brand,
+            @RequestParam(name = "brands", required = false) List<String> brands,
             @RequestParam(name = "minPrice", required = false) BigDecimal minPrice,
             @RequestParam(name = "maxPrice", required = false) BigDecimal maxPrice
     ) {
+        List<String> normalizedBrands = brands == null ? List.of() : List.copyOf(brands);
+
         log.info(
-                "REST request to list public products: categoryId={}, page={}, size={}, q={}, sort={}, brand={}, minPrice={}, maxPrice={}",
-                categoryId, page, size, q, sort, brand, minPrice, maxPrice
+                "REST request to list public products: categoryId={}, page={}, size={}, q={}, sort={}, brands={}, minPrice={}, maxPrice={}",
+                categoryId, page, size, q, sort, normalizedBrands, minPrice, maxPrice
         );
 
         PublicProductListPageResult result = publicProductQueryService.listProductsByCategory(
-                new PublicProductListQuery(categoryId, page, size, q, sort, brand, minPrice, maxPrice)
+                new PublicProductListQuery(categoryId, page, size, q, sort, normalizedBrands, minPrice, maxPrice)
         );
 
         return ResponseEntity.ok(publicProductQueryResponseMapper.toPublicProductPageResponse(result));

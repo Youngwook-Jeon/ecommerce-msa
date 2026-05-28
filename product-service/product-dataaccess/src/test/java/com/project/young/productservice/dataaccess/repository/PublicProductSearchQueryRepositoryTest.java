@@ -151,7 +151,7 @@ class PublicProductSearchQueryRepositoryTest {
         @DisplayName("brand로 필터링")
         void search_filtersByBrand() {
             PublicProductSearchCondition condition = new PublicProductSearchCondition(
-                    activeCategory.getId(), null, "브랜드A", null, null);
+                    activeCategory.getId(), null, List.of("브랜드A"), null, null);
 
             Page<PublicProductListProjection> page = publicProductSearchQueryRepository.search(
                     condition, PublicProductSort.NEWEST, PageRequest.of(0, 10));

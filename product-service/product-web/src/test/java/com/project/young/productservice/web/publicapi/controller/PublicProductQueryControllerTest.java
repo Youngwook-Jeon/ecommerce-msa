@@ -98,7 +98,7 @@ class PublicProductQueryControllerTest {
                 .param("size", "10")
                 .param("q", "denim")
                 .param("sort", "price_desc")
-                .param("brand", "BrandA")
+                .param("brands", "BrandA", "BrandB")
                 .param("minPrice", "1000")
                 .param("maxPrice", "90000"))
         .andExpect(status().isOk())

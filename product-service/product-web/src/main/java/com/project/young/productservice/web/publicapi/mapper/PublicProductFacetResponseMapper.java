@@ -5,6 +5,7 @@ import com.project.young.productservice.application.dto.result.PublicProductFace
 import com.project.young.productservice.application.dto.result.PublicProductPriceFacetBucketResult;
 import com.project.young.productservice.web.publicapi.dto.PublicProductBrandFacetValueResponse;
 import com.project.young.productservice.web.publicapi.dto.PublicProductFacetResponse;
+import com.project.young.productservice.web.publicapi.dto.PublicProductFacetGroupResponse;
 import com.project.young.productservice.web.publicapi.dto.PublicProductPriceFacetBucketResponse;
 import org.springframework.stereotype.Component;
 
@@ -22,11 +23,25 @@ public class PublicProductFacetResponseMapper {
                 .map(this::toPriceBucketResponse)
                 .toList();
 
+        List<PublicProductFacetGroupResponse> facets = List.of(
+                PublicProductFacetGroupResponse.builder()
+                        .key("brand")
+                        .type("terms")
+                        .terms(brands)
+                        .ranges(List.of())
+                        .build(),
+                PublicProductFacetGroupResponse.builder()
+                        .key("price")
+                        .type("range")
+                        .terms(List.of())
+                        .ranges(priceBuckets)
+                        .build()
+        );
+
         return PublicProductFacetResponse.builder()
                 .categoryId(result.categoryId())
                 .totalMatching(result.totalMatching())
-                .brands(brands)
-                .priceBuckets(priceBuckets)
+                .facets(facets)
                 .build();
     }
 
