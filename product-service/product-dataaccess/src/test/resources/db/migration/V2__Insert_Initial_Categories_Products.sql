@@ -92,13 +92,13 @@ FOR i IN 1..205 LOOP
         -- [가격 계산] $199.99 부터 시작해서 상품마다 $10.00 씩 증가
         v_base_price := 199.99 + (i * 10.00);
 
-        -- [상품 생성] DRAFT 상태로 생성
+        -- [상품 생성] ACTIVE 상태로 생성
 INSERT INTO products (category_id, name, description, base_price, status, condition_type, brand, main_image_url)
 VALUES ((i % 5) + 4, -- 기존에 등록된 4~8번 하위 카테고리 순환 배치
-        'Virtual DRAFT Model ' || i,
-        'Automatically generated test DRAFT product description. Model Number: ' || i,
+        'Virtual ACTIVE Model ' || i,
+        'Automatically generated test ACTIVE product description. Model Number: ' || i,
         v_base_price,
-        'DRAFT',
+        'ACTIVE',
         'NEW',
         CASE WHEN i % 3 = 0 THEN 'Apple' WHEN i % 3 = 1 THEN 'Samsung' ELSE 'Sony' END,
         'https://dummyimage.com/600x400/000/fff&text=Product+' || i) RETURNING id
@@ -131,9 +131,9 @@ VALUES (v_pog_storage, v_val_512, v_delta_512) RETURNING id
 INTO v_pov_512;
 -- 512GB는 $100.00 추가
 
--- [상품 변형 생성 1] 블랙 + 256GB (DRAFT) - 기본 가격
+-- [상품 변형 생성 1] 블랙 + 256GB (ACTIVE) - 기본 가격
 INSERT INTO product_variants (product_id, sku, stock_quantity, status, calculated_price)
-VALUES (v_product_id, 'SKU-DRAFT-' || i || '-BLK-256', 100, 'DRAFT', v_base_price) RETURNING id
+VALUES (v_product_id, 'SKU-ACTIVE-' || i || '-BLK-256', 100, 'ACTIVE', v_base_price) RETURNING id
 INTO v_variant_1;
 
 INSERT INTO variant_option_values (variant_id, product_option_value_id)
@@ -141,9 +141,9 @@ VALUES (v_variant_1, v_pov_black);
 INSERT INTO variant_option_values (variant_id, product_option_value_id)
 VALUES (v_variant_1, v_pov_256);
 
--- [상품 변형 생성 2] 화이트 + 512GB (DRAFT) - 기본 가격 + $100.00
+-- [상품 변형 생성 2] 화이트 + 512GB (ACTIVE) - 기본 가격 + $100.00
 INSERT INTO product_variants (product_id, sku, stock_quantity, status, calculated_price)
-VALUES (v_product_id, 'SKU-DRAFT-' || i || '-WHT-512', 50, 'DRAFT', v_base_price + v_delta_512) RETURNING id
+VALUES (v_product_id, 'SKU-ACTIVE-' || i || '-WHT-512', 50, 'ACTIVE', v_base_price + v_delta_512) RETURNING id
 INTO v_variant_2;
 
 INSERT INTO variant_option_values (variant_id, product_option_value_id)
