@@ -287,7 +287,7 @@ Gateway prefix: `/api/v1/product_service`
 |------|-----------|------|
 | 공개 상품 목록 | `GET /public/products` | 불필요 (Gateway·서비스 모두 permit) |
 | 공개 상품 상세 (PDP) | `GET /public/products/{productId}` | 불필요 — 계약: `product-service/docs/STOREFRONT_PRODUCT_DETAIL.md` |
-| 카테고리·조회 | `GET /categories/**`, `GET /queries/**` | 불필요 |
+| 카테고리·조회 | `GET /categories/**`, `GET /queries/categories/hierarchy`, `GET /queries/option-groups/**` | 불필요 |
 | 관리자 상품·이미지 | `/admin/products/**` | JWT + `ADMIN` 역할 |
 | 기타 변경 API | `/admin/**`, `POST/PUT/PATCH/DELETE` | JWT 필요 |
 

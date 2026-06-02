@@ -42,7 +42,6 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET,
                         "/categories/**",
                         "/queries/categories/hierarchy",
-                        "/queries/products/**",
                         "/queries/option-groups/**",
                         "/public/**"
                 ).permitAll()
