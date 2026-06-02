@@ -15,4 +15,6 @@ public interface ProductReadRepository {
     List<ReadProductView> findVisibleByCategoryId(CategoryId categoryId);
 
     Optional<ReadProductDetailView> findVisibleProductDetailById(ProductId productId);
+
+    Optional<ReadProductDetailView> findStorefrontProductDetailById(ProductId productId);
 }

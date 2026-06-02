@@ -1,13 +1,18 @@
 package com.project.young.productservice.application.service;
 
+import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.dto.condition.PublicProductSearchCondition;
 import com.project.young.productservice.application.dto.query.PublicProductListQuery;
 import com.project.young.productservice.application.dto.query.PublicProductSort;
 import com.project.young.productservice.application.dto.result.PublicProductListPageResult;
 import com.project.young.productservice.application.port.output.CategoryReadRepository;
 import com.project.young.productservice.application.port.output.PublicProductReadRepository;
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.port.output.view.ReadPublicProductSummaryView;
 import com.project.young.productservice.domain.exception.CategoryNotFoundException;
+import com.project.young.productservice.domain.exception.ProductNotFoundException;
+import com.project.young.productservice.domain.valueobject.ConditionType;
+import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -194,5 +199,52 @@ class PublicProductQueryServiceTest {
                 .mainImageUrl("https://example.com/img.jpg")
                 .basePrice(new BigDecimal("10000"))
                 .build();
+    }
+
+    @Test
+    @DisplayName("상품 상세 조회 - 조회 가능 상태면 상세를 반환한다")
+    void getStorefrontProductDetail_whenExists_returnsDetail() {
+        ProductId productId = new ProductId(UUID.randomUUID());
+        ReadProductDetailView detail = ReadProductDetailView.builder()
+                .id(productId.getValue())
+                .categoryId(CATEGORY_ID)
+                .name("Preview Product")
+                .description("desc")
+                .brand("Brand")
+                .mainImageUrl("https://example.com/a.jpg")
+                .basePrice(new BigDecimal("10000"))
+                .status(ProductStatus.INACTIVE)
+                .conditionType(ConditionType.NEW)
+                .optionGroups(List.of())
+                .variants(List.of())
+                .build();
+
+        when(publicProductReadRepository.findStorefrontProductDetailById(productId))
+                .thenReturn(java.util.Optional.of(detail));
+
+        ReadProductDetailView result = publicProductQueryService.getStorefrontProductDetail(productId);
+
+        assertThat(result).isEqualTo(detail);
+    }
+
+    @Test
+    @DisplayName("상품 상세 조회 - DRAFT/DELETED/없음은 ProductNotFoundException")
+    void getStorefrontProductDetail_whenMissing_throwsNotFound() {
+        ProductId productId = new ProductId(UUID.randomUUID());
+        when(publicProductReadRepository.findStorefrontProductDetailById(productId))
+                .thenReturn(java.util.Optional.empty());
+
+        assertThatThrownBy(() -> publicProductQueryService.getStorefrontProductDetail(productId))
+                .isInstanceOf(ProductNotFoundException.class)
+                .hasMessageContaining("not visible");
+    }
+
+    @Test
+    @DisplayName("상품 상세 조회 - productId가 null이면 IllegalArgumentException")
+    void getStorefrontProductDetail_whenNull_throwsIllegalArgument() {
+        assertThatThrownBy(() -> publicProductQueryService.getStorefrontProductDetail(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("productId");
+        verify(publicProductReadRepository, never()).findStorefrontProductDetailById(any());
     }
 }

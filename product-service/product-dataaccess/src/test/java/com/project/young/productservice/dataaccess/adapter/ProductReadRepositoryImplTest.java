@@ -2,19 +2,25 @@ package com.project.young.productservice.dataaccess.adapter;
 
 import com.project.young.common.domain.valueobject.CategoryId;
 import com.project.young.common.domain.valueobject.ProductId;
+import com.project.young.productservice.application.policy.StorefrontProductVisibilityPolicy;
 import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.port.output.view.ReadProductView;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
+import com.project.young.productservice.dataaccess.entity.ProductOptionValueImageEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionValueEntity;
+import com.project.young.productservice.dataaccess.entity.ProductImageEntity;
 import com.project.young.productservice.dataaccess.entity.ProductVariantEntity;
 import com.project.young.productservice.dataaccess.entity.VariantOptionValueEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
 import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
+import com.project.young.productservice.dataaccess.enums.ProductImageRoleEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
+import com.project.young.productservice.dataaccess.repository.ProductImageJpaRepository;
+import com.project.young.productservice.dataaccess.repository.ProductOptionValueImageJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
@@ -43,6 +49,12 @@ class ProductReadRepositoryImplTest {
 
     @Mock
     private ProductDataAccessMapper productDataAccessMapper;
+
+    @Mock
+    private ProductImageJpaRepository productImageJpaRepository;
+
+    @Mock
+    private ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository;
 
     @InjectMocks
     private ProductReadRepositoryImpl productReadRepository;
@@ -301,6 +313,139 @@ class ProductReadRepositoryImplTest {
                     .hasMessageContaining("productId must not be null");
 
             verifyNoInteractions(productJpaRepository);
+        }
+    }
+
+    @Nested
+    @DisplayName("findStorefrontProductDetailById 테스트")
+    class FindStorefrontProductDetailByIdTests {
+
+        @Test
+        @DisplayName("스토어프론트 상세 조회 시 DRAFT/DELETED 제외 상태를 쿼리에 전달한다")
+        void findStorefrontProductDetailById_passesExcludedStatuses() {
+            UUID rawId = UUID.randomUUID();
+            ProductId productId = new ProductId(rawId);
+
+            ProductEntity productEntity = ProductEntity.builder()
+                    .id(rawId)
+                    .name("preview")
+                    .description("preview desc long enough")
+                    .basePrice(new BigDecimal("15000"))
+                    .status(ProductStatusEntity.INACTIVE)
+                    .conditionType(ConditionTypeEntity.NEW)
+                    .mainImageUrl("https://example.com/main.jpg")
+                    .build();
+
+            when(productJpaRepository.findStorefrontDetailWithOptionsById(
+                    eq(rawId), anyList(), eq(CategoryStatusEntity.DELETED)))
+                    .thenReturn(Optional.of(productEntity));
+            when(productJpaRepository.findStorefrontDetailWithVariantsById(
+                    eq(rawId), anyList(), eq(CategoryStatusEntity.DELETED)))
+                    .thenReturn(Optional.of(productEntity));
+            when(productDataAccessMapper.toDomainStatus(ProductStatusEntity.INACTIVE))
+                    .thenReturn(ProductStatus.INACTIVE);
+            when(productDataAccessMapper.toDomainConditionType(ConditionTypeEntity.NEW))
+                    .thenReturn(ConditionType.NEW);
+            when(productImageJpaRepository.findByProduct_IdAndStatusOrderBySortOrderAsc(rawId, OptionStatusEntity.ACTIVE))
+                    .thenReturn(List.of());
+
+            Optional<ReadProductDetailView> result = productReadRepository.findStorefrontProductDetailById(productId);
+
+            assertThat(result).isPresent();
+
+            @SuppressWarnings({"unchecked", "rawtypes"})
+            org.mockito.ArgumentCaptor<List<ProductStatusEntity>> statusCaptor =
+                    (org.mockito.ArgumentCaptor) org.mockito.ArgumentCaptor.forClass(List.class);
+            verify(productJpaRepository).findStorefrontDetailWithOptionsById(
+                    eq(rawId), statusCaptor.capture(), eq(CategoryStatusEntity.DELETED));
+            List<ProductStatusEntity> excluded = statusCaptor.getValue();
+            assertThat(excluded).containsExactlyInAnyOrder(ProductStatusEntity.DRAFT, ProductStatusEntity.DELETED);
+            assertThat(excluded.stream()
+                    .map(Enum::name)
+                    .map(ProductStatus::fromString)
+                    .noneMatch(StorefrontProductVisibilityPolicy::isDetailViewable))
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("스토어프론트 상세 조회 시 상품/옵션값 이미지를 매핑한다")
+        void findStorefrontProductDetailById_mapsProductAndOptionImages() {
+            UUID rawId = UUID.randomUUID();
+            ProductId productId = new ProductId(rawId);
+
+            ProductOptionValueEntity optionValue = ProductOptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .optionValueId(UUID.randomUUID())
+                    .priceDelta(BigDecimal.ZERO)
+                    .isDefault(true)
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            ProductOptionGroupEntity optionGroup = ProductOptionGroupEntity.builder()
+                    .id(UUID.randomUUID())
+                    .optionGroupId(UUID.randomUUID())
+                    .stepOrder(1)
+                    .isRequired(true)
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            optionGroup.addOptionValue(optionValue);
+
+            ProductEntity productEntity = ProductEntity.builder()
+                    .id(rawId)
+                    .name("preview")
+                    .description("preview desc long enough")
+                    .basePrice(new BigDecimal("15000"))
+                    .status(ProductStatusEntity.INACTIVE)
+                    .conditionType(ConditionTypeEntity.NEW)
+                    .mainImageUrl("https://example.com/main.jpg")
+                    .build();
+            productEntity.addOptionGroup(optionGroup);
+
+            ProductImageEntity productImage = ProductImageEntity.builder()
+                    .id(UUID.randomUUID())
+                    .product(productEntity)
+                    .storageKey("products/p1.jpg")
+                    .publicUrl("https://pub.example/products/p1.jpg")
+                    .role(ProductImageRoleEntity.MAIN)
+                    .sortOrder(0)
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            ProductOptionValueImageEntity povImage = ProductOptionValueImageEntity.builder()
+                    .id(UUID.randomUUID())
+                    .productOptionValue(optionValue)
+                    .storageKey("products/pov/red.jpg")
+                    .publicUrl("https://pub.example/products/pov/red.jpg")
+                    .role(ProductImageRoleEntity.MAIN)
+                    .sortOrder(0)
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+
+            when(productJpaRepository.findStorefrontDetailWithOptionsById(
+                    eq(rawId), anyList(), eq(CategoryStatusEntity.DELETED)))
+                    .thenReturn(Optional.of(productEntity));
+            when(productJpaRepository.findStorefrontDetailWithVariantsById(
+                    eq(rawId), anyList(), eq(CategoryStatusEntity.DELETED)))
+                    .thenReturn(Optional.of(productEntity));
+            when(productDataAccessMapper.toDomainStatus(ProductStatusEntity.INACTIVE))
+                    .thenReturn(ProductStatus.INACTIVE);
+            when(productDataAccessMapper.toDomainConditionType(ConditionTypeEntity.NEW))
+                    .thenReturn(ConditionType.NEW);
+            when(productDataAccessMapper.toDomainOptionStatus(OptionStatusEntity.ACTIVE))
+                    .thenReturn(com.project.young.productservice.domain.valueobject.OptionStatus.ACTIVE);
+            when(productImageJpaRepository.findByProduct_IdAndStatusOrderBySortOrderAsc(rawId, OptionStatusEntity.ACTIVE))
+                    .thenReturn(List.of(productImage));
+            when(productOptionValueImageJpaRepository.findByProductOptionValue_IdInAndStatusOrderBySortOrderAsc(
+                    any(), eq(OptionStatusEntity.ACTIVE)))
+                    .thenReturn(List.of(povImage));
+
+            ReadProductDetailView view = productReadRepository.findStorefrontProductDetailById(productId).orElseThrow();
+
+            assertThat(view.images()).hasSize(1);
+            assertThat(view.images().getFirst().publicUrl()).contains("products/p1.jpg");
+            assertThat(view.optionGroups()).hasSize(1);
+            assertThat(view.optionGroups().getFirst().optionValues()).hasSize(1);
+            assertThat(view.optionGroups().getFirst().optionValues().getFirst().images()).hasSize(1);
+            assertThat(view.optionGroups().getFirst().optionValues().getFirst().images().getFirst().publicUrl())
+                    .contains("products/pov/red.jpg");
         }
     }
 }

@@ -19,10 +19,12 @@ public record ReadProductDetailView(
         BigDecimal basePrice,
         ProductStatus status,
         ConditionType conditionType,
+        List<ReadProductImageView> images,
         List<ReadProductOptionGroupView> optionGroups,
         List<ReadProductVariantView> variants
 ) {
     public ReadProductDetailView {
+        images = images == null ? List.of() : images;
         optionGroups = optionGroups == null ? List.of() : optionGroups;
         variants = variants == null ? List.of() : variants;
     }

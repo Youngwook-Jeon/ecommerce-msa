@@ -2,11 +2,14 @@ package com.project.young.productservice.web.publicapi.controller;
 
 import com.project.young.productservice.application.dto.query.PublicProductListQuery;
 import com.project.young.productservice.application.dto.result.PublicProductListPageResult;
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.service.PublicProductQueryService;
 import com.project.young.common.application.web.GlobalExceptionHandler;
+import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import com.project.young.productservice.web.config.SecurityConfig;
 import com.project.young.productservice.web.controller.TestConfig;
 import com.project.young.productservice.web.exception.handler.ProductServiceGlobalExceptionHandler;
+import com.project.young.productservice.web.publicapi.dto.PublicProductDetailResponse;
 import com.project.young.productservice.web.publicapi.dto.PublicProductPageResponse;
 import com.project.young.productservice.web.publicapi.mapper.PublicProductQueryResponseMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
@@ -104,5 +108,65 @@ class PublicProductQueryControllerTest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.page").value(1))
         .andExpect(jsonPath("$.size").value(10));
+  }
+
+  @Test
+  @DisplayName("GET /public/products/{productId} — 상세 조회")
+  void getProductDetail_returnsOk() throws Exception {
+    UUID productId = UUID.randomUUID();
+    ReadProductDetailView serviceResult =
+        ReadProductDetailView.builder()
+            .id(productId)
+            .categoryId(CATEGORY_ID)
+            .name("Preview Product")
+            .description("desc")
+            .brand("Brand")
+            .mainImageUrl("https://example.com/a.jpg")
+            .basePrice(java.math.BigDecimal.valueOf(10000))
+            .status(com.project.young.productservice.domain.valueobject.ProductStatus.INACTIVE)
+            .conditionType(com.project.young.productservice.domain.valueobject.ConditionType.NEW)
+            .images(List.of())
+            .optionGroups(List.of())
+            .variants(List.of())
+            .build();
+    PublicProductDetailResponse response =
+        PublicProductDetailResponse.builder()
+            .id(productId)
+            .categoryId(CATEGORY_ID)
+            .name("Preview Product")
+            .description("desc")
+            .brand("Brand")
+            .mainImageUrl("https://example.com/a.jpg")
+            .basePrice(java.math.BigDecimal.valueOf(10000))
+            .status("INACTIVE")
+            .conditionType("NEW")
+            .purchasable(false)
+            .listedInCatalog(false)
+            .images(List.of())
+            .optionGroups(List.of())
+            .variants(List.of())
+            .build();
+
+    when(publicProductQueryService.getStorefrontProductDetail(any())).thenReturn(serviceResult);
+    when(publicProductQueryResponseMapper.toPublicProductDetailResponse(serviceResult)).thenReturn(response);
+
+    mockMvc
+        .perform(get("/public/products/{productId}", productId))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(productId.toString()))
+        .andExpect(jsonPath("$.status").value("INACTIVE"))
+        .andExpect(jsonPath("$.purchasable").value(false));
+  }
+
+  @Test
+  @DisplayName("GET /public/products/{productId} — 없는 상품이면 404")
+  void getProductDetail_whenNotFound_returns404() throws Exception {
+    UUID productId = UUID.randomUUID();
+    when(publicProductQueryService.getStorefrontProductDetail(any()))
+        .thenThrow(new ProductNotFoundException("Product not found or not visible: " + productId));
+
+    mockMvc
+        .perform(get("/public/products/{productId}", productId))
+        .andExpect(status().isNotFound());
   }
 }

@@ -1,12 +1,15 @@
 package com.project.young.productservice.application.service;
 
+import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.dto.condition.PublicProductSearchCondition;
 import com.project.young.productservice.application.dto.query.PublicProductListQuery;
 import com.project.young.productservice.application.dto.query.PublicProductSort;
 import com.project.young.productservice.application.dto.result.PublicProductListPageResult;
 import com.project.young.productservice.application.port.output.CategoryReadRepository;
 import com.project.young.productservice.application.port.output.PublicProductReadRepository;
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.domain.exception.CategoryNotFoundException;
+import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +46,14 @@ public class PublicProductQueryService {
                 criteria.page(),
                 criteria.size()
         );
+    }
+
+    public ReadProductDetailView getStorefrontProductDetail(ProductId productId) {
+        if (productId == null) {
+            throw new IllegalArgumentException("productId must not be null");
+        }
+        return publicProductReadRepository.findStorefrontProductDetailById(productId)
+                .orElseThrow(() -> new ProductNotFoundException("Product not found or not visible: " + productId));
     }
 
     private ValidatedListCriteria validateListQuery(PublicProductListQuery query) {

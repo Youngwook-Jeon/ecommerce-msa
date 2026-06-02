@@ -1,19 +1,24 @@
 package com.project.young.productservice.web.publicapi.controller;
 
+import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.dto.query.PublicProductListQuery;
+import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.dto.result.PublicProductListPageResult;
 import com.project.young.productservice.application.service.PublicProductQueryService;
+import com.project.young.productservice.web.publicapi.dto.PublicProductDetailResponse;
 import com.project.young.productservice.web.publicapi.dto.PublicProductPageResponse;
 import com.project.young.productservice.web.publicapi.mapper.PublicProductQueryResponseMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Storefront read API. Gateway path: {@code /api/v1/product_service/public/products}.
@@ -57,5 +62,12 @@ public class PublicProductQueryController {
         );
 
         return ResponseEntity.ok(publicProductQueryResponseMapper.toPublicProductPageResponse(result));
+    }
+
+    @GetMapping("/{productId}")
+    public ResponseEntity<PublicProductDetailResponse> getProductDetail(@PathVariable("productId") UUID productId) {
+        log.info("REST request to get public product detail: productId={}", productId);
+        ReadProductDetailView detail = publicProductQueryService.getStorefrontProductDetail(new ProductId(productId));
+        return ResponseEntity.ok(publicProductQueryResponseMapper.toPublicProductDetailResponse(detail));
     }
 }

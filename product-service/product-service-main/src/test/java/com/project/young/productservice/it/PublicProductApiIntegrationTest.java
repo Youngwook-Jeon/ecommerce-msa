@@ -71,9 +71,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class PublicProductApiIntegrationTest {
 
     private static final String PUBLIC_PRODUCTS = "/public/products";
+    private static final String PUBLIC_PRODUCT_DETAIL = "/public/products/{productId}";
     private static final String PUBLIC_PRODUCT_FACETS = "/public/products/facets";
 
-    /** {@code @PreAuthorize("hasAuthority('ADMIN')")} 와 동일한 authority 문자열 */
     private static final GrantedAuthority[] ADMIN_AUTHORITIES = {
             new SimpleGrantedAuthority("ADMIN")
     };
@@ -333,6 +333,49 @@ class PublicProductApiIntegrationTest {
         }
     }
 
+    @Nested
+    @DisplayName("GET /public/products/{productId} — 상세 조회")
+    class ProductDetailTests {
+
+        @Test
+        @DisplayName("INACTIVE 상품은 200과 상세 본문 반환")
+        void detail_inactiveProduct_returnsOk() throws Exception {
+            Long categoryId = createCategory("PDP 카테고리");
+            UUID productId = createDraftProduct("프리뷰 상품", "브랜드A", new BigDecimal("39000"), categoryId);
+            publishProduct(productId);
+            updateProductStatus(productId, ProductStatus.INACTIVE);
+
+            mockMvc.perform(get(PUBLIC_PRODUCT_DETAIL, productId))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.id").value(productId.toString()))
+                    .andExpect(jsonPath("$.status").value("INACTIVE"))
+                    .andExpect(jsonPath("$.purchasable").value(false))
+                    .andExpect(jsonPath("$.listedInCatalog").value(false))
+                    .andExpect(jsonPath("$.images").isArray())
+                    .andExpect(jsonPath("$.optionGroups").isArray())
+                    .andExpect(jsonPath("$.optionGroups[0].optionValues").isArray())
+                    .andExpect(jsonPath("$.optionGroups[0].optionValues[0].images").isArray())
+                    .andExpect(jsonPath("$.variants").isArray());
+        }
+
+        @Test
+        @DisplayName("DRAFT/DELETED/없음 상품은 404")
+        void detail_draftDeletedAndMissing_returns404() throws Exception {
+            Long categoryId = createCategory("PDP 카테고리2");
+            UUID draftProductId = createDraftProduct("드래프트 상품", "브랜드D", new BigDecimal("10000"), categoryId);
+            UUID deletedProductId = createDraftProduct("삭제 상품", "브랜드X", new BigDecimal("20000"), categoryId);
+
+            updateProductStatus(deletedProductId, ProductStatus.DELETED);
+
+            mockMvc.perform(get(PUBLIC_PRODUCT_DETAIL, draftProductId))
+                    .andExpect(status().isNotFound());
+            mockMvc.perform(get(PUBLIC_PRODUCT_DETAIL, deletedProductId))
+                    .andExpect(status().isNotFound());
+            mockMvc.perform(get(PUBLIC_PRODUCT_DETAIL, UUID.randomUUID()))
+                    .andExpect(status().isNotFound());
+        }
+    }
+
     private Long createCategory(String name) throws Exception {
         CreateCategoryCommand command = CreateCategoryCommand.builder()
                 .name(name)
@@ -436,6 +479,19 @@ class PublicProductApiIntegrationTest {
 
         UpdateProductStatusCommand statusCommand = UpdateProductStatusCommand.builder()
                 .status(ProductStatus.ACTIVE)
+                .build();
+
+        mockMvc.perform(patch("/admin/products/{productId}/status", productId)
+                        .with(user("admin").authorities(ADMIN_AUTHORITIES))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(statusCommand)))
+                .andExpect(status().isOk());
+    }
+
+    private void updateProductStatus(UUID productId, ProductStatus status) throws Exception {
+        UpdateProductStatusCommand statusCommand = UpdateProductStatusCommand.builder()
+                .status(status)
                 .build();
 
         mockMvc.perform(patch("/admin/products/{productId}/status", productId)

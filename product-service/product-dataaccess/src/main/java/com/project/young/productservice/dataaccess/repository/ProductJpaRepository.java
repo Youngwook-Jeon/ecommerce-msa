@@ -112,4 +112,32 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, UUID>
     Optional<ProductEntity> findVisibleDetailWithVariantsById(@Param("productId") UUID productId,
                                                               @Param("productStatus") ProductStatusEntity productStatus,
                                                               @Param("categoryStatus") CategoryStatusEntity categoryStatus);
+
+    @Query("""
+           SELECT DISTINCT p
+           FROM ProductEntity p
+           LEFT JOIN p.category c
+           LEFT JOIN FETCH p.optionGroups og
+           LEFT JOIN FETCH og.optionValues
+           WHERE p.id = :productId
+            AND p.status NOT IN :excludedStatuses
+            AND (c IS NULL OR c.status <> :excludedCategoryStatus)
+           """)
+    Optional<ProductEntity> findStorefrontDetailWithOptionsById(@Param("productId") UUID productId,
+                                                                 @Param("excludedStatuses") List<ProductStatusEntity> excludedStatuses,
+                                                                 @Param("excludedCategoryStatus") CategoryStatusEntity excludedCategoryStatus);
+
+    @Query("""
+           SELECT DISTINCT p
+           FROM ProductEntity p
+           LEFT JOIN p.category c
+           LEFT JOIN FETCH p.variants v
+           LEFT JOIN FETCH v.selectedOptionValues
+           WHERE p.id = :productId
+            AND p.status NOT IN :excludedStatuses
+            AND (c IS NULL OR c.status <> :excludedCategoryStatus)
+           """)
+    Optional<ProductEntity> findStorefrontDetailWithVariantsById(@Param("productId") UUID productId,
+                                                                  @Param("excludedStatuses") List<ProductStatusEntity> excludedStatuses,
+                                                                  @Param("excludedCategoryStatus") CategoryStatusEntity excludedCategoryStatus);
 }
