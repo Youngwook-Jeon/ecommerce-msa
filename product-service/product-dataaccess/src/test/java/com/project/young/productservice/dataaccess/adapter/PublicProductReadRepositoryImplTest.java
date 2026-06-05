@@ -3,6 +3,8 @@ package com.project.young.productservice.dataaccess.adapter;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.policy.StorefrontProductVisibilityPolicy;
 import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
+import com.project.young.productservice.dataaccess.entity.OptionGroupEntity;
+import com.project.young.productservice.dataaccess.entity.OptionValueEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.entity.ProductImageEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
@@ -14,6 +16,7 @@ import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductImageRoleEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
+import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductImageJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductOptionValueImageJpaRepository;
@@ -54,6 +57,8 @@ class PublicProductReadRepositoryImplTest {
     private ProductImageJpaRepository productImageJpaRepository;
     @Mock
     private ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository;
+    @Mock
+    private OptionGroupJpaRepository optionGroupJpaRepository;
 
     @InjectMocks
     private PublicProductReadRepositoryImpl publicProductReadRepository;
@@ -123,13 +128,18 @@ class PublicProductReadRepositoryImplTest {
                     .thenReturn(List.of(fixture.productImage()));
             when(productOptionValueImageJpaRepository.findByProductOptionValue_IdInAndStatusOrderBySortOrderAsc(any(), eq(OptionStatusEntity.ACTIVE)))
                     .thenReturn(List.of(fixture.povImage()));
+            when(optionGroupJpaRepository.findAllByIdIn(any()))
+                    .thenReturn(List.of(fixture.globalOptionGroup()));
 
             ReadProductDetailView view = publicProductReadRepository.findStorefrontProductDetailById(productId).orElseThrow();
 
             assertThat(view.images()).hasSize(1);
             assertThat(view.images().getFirst().publicUrl()).contains("products/p1.jpg");
             assertThat(view.optionGroups()).hasSize(1);
+            assertThat(view.optionGroups().getFirst().groupKey()).isEqualTo("color");
+            assertThat(view.optionGroups().getFirst().displayName()).isEqualTo("Color");
             assertThat(view.optionGroups().getFirst().optionValues()).hasSize(1);
+            assertThat(view.optionGroups().getFirst().optionValues().getFirst().displayName()).isEqualTo("Red");
             assertThat(view.optionGroups().getFirst().optionValues().getFirst().images()).hasSize(1);
             assertThat(view.optionGroups().getFirst().optionValues().getFirst().images().getFirst().publicUrl())
                     .contains("products/pov/red.jpg");
@@ -147,24 +157,41 @@ class PublicProductReadRepositoryImplTest {
     private record Fixture(
             ProductEntity product,
             ProductImageEntity productImage,
-            ProductOptionValueImageEntity povImage
+            ProductOptionValueImageEntity povImage,
+            OptionGroupEntity globalOptionGroup
     ) {
         static Fixture forProduct(UUID productId) {
+            UUID globalOptionGroupId = UUID.randomUUID();
+            UUID globalOptionValueId = UUID.randomUUID();
             ProductOptionValueEntity optionValue = ProductOptionValueEntity.builder()
                     .id(UUID.randomUUID())
-                    .optionValueId(UUID.randomUUID())
+                    .optionValueId(globalOptionValueId)
                     .priceDelta(BigDecimal.ZERO)
                     .isDefault(true)
                     .status(OptionStatusEntity.ACTIVE)
                     .build();
             ProductOptionGroupEntity optionGroup = ProductOptionGroupEntity.builder()
                     .id(UUID.randomUUID())
-                    .optionGroupId(UUID.randomUUID())
+                    .optionGroupId(globalOptionGroupId)
                     .stepOrder(1)
                     .isRequired(true)
                     .status(OptionStatusEntity.ACTIVE)
                     .build();
             optionGroup.addOptionValue(optionValue);
+            OptionValueEntity globalOptionValue = OptionValueEntity.builder()
+                    .id(globalOptionValueId)
+                    .value("RED")
+                    .displayName("Red")
+                    .sortOrder(0)
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            OptionGroupEntity globalOptionGroup = OptionGroupEntity.builder()
+                    .id(globalOptionGroupId)
+                    .name("color")
+                    .displayName("Color")
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            globalOptionGroup.addOptionValue(globalOptionValue);
 
             ProductEntity product = ProductEntity.builder()
                     .id(productId)
@@ -195,7 +222,7 @@ class PublicProductReadRepositoryImplTest {
                     .sortOrder(0)
                     .status(OptionStatusEntity.ACTIVE)
                     .build();
-            return new Fixture(product, productImage, povImage);
+            return new Fixture(product, productImage, povImage, globalOptionGroup);
         }
     }
 }

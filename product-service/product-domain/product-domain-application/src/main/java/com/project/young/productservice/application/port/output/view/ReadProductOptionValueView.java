@@ -11,6 +11,7 @@ import java.util.UUID;
 public record ReadProductOptionValueView(
         UUID productOptionValueId,
         UUID optionValueId,
+        String displayName,
         BigDecimal priceDelta,
         boolean isDefault,
         OptionStatus status,

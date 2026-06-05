@@ -10,6 +10,8 @@ import java.util.UUID;
 public record ReadProductOptionGroupView(
         UUID productOptionGroupId,
         UUID optionGroupId,
+        String groupKey,
+        String displayName,
         double stepOrder,
         boolean required,
         boolean drivesVariantImages,

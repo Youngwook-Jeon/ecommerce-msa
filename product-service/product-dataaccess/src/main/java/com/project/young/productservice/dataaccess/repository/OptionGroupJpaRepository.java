@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.lang.NonNull;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,4 +26,7 @@ public interface OptionGroupJpaRepository extends JpaRepository<OptionGroupEntit
 
     @EntityGraph(attributePaths = {"optionValues"})
     List<OptionGroupEntity> findAllByOrderByNameAsc();
+
+    @EntityGraph(attributePaths = {"optionValues"})
+    List<OptionGroupEntity> findAllByIdIn(Collection<UUID> ids);
 }

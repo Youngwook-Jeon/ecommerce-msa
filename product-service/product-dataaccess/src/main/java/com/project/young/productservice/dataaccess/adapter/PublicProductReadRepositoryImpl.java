@@ -11,6 +11,8 @@ import com.project.young.productservice.application.port.output.view.ReadProduct
 import com.project.young.productservice.application.port.output.view.ReadProductOptionValueView;
 import com.project.young.productservice.application.port.output.view.ReadProductVariantView;
 import com.project.young.productservice.application.port.output.view.ReadPublicProductSummaryView;
+import com.project.young.productservice.dataaccess.entity.OptionGroupEntity;
+import com.project.young.productservice.dataaccess.entity.OptionValueEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.entity.ProductImageEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
@@ -24,6 +26,7 @@ import com.project.young.productservice.dataaccess.enums.ProductImageRoleEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.projection.PublicProductListProjection;
+import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductImageJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductOptionValueImageJpaRepository;
@@ -42,6 +45,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Repository
 @Transactional(readOnly = true)
@@ -54,17 +59,20 @@ public class PublicProductReadRepositoryImpl implements PublicProductReadReposit
     private final ProductDataAccessMapper productDataAccessMapper;
     private final ProductImageJpaRepository productImageJpaRepository;
     private final ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository;
+    private final OptionGroupJpaRepository optionGroupJpaRepository;
 
     public PublicProductReadRepositoryImpl(PublicProductSearchQueryRepository publicProductSearchQueryRepository,
                                            ProductJpaRepository productJpaRepository,
                                            ProductDataAccessMapper productDataAccessMapper,
                                            ProductImageJpaRepository productImageJpaRepository,
-                                           ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository) {
+                                           ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository,
+                                           OptionGroupJpaRepository optionGroupJpaRepository) {
         this.publicProductSearchQueryRepository = publicProductSearchQueryRepository;
         this.productJpaRepository = productJpaRepository;
         this.productDataAccessMapper = productDataAccessMapper;
         this.productImageJpaRepository = productImageJpaRepository;
         this.productOptionValueImageJpaRepository = productOptionValueImageJpaRepository;
+        this.optionGroupJpaRepository = optionGroupJpaRepository;
     }
 
     @Override
@@ -143,7 +151,12 @@ public class PublicProductReadRepositoryImpl implements PublicProductReadReposit
                 : null;
 
         DetailImageBundle imageBundle = loadDetailImages(entity);
-        List<ReadProductOptionGroupView> optionGroups = mapOptionGroups(entity, imageBundle.optionValueImagesById());
+        OptionMetadataBundle optionMetadata = loadOptionMetadata(entity);
+        List<ReadProductOptionGroupView> optionGroups = mapOptionGroups(
+                entity,
+                imageBundle.optionValueImagesById(),
+                optionMetadata
+        );
         List<ReadProductVariantView> variants = mapVariants(entity);
 
         return ReadProductDetailView.builder()
@@ -164,14 +177,41 @@ public class PublicProductReadRepositoryImpl implements PublicProductReadReposit
 
     private List<ReadProductOptionGroupView> mapOptionGroups(
             ProductEntity entity,
-            Map<UUID, List<ReadProductImageView>> optionValueImagesById
+            Map<UUID, List<ReadProductImageView>> optionValueImagesById,
+            OptionMetadataBundle optionMetadata
     ) {
         if (entity.getOptionGroups() == null) {
             return List.of();
         }
         return entity.getOptionGroups().stream()
-                .map(group -> toReadProductOptionGroupView(group, optionValueImagesById))
+                .map(group -> toReadProductOptionGroupView(group, optionValueImagesById, optionMetadata))
                 .toList();
+    }
+
+    private OptionMetadataBundle loadOptionMetadata(ProductEntity entity) {
+        if (entity.getOptionGroups() == null || entity.getOptionGroups().isEmpty()) {
+            return new OptionMetadataBundle(Map.of(), Map.of());
+        }
+
+        List<UUID> optionGroupIds = entity.getOptionGroups().stream()
+                .map(ProductOptionGroupEntity::getOptionGroupId)
+                .distinct()
+                .toList();
+
+        Map<UUID, OptionGroupEntity> groupById = optionGroupJpaRepository.findAllByIdIn(optionGroupIds).stream()
+                .collect(Collectors.toMap(OptionGroupEntity::getId, Function.identity()));
+
+        Map<UUID, String> valueDisplayNameById = new HashMap<>();
+        for (OptionGroupEntity group : groupById.values()) {
+            if (group.getOptionValues() == null) {
+                continue;
+            }
+            for (OptionValueEntity value : group.getOptionValues()) {
+                valueDisplayNameById.put(value.getId(), value.getDisplayName());
+            }
+        }
+
+        return new OptionMetadataBundle(groupById, valueDisplayNameById);
     }
 
     private List<ReadProductVariantView> mapVariants(ProductEntity entity) {
@@ -203,17 +243,22 @@ public class PublicProductReadRepositoryImpl implements PublicProductReadReposit
 
     private ReadProductOptionGroupView toReadProductOptionGroupView(
             ProductOptionGroupEntity entity,
-            Map<UUID, List<ReadProductImageView>> optionValueImagesById
+            Map<UUID, List<ReadProductImageView>> optionValueImagesById,
+            OptionMetadataBundle optionMetadata
     ) {
         List<ReadProductOptionValueView> optionValues = entity.getOptionValues() == null
                 ? List.of()
                 : entity.getOptionValues().stream()
-                .map(value -> toReadProductOptionValueView(value, optionValueImagesById))
+                .map(value -> toReadProductOptionValueView(value, optionValueImagesById, optionMetadata))
                 .toList();
+
+        OptionGroupEntity globalGroup = optionMetadata.groupById().get(entity.getOptionGroupId());
 
         return ReadProductOptionGroupView.builder()
                 .productOptionGroupId(entity.getId())
                 .optionGroupId(entity.getOptionGroupId())
+                .groupKey(globalGroup != null ? globalGroup.getName() : null)
+                .displayName(globalGroup != null ? globalGroup.getDisplayName() : null)
                 .stepOrder(entity.getStepOrder())
                 .required(entity.isRequired())
                 .drivesVariantImages(entity.isDrivesVariantImages())
@@ -224,11 +269,13 @@ public class PublicProductReadRepositoryImpl implements PublicProductReadReposit
 
     private ReadProductOptionValueView toReadProductOptionValueView(
             ProductOptionValueEntity entity,
-            Map<UUID, List<ReadProductImageView>> optionValueImagesById
+            Map<UUID, List<ReadProductImageView>> optionValueImagesById,
+            OptionMetadataBundle optionMetadata
     ) {
         return ReadProductOptionValueView.builder()
                 .productOptionValueId(entity.getId())
                 .optionValueId(entity.getOptionValueId())
+                .displayName(optionMetadata.valueDisplayNameById().get(entity.getOptionValueId()))
                 .priceDelta(entity.getPriceDelta())
                 .isDefault(entity.isDefault())
                 .status(productDataAccessMapper.toDomainOptionStatus(entity.getStatus()))
@@ -308,6 +355,12 @@ public class PublicProductReadRepositoryImpl implements PublicProductReadReposit
     private record DetailImageBundle(
             List<ReadProductImageView> productImages,
             Map<UUID, List<ReadProductImageView>> optionValueImagesById
+    ) {
+    }
+
+    private record OptionMetadataBundle(
+            Map<UUID, OptionGroupEntity> groupById,
+            Map<UUID, String> valueDisplayNameById
     ) {
     }
 }
