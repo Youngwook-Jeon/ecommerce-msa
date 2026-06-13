@@ -19,7 +19,7 @@ sleep 5
 
 echo "Starting Kafka cluster"
 
-# start kafka
+# start kafka (+ schema registry, kafka-ui)
 docker compose -f common.yml -f kafka_cluster.yml up -d
 
 # check kafka health
@@ -50,4 +50,17 @@ echo "Kafka topics are created"
 # start backing services
 docker compose -f common.yml -f backing_services.yml up -d
 
+echo "Starting Kafka Connect (Debezium)"
+
+docker compose -f common.yml -f kafka_cluster.yml -f kafka_connect.yml up -d
+
+connectCheckResult=$(curl -sf http://localhost:8083/connectors 2>/dev/null || true)
+while [[ $connectCheckResult == "" ]]; do
+  >&2 echo "Kafka Connect is not running yet!"
+  sleep 2
+  connectCheckResult=$(curl -sf http://localhost:8083/connectors 2>/dev/null || true)
+done
+echo "Kafka Connect is running (http://localhost:8083)"
+
 echo "Our services are up and running."
+echo "Debezium outbox CDC: run ./scripts/setup-debezium.sh after product-service Flyway (see DEBEZIUM.md)"

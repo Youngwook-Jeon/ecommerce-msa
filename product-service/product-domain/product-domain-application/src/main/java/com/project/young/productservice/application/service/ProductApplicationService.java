@@ -2,6 +2,7 @@ package com.project.young.productservice.application.service;
 
 import com.project.young.common.domain.valueobject.*;
 import com.project.young.productservice.application.dto.command.*;
+import com.project.young.productservice.application.dto.event.ProductCatalogChangeType;
 import com.project.young.productservice.application.dto.result.*;
 import com.project.young.productservice.application.mapper.ProductDataMapper;
 import com.project.young.productservice.application.port.output.IdGenerator;
@@ -33,17 +34,20 @@ public class ProductApplicationService {
     private final ProductDataMapper productDataMapper;
     private final IdGenerator idGenerator;
     private final VariantMainImageSyncPort variantMainImageSyncPort;
+    private final StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
 
     public ProductApplicationService(ProductRepository productRepository,
                                      ProductDomainService productDomainService,
                                      ProductDataMapper productDataMapper,
                                      IdGenerator idGenerator,
-                                     VariantMainImageSyncPort variantMainImageSyncPort) {
+                                     VariantMainImageSyncPort variantMainImageSyncPort,
+                                     StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService) {
         this.productRepository = productRepository;
         this.productDomainService = productDomainService;
         this.productDataMapper = productDataMapper;
         this.idGenerator = idGenerator;
         this.variantMainImageSyncPort = variantMainImageSyncPort;
+        this.storefrontProductCatalogInvalidationService = storefrontProductCatalogInvalidationService;
     }
 
     @Transactional
@@ -86,6 +90,7 @@ public class ProductApplicationService {
 
         if (isModified) {
             productRepository.update(product);
+            invalidateStorefrontCatalog(product, ProductCatalogChangeType.PRODUCT_UPDATED);
             log.info("Product updated successfully. id: {}", product.getId().getValue());
         }
 
@@ -109,6 +114,7 @@ public class ProductApplicationService {
 
         if (applyStatusChange(product, command.getStatus())) {
             productRepository.update(product);
+            invalidateStorefrontCatalog(product, ProductCatalogChangeType.STATUS_CHANGED);
             log.info("Product status updated. id: {}", product.getId().getValue());
         }
 
@@ -130,6 +136,7 @@ public class ProductApplicationService {
         productDomainService.validateDeletionRules(product);
         product.markAsDeleted();
         productRepository.update(product);
+        invalidateStorefrontCatalog(product, ProductCatalogChangeType.DELETED);
 
         log.info("Product deleted successfully. id: {}", product.getId().getValue());
 
@@ -163,6 +170,7 @@ public class ProductApplicationService {
 
         product.addOptionGroup(optionGroup);
         productRepository.update(product);
+        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return productDataMapper.toAddProductOptionGroupResult(product, optionGroup);
     }
@@ -200,6 +208,7 @@ public class ProductApplicationService {
         }
 
         productRepository.update(product);
+        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return results;
     }
@@ -221,6 +230,7 @@ public class ProductApplicationService {
                 new ProductOptionGroupId(productOptionGroupIdValue)
         );
         productRepository.update(product);
+        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return productDataMapper.toDeleteProductOptionGroupResult(product, deleted);
     }
@@ -289,6 +299,7 @@ public class ProductApplicationService {
         for (AddProductVariantResult result : results) {
             variantMainImageSyncPort.syncForVariant(result.productVariantId());
         }
+        invalidateStorefrontCatalog(product, ProductCatalogChangeType.VARIANT_CHANGED);
 
         return results;
     }
@@ -311,6 +322,7 @@ public class ProductApplicationService {
 
         product.changeOptionValuePriceDelta(optionValueId, newPriceDelta);
         productRepository.update(product);
+        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return productDataMapper.toChangeProductOptionValuePriceDeltaResult(product, optionValueId, newPriceDelta);
     }
@@ -334,6 +346,7 @@ public class ProductApplicationService {
         ProductVariantId variantId = new ProductVariantId(productVariantIdValue);
         ProductVariant updated = product.updateVariantDetails(variantId, command.getStockQuantity(), command.getStatus());
         productRepository.update(product);
+        invalidateStorefrontCatalog(product, ProductCatalogChangeType.VARIANT_CHANGED);
 
         return productDataMapper.toUpdateProductVariantResult(product, updated);
     }
@@ -349,6 +362,7 @@ public class ProductApplicationService {
 
         ProductVariant deleted = product.deleteVariant(new ProductVariantId(productVariantIdValue));
         productRepository.update(product);
+        invalidateStorefrontCatalog(product, ProductCatalogChangeType.VARIANT_CHANGED);
 
         return productDataMapper.toDeleteProductVariantResult(product, deleted);
     }
@@ -373,6 +387,7 @@ public class ProductApplicationService {
         double resolvedStepOrder = resolveStepOrder(product, placement, groupId);
         product.changeOptionGroupStepOrder(groupId, resolvedStepOrder);
         productRepository.update(product);
+        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         ProductOptionGroup updated = product.getOptionGroups().stream()
                 .filter(group -> group.getId().equals(groupId))
@@ -407,6 +422,7 @@ public class ProductApplicationService {
             );
         }
         productRepository.update(product);
+        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
         return ReorderProductOptionGroupsResult.builder()
                 .productId(product.getId().getValue())
                 .updatedCount(orderedIds.size())
@@ -425,8 +441,13 @@ public class ProductApplicationService {
 
         ProductOptionValue deleted = product.deleteProductOptionValue(new ProductOptionValueId(productOptionValueIdValue));
         productRepository.update(product);
+        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return productDataMapper.toDeleteProductOptionValueResult(product, deleted);
+    }
+
+    private void invalidateStorefrontCatalog(Product product, ProductCatalogChangeType changeType) {
+        storefrontProductCatalogInvalidationService.invalidate(product, changeType);
     }
 
     private List<ProductOptionValue> mapProductOptionValues(List<AddProductOptionValueCommand> commands) {

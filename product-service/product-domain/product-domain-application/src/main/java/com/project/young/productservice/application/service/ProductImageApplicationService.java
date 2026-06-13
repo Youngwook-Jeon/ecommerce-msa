@@ -2,6 +2,7 @@ package com.project.young.productservice.application.service;
 
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.dto.command.CommitProductImageCommand;
+import com.project.young.productservice.application.dto.event.ProductCatalogChangeType;
 import com.project.young.productservice.application.dto.command.PresignProductImageUploadCommand;
 import com.project.young.productservice.application.dto.command.ReorderProductImagesCommand;
 import com.project.young.productservice.application.dto.result.CommitProductImageResult;
@@ -47,17 +48,20 @@ public class ProductImageApplicationService {
     private final ProductImagePersistencePort productImagePersistence;
     private final ProductImageStoragePort productImageStorage;
     private final VariantMainImageSyncPort variantMainImageSyncPort;
+    private final StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
 
     public ProductImageApplicationService(
             ProductRepository productRepository,
             ProductImagePersistencePort productImagePersistence,
             ProductImageStoragePort productImageStorage,
-            VariantMainImageSyncPort variantMainImageSyncPort
+            VariantMainImageSyncPort variantMainImageSyncPort,
+            StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService
     ) {
         this.productRepository = productRepository;
         this.productImagePersistence = productImagePersistence;
         this.productImageStorage = productImageStorage;
         this.variantMainImageSyncPort = variantMainImageSyncPort;
+        this.storefrontProductCatalogInvalidationService = storefrontProductCatalogInvalidationService;
     }
 
     @Transactional(readOnly = true)
@@ -159,6 +163,7 @@ public class ProductImageApplicationService {
             variantMainImageSyncPort.syncAllForProduct(productId);
         }
 
+        invalidateStorefrontCatalog(product);
         return CommitProductImageResult.builder()
                 .id(imageId)
                 .publicUrl(publicUrl)
@@ -256,6 +261,7 @@ public class ProductImageApplicationService {
         }
         T result = mutation.apply(product);
         applyFirstActiveImageAsMainPolicy(productId, product);
+        invalidateStorefrontCatalog(product);
         return result;
     }
 
@@ -282,6 +288,10 @@ public class ProductImageApplicationService {
         product.changeMainImageUrl(first.publicUrl());
         productRepository.update(product);
         variantMainImageSyncPort.syncAllForProduct(productId);
+    }
+
+    private void invalidateStorefrontCatalog(Product product) {
+        storefrontProductCatalogInvalidationService.invalidate(product, ProductCatalogChangeType.IMAGE_CHANGED);
     }
 
     @FunctionalInterface

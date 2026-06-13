@@ -212,7 +212,9 @@ cd deployment/docker
 ./startup.sh
 ```
 
-`startup.sh` 는 Zookeeper → Kafka 3-broker → 토픽(`product`) 생성 → PostgreSQL / Redis / Keycloak 순으로 기동합니다.
+`startup.sh` 는 Zookeeper → Kafka 3-broker → 토픽 생성 → PostgreSQL / Redis / Keycloak → **Kafka Connect (Debezium)** 순으로 기동합니다.
+
+Outbox CDC(Debezium) 설정은 [deployment/docker/DEBEZIUM.md](deployment/docker/DEBEZIUM.md) 참고 — product-service Flyway 이후 `./scripts/setup-debezium.sh` 실행.
 
 중지:
 

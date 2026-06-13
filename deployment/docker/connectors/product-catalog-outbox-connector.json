@@ -1,0 +1,42 @@
+{
+  "name": "product-catalog-outbox-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "eco-postgres",
+    "database.port": "5432",
+    "database.user": "debezium",
+    "database.password": "debezium",
+    "database.dbname": "ecodb_product",
+
+    "topic.prefix": "cdc.ecodb_product",
+    "schema.include.list": "product",
+    "table.include.list": "product.product_catalog_outbox",
+
+    "plugin.name": "pgoutput",
+    "slot.name": "product_catalog_outbox_slot",
+    "publication.name": "dbz_product_catalog_outbox_pub",
+    "publication.autocreate.mode": "disabled",
+
+    "snapshot.mode": "no_data",
+    "skipped.operations": "u,d,t",
+    "heartbeat.interval.ms": "10000",
+    "decimal.handling.mode": "string",
+    "time.precision.mode": "adaptive_time_microseconds",
+
+    "message.key.columns": "product.product_catalog_outbox:product_id",
+
+    "transforms": "route,unwrap",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": ".*product_catalog_outbox",
+    "transforms.route.replacement": "product.catalog.changed",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "transforms.unwrap.delete.handling.mode": "none",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}

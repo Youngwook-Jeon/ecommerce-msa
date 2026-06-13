@@ -11,9 +11,17 @@ services:
 
       echo -e 'Deleting kafka topics'
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic product --delete --if-exists
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --topic product.catalog.changed --delete --if-exists
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --topic _connect_configs --delete --if-exists
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --topic _connect_offsets --delete --if-exists
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --topic _connect_statuses --delete --if-exists
 
       echo -e 'Creating kafka topics'
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic product --replication-factor 3 --partitions 3
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic product.catalog.changed --replication-factor 3 --partitions 3
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic _connect_configs --replication-factor 3 --partitions 1 --config cleanup.policy=compact
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic _connect_offsets --replication-factor 3 --partitions 25 --config cleanup.policy=compact
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic _connect_statuses --replication-factor 3 --partitions 5 --config cleanup.policy=compact
 
       echo -e 'Successfully created the following topics:'
       kafka-topics --bootstrap-server kafka-broker-1:9092 --list

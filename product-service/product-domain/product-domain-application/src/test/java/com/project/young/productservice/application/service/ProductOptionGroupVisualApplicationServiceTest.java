@@ -44,6 +44,9 @@ class ProductOptionGroupVisualApplicationServiceTest {
     @Mock
     private VariantMainImageSyncPort variantMainImageSyncPort;
 
+    @Mock
+    private StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
+
     @InjectMocks
     private ProductOptionGroupVisualApplicationService service;
 

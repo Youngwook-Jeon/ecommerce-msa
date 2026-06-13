@@ -81,5 +81,7 @@ services:
       ZK_HOSTS: "zookeeper:2181"
       KAFKA_CLUSTERS_0_NAME: local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-broker-1:9092,kafka-broker-2:9092,kafka-broker-3:9092
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: local-connect
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
     networks:
       - ${GLOBAL_NETWORK:-kafka}

@@ -7,6 +7,7 @@ import com.project.young.productservice.application.dto.query.PublicProductSort;
 import com.project.young.productservice.application.dto.result.PublicProductListPageResult;
 import com.project.young.productservice.application.port.output.CategoryReadRepository;
 import com.project.young.productservice.application.port.output.PublicProductReadRepository;
+import com.project.young.productservice.application.port.output.StorefrontProductDetailCachePort;
 import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.domain.exception.CategoryNotFoundException;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
@@ -26,11 +27,14 @@ public class PublicProductQueryService {
 
     private final CategoryReadRepository categoryReadRepository;
     private final PublicProductReadRepository publicProductReadRepository;
+    private final StorefrontProductDetailCachePort storefrontProductDetailCachePort;
 
     public PublicProductQueryService(CategoryReadRepository categoryReadRepository,
-                                     PublicProductReadRepository publicProductReadRepository) {
+                                     PublicProductReadRepository publicProductReadRepository,
+                                     StorefrontProductDetailCachePort storefrontProductDetailCachePort) {
         this.categoryReadRepository = categoryReadRepository;
         this.publicProductReadRepository = publicProductReadRepository;
+        this.storefrontProductDetailCachePort = storefrontProductDetailCachePort;
     }
 
     public PublicProductListPageResult listProductsByCategory(PublicProductListQuery query) {
@@ -52,7 +56,10 @@ public class PublicProductQueryService {
         if (productId == null) {
             throw new IllegalArgumentException("productId must not be null");
         }
-        return publicProductReadRepository.findStorefrontProductDetailById(productId)
+        return storefrontProductDetailCachePort.getOrLoad(
+                        productId,
+                        () -> publicProductReadRepository.findStorefrontProductDetailById(productId)
+                )
                 .orElseThrow(() -> new ProductNotFoundException("Product not found or not visible: " + productId));
     }
 

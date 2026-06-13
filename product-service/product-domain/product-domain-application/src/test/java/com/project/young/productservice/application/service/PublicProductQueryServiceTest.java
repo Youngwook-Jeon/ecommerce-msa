@@ -7,6 +7,7 @@ import com.project.young.productservice.application.dto.query.PublicProductSort;
 import com.project.young.productservice.application.dto.result.PublicProductListPageResult;
 import com.project.young.productservice.application.port.output.CategoryReadRepository;
 import com.project.young.productservice.application.port.output.PublicProductReadRepository;
+import com.project.young.productservice.application.port.output.StorefrontProductDetailCachePort;
 import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.port.output.view.ReadPublicProductSummaryView;
 import com.project.young.productservice.domain.exception.CategoryNotFoundException;
@@ -23,7 +24,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -45,14 +48,25 @@ class PublicProductQueryServiceTest {
     @Mock
     private PublicProductReadRepository publicProductReadRepository;
 
+    @Mock
+    private StorefrontProductDetailCachePort storefrontProductDetailCachePort;
+
     private PublicProductQueryService publicProductQueryService;
 
     @BeforeEach
     void setUp() {
         publicProductQueryService = new PublicProductQueryService(
                 categoryReadRepository,
-                publicProductReadRepository
+                publicProductReadRepository,
+                storefrontProductDetailCachePort
         );
+    }
+
+    private void stubCachePassthrough() {
+        when(storefrontProductDetailCachePort.getOrLoad(any(), any())).thenAnswer(invocation -> {
+            Supplier<Optional<ReadProductDetailView>> loader = invocation.getArgument(1);
+            return loader.get();
+        });
     }
 
     @Test
@@ -204,6 +218,7 @@ class PublicProductQueryServiceTest {
     @Test
     @DisplayName("상품 상세 조회 - 조회 가능 상태면 상세를 반환한다")
     void getStorefrontProductDetail_whenExists_returnsDetail() {
+        stubCachePassthrough();
         ProductId productId = new ProductId(UUID.randomUUID());
         ReadProductDetailView detail = ReadProductDetailView.builder()
                 .id(productId.getValue())
@@ -230,6 +245,7 @@ class PublicProductQueryServiceTest {
     @Test
     @DisplayName("상품 상세 조회 - DRAFT/DELETED/없음은 ProductNotFoundException")
     void getStorefrontProductDetail_whenMissing_throwsNotFound() {
+        stubCachePassthrough();
         ProductId productId = new ProductId(UUID.randomUUID());
         when(publicProductReadRepository.findStorefrontProductDetailById(productId))
                 .thenReturn(java.util.Optional.empty());

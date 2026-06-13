@@ -24,11 +24,27 @@
         </dependency>
         <dependency>
             <groupId>com.project.young</groupId>
+            <artifactId>kafka-config</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.project.young</groupId>
             <artifactId>kafka-model</artifactId>
         </dependency>
         <dependency>
             <groupId>com.project.young</groupId>
+            <artifactId>product-dataaccess</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.project.young</groupId>
             <artifactId>product-domain-application</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-avro-serializer</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

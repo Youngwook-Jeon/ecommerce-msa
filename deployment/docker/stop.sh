@@ -1,9 +1,10 @@
 #!/bin/bash
 
-echo "Stopping the Kafka cluster, Zookeeper, and other backing services..."
+echo "Stopping the Kafka cluster, Connect, Zookeeper, and other backing services..."
 docker compose \
   -f common.yml \
   -f kafka_cluster.yml \
+  -f kafka_connect.yml \
   stop -t 60
 
 docker compose \

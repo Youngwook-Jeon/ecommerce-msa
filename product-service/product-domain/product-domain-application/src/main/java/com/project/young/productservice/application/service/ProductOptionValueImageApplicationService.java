@@ -2,6 +2,7 @@ package com.project.young.productservice.application.service;
 
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.dto.command.CommitProductImageCommand;
+import com.project.young.productservice.application.dto.event.ProductCatalogChangeType;
 import com.project.young.productservice.application.dto.command.PresignProductImageUploadCommand;
 import com.project.young.productservice.application.dto.command.ReorderProductImagesCommand;
 import com.project.young.productservice.application.dto.result.CommitProductImageResult;
@@ -46,19 +47,22 @@ public class ProductOptionValueImageApplicationService {
     private final ProductImageStoragePort productImageStorage;
     private final ProductOptionValueOwnershipValidator ownershipValidator;
     private final VariantMainImageSyncPort variantMainImageSyncPort;
+    private final StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
 
     public ProductOptionValueImageApplicationService(
             ProductRepository productRepository,
             ProductOptionValueImagePersistencePort imagePersistence,
             ProductImageStoragePort productImageStorage,
             ProductOptionValueOwnershipValidator ownershipValidator,
-            VariantMainImageSyncPort variantMainImageSyncPort
+            VariantMainImageSyncPort variantMainImageSyncPort,
+            StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService
     ) {
         this.productRepository = productRepository;
         this.imagePersistence = imagePersistence;
         this.productImageStorage = productImageStorage;
         this.ownershipValidator = ownershipValidator;
         this.variantMainImageSyncPort = variantMainImageSyncPort;
+        this.storefrontProductCatalogInvalidationService = storefrontProductCatalogInvalidationService;
     }
 
     @Transactional(readOnly = true)
@@ -107,7 +111,7 @@ public class ProductOptionValueImageApplicationService {
             UUID productOptionValueId,
             CommitProductImageCommand command
     ) {
-        findProductOrThrow(productId);
+        Product product = findProductOrThrow(productId);
         ownershipValidator.requireOwnedByProduct(productId, productOptionValueId);
         validateContent(command.getContentType(), command.getFileSize());
         validateRole(command.getRole());
@@ -154,6 +158,7 @@ public class ProductOptionValueImageApplicationService {
         }
 
         variantMainImageSyncPort.syncByProductOptionValueId(productOptionValueId);
+        invalidateStorefrontCatalog(product);
 
         return CommitProductImageResult.builder()
                 .id(imageId)
@@ -219,11 +224,12 @@ public class ProductOptionValueImageApplicationService {
     }
 
     private <T> T executeWithMainImagePolicy(UUID productId, UUID productOptionValueId, ImageMutation<T> mutation) {
-        findProductOrThrow(productId);
+        Product product = findProductOrThrow(productId);
         ownershipValidator.requireOwnedByProduct(productId, productOptionValueId);
         T result = mutation.apply();
         applyFirstActiveImageAsMainPolicy(productOptionValueId);
         variantMainImageSyncPort.syncByProductOptionValueId(productOptionValueId);
+        invalidateStorefrontCatalog(product);
         return result;
     }
 
@@ -273,6 +279,10 @@ public class ProductOptionValueImageApplicationService {
                 .role(existing.role().name())
                 .sortOrder(existing.sortOrder())
                 .build();
+    }
+
+    private void invalidateStorefrontCatalog(Product product) {
+        storefrontProductCatalogInvalidationService.invalidate(product, ProductCatalogChangeType.IMAGE_CHANGED);
     }
 
     @FunctionalInterface

@@ -63,6 +63,9 @@ class ProductOptionValueImageApplicationServiceTest {
     @Mock
     private VariantMainImageSyncPort variantMainImageSyncPort;
 
+    @Mock
+    private StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
+
     @InjectMocks
     private ProductOptionValueImageApplicationService service;
 

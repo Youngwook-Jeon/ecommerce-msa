@@ -1,0 +1,28 @@
+{
+  "namespace": "com.project.young.kafka.product.avro.model",
+  "type": "record",
+  "name": "ProductCatalogChangedAvroModel",
+  "fields": [
+    {
+      "name": "eventId",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "productId",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "categoryId",
+      "type": ["null", "long"],
+      "default": null
+    },
+    {
+      "name": "changeType",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "occurredAt",
+      "type": "long"
+    }
+  ]
+}

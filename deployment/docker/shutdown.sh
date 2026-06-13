@@ -3,6 +3,9 @@
 echo "Shutdown backing services"
 docker compose -f common.yml -f backing_services.yml down
 
+echo "Shutdown Kafka Connect"
+docker compose -f common.yml -f kafka_cluster.yml -f kafka_connect.yml down
+
 echo "Shutdown kafka cluster"
 docker compose -f common.yml -f kafka_cluster.yml down
 

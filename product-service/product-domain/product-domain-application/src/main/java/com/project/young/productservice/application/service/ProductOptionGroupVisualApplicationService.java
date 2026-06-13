@@ -2,6 +2,7 @@ package com.project.young.productservice.application.service;
 
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.dto.command.UpdateProductOptionGroupVisualCommand;
+import com.project.young.productservice.application.dto.event.ProductCatalogChangeType;
 import com.project.young.productservice.application.dto.result.UpdateProductOptionGroupVisualResult;
 import com.project.young.productservice.application.port.output.ProductOptionGroupVisualPort;
 import com.project.young.productservice.application.port.output.VariantMainImageSyncPort;
@@ -22,15 +23,18 @@ public class ProductOptionGroupVisualApplicationService {
     private final ProductRepository productRepository;
     private final ProductOptionGroupVisualPort productOptionGroupVisualPort;
     private final VariantMainImageSyncPort variantMainImageSyncPort;
+    private final StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
 
     public ProductOptionGroupVisualApplicationService(
             ProductRepository productRepository,
             ProductOptionGroupVisualPort productOptionGroupVisualPort,
-            VariantMainImageSyncPort variantMainImageSyncPort
+            VariantMainImageSyncPort variantMainImageSyncPort,
+            StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService
     ) {
         this.productRepository = productRepository;
         this.productOptionGroupVisualPort = productOptionGroupVisualPort;
         this.variantMainImageSyncPort = variantMainImageSyncPort;
+        this.storefrontProductCatalogInvalidationService = storefrontProductCatalogInvalidationService;
     }
 
     @Transactional
@@ -54,6 +58,7 @@ public class ProductOptionGroupVisualApplicationService {
                 command.isDrivesVariantImages()
         );
         variantMainImageSyncPort.syncAllForProduct(productId);
+        storefrontProductCatalogInvalidationService.invalidate(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return UpdateProductOptionGroupVisualResult.builder()
                 .productId(productId)
