@@ -20,6 +20,7 @@
         <module>edge-service</module>
         <module>product-service</module>
         <module>infra</module>
+        <module>order-service</module>
     </modules>
     <properties>
         <java.version>21</java.version>
@@ -56,6 +57,31 @@
             <dependency>
                 <groupId>com.project.young</groupId>
                 <artifactId>common-domain</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.project.young</groupId>
+                <artifactId>order-dataaccess</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.project.young</groupId>
+                <artifactId>order-domain-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.project.young</groupId>
+                <artifactId>order-domain-application</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.project.young</groupId>
+                <artifactId>order-messaging</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.project.young</groupId>
+                <artifactId>order-web</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
