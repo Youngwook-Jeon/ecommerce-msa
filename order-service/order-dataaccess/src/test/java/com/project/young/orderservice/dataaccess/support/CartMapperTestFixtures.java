@@ -12,6 +12,7 @@ import com.project.young.orderservice.domain.valueobject.CartId;
 import com.project.young.orderservice.domain.valueobject.CartItemId;
 import com.project.young.orderservice.domain.valueobject.CartItemOptionLine;
 import com.project.young.orderservice.domain.valueobject.CartItemSnapshot;
+import com.project.young.orderservice.domain.valueobject.CartOwnerType;
 import com.project.young.orderservice.domain.valueobject.UserId;
 
 import java.math.BigDecimal;
@@ -50,6 +51,7 @@ public final class CartMapperTestFixtures {
   public static Cart domainCartWithOneItem() {
     return Cart.builder()
         .cartId(CART_ID)
+        .ownerType(CartOwnerType.USER)
         .userId(USER_ID)
         .items(List.of(domainItem(ITEM_ID, PRODUCT_ID, VARIANT_ID, sampleSnapshot("999.00"), 2)))
         .build();

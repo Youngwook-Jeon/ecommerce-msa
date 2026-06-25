@@ -6,6 +6,16 @@ issuer-uri: http://localhost:8080/realms/Ecomart
 schema:
   name: order
 
+order-service:
+  guest-cart:
+    enabled: false
+    key-prefix: "ecomart:order:cart:guest:"
+    ttl-seconds: 2592000
+    cookie:
+      name: guest_cart_id
+      path: /
+      max-age-seconds: 2592000
+
 #spring:
 #  datasource:
 #    url: jdbc:postgresql://localhost:5432/ecodb_order?currentSchema=${schema.name}&binaryTransfer=true&reWriteBatchedInserts=true

@@ -13,6 +13,7 @@ import com.project.young.orderservice.domain.valueobject.CartId;
 import com.project.young.orderservice.domain.valueobject.CartItemId;
 import com.project.young.orderservice.domain.valueobject.CartItemOptionLine;
 import com.project.young.orderservice.domain.valueobject.CartItemSnapshot;
+import com.project.young.orderservice.domain.valueobject.CartOwnerType;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,29 @@ class CartTest {
     private static final CartId CART_ID = new CartId(UUID.randomUUID());
     private static final ProductId PRODUCT_ID = new ProductId(UUID.randomUUID());
     private static final ProductVariantId VARIANT_ID = new ProductVariantId(UUID.randomUUID());
+
+    @Test
+    @DisplayName("createForGuest: userId 없이 게스트 카트를 생성한다")
+    void createForGuest_createsGuestCart() {
+        Cart cart = Cart.createForGuest(CART_ID);
+
+        assertThat(cart.getId()).isEqualTo(CART_ID);
+        assertThat(cart.isGuestCart()).isTrue();
+        assertThat(cart.getUserId()).isNull();
+        assertThat(cart.getOwnerType()).isEqualTo(CartOwnerType.GUEST);
+        assertThat(cart.isEmpty()).isTrue();
+    }
+
+    @Test
+    @DisplayName("builder: 게스트 카트에 userId가 있으면 예외")
+    void builder_guestCartWithUserId_throws() {
+        assertThatThrownBy(() -> Cart.builder()
+                .cartId(CART_ID)
+                .ownerType(CartOwnerType.GUEST)
+                .userId(USER_ID)
+                .build())
+                .isInstanceOf(CartDomainException.class);
+    }
 
     @Test
     @DisplayName("addOrMergeItem: 새 라인을 추가한다")

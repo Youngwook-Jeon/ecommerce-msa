@@ -9,6 +9,7 @@ import com.project.young.orderservice.domain.entity.CartItem;
 import com.project.young.orderservice.domain.exception.CartNotFoundException;
 import com.project.young.orderservice.domain.repository.CartRepository;
 import com.project.young.orderservice.domain.valueobject.CartId;
+import com.project.young.orderservice.domain.valueobject.CartOwnerType;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
@@ -43,6 +44,7 @@ public class CartRepositoryImpl implements CartRepository {
         if (cart == null) {
             throw new IllegalArgumentException("cart must not be null");
         }
+        validateUserCart(cart);
         if (cart.getId() == null) {
             throw new IllegalArgumentException("cart id must not be null for insert");
         }
@@ -62,6 +64,7 @@ public class CartRepositoryImpl implements CartRepository {
         if (cart == null) {
             throw new IllegalArgumentException("cart must not be null");
         }
+        validateUserCart(cart);
         if (cart.getId() == null) {
             throw new IllegalArgumentException("cart id must not be null for update");
         }
@@ -92,5 +95,11 @@ public class CartRepositoryImpl implements CartRepository {
             throw new IllegalArgumentException("cartId must not be null");
         }
         return cartJpaRepository.findWithItemsById(cartId.getValue()).map(cartAggregateMapper::toCart);
+    }
+
+    private static void validateUserCart(Cart cart) {
+        if (cart != null && !cart.isUserCart()) {
+            throw new IllegalArgumentException("CartRepository only supports user-owned carts");
+        }
     }
 }

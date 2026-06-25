@@ -77,7 +77,7 @@ class CartRepositoryImplTest {
     }
 
     @Test
-    @DisplayName("insert: 새 카트 저장 성공")
+    @DisplayName("insert: 사용자 카트 저장 성공")
     void insert_newCart_success() {
       Cart cart = domainCartWithOneItem();
       CartEntity toPersist = mock(CartEntity.class);
@@ -89,6 +89,18 @@ class CartRepositoryImplTest {
       verify(cartDataAccessMapper).cartToCartEntity(cart);
       verify(entityManager).persist(toPersist);
       verify(cartJpaRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("insert: 게스트 카트는 거부한다")
+    void insert_guestCart_throws() {
+      Cart guestCart = Cart.createForGuest(CART_ID);
+
+      assertThatThrownBy(() -> cartRepository.insert(guestCart))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("user-owned carts");
+
+      verifyNoInteractions(cartDataAccessMapper, entityManager);
     }
 
     @Test

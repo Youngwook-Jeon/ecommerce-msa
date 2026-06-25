@@ -8,6 +8,7 @@ import com.project.young.orderservice.dataaccess.repository.CartJpaRepository;
 import com.project.young.orderservice.dataaccess.repository.CartJpaRepositoryTestFixtures;
 import com.project.young.orderservice.dataaccess.support.SqlStatementCounter;
 import com.project.young.orderservice.domain.entity.Cart;
+import com.project.young.orderservice.domain.valueobject.CartOwnerType;
 import com.project.young.orderservice.domain.valueobject.CartItemId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -88,6 +89,7 @@ class CartRepositoryImplIntegrationTest {
 
     Cart seedCart = Cart.builder()
         .cartId(CART_ID)
+        .ownerType(CartOwnerType.USER)
         .userId(USER_ID)
         .items(List.of(
             domainItem(ITEM_ID, PRODUCT_ID, VARIANT_ID, sampleSnapshot("100.00"), 1),
@@ -119,6 +121,7 @@ class CartRepositoryImplIntegrationTest {
 
     Cart updatedCart = Cart.builder()
         .cartId(CART_ID)
+        .ownerType(CartOwnerType.USER)
         .userId(USER_ID)
         .items(List.of(domainItem(ITEM_ID, PRODUCT_ID, VARIANT_ID, sampleSnapshot("100.00"), 1)))
         .build();

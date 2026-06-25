@@ -12,6 +12,7 @@ import com.project.young.orderservice.domain.valueobject.CartId;
 import com.project.young.orderservice.domain.valueobject.CartItemId;
 import com.project.young.orderservice.domain.valueobject.CartItemOptionLine;
 import com.project.young.orderservice.domain.valueobject.CartItemSnapshot;
+import com.project.young.orderservice.domain.valueobject.CartOwnerType;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import org.springframework.stereotype.Component;
 
@@ -33,6 +34,7 @@ public class CartAggregateMapper {
 
         return Cart.builder()
                 .cartId(new CartId(entity.getId()))
+                .ownerType(CartOwnerType.USER)
                 .userId(new UserId(entity.getUserId()))
                 .items(items)
                 .createdAt(entity.getCreatedAt())

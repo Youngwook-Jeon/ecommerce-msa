@@ -13,6 +13,7 @@ import com.project.young.orderservice.domain.sync.CartSyncResult;
 import com.project.young.orderservice.domain.valueobject.CartId;
 import com.project.young.orderservice.domain.valueobject.CartItemId;
 import com.project.young.orderservice.domain.valueobject.CartItemSnapshot;
+import com.project.young.orderservice.domain.valueobject.CartOwnerType;
 import com.project.young.orderservice.domain.valueobject.UserId;
 
 import java.time.Instant;
@@ -26,6 +27,7 @@ public class Cart extends AggregateRoot<CartId> {
 
     public static final int MAX_LINE_ITEMS = 50;
 
+    private final CartOwnerType ownerType;
     private final UserId userId;
     private final List<CartItem> items;
     private Instant createdAt;
@@ -33,6 +35,7 @@ public class Cart extends AggregateRoot<CartId> {
 
     private Cart(Builder builder) {
         super.setId(builder.cartId);
+        this.ownerType = builder.ownerType;
         this.userId = builder.userId;
         this.items = new ArrayList<>(builder.items);
         this.createdAt = builder.createdAt;
@@ -44,7 +47,17 @@ public class Cart extends AggregateRoot<CartId> {
         Objects.requireNonNull(cartId, "cartId must not be null");
         return builder()
                 .cartId(cartId)
+                .ownerType(CartOwnerType.USER)
                 .userId(userId)
+                .items(List.of())
+                .build();
+    }
+
+    public static Cart createForGuest(CartId cartId) {
+        Objects.requireNonNull(cartId, "cartId must not be null");
+        return builder()
+                .cartId(cartId)
+                .ownerType(CartOwnerType.GUEST)
                 .items(List.of())
                 .build();
     }
@@ -186,8 +199,20 @@ public class Cart extends AggregateRoot<CartId> {
         return List.copyOf(items);
     }
 
+    public CartOwnerType getOwnerType() {
+        return ownerType;
+    }
+
     public UserId getUserId() {
         return userId;
+    }
+
+    public boolean isGuestCart() {
+        return ownerType == CartOwnerType.GUEST;
+    }
+
+    public boolean isUserCart() {
+        return ownerType == CartOwnerType.USER;
     }
 
     public Instant getCreatedAt() {
@@ -218,6 +243,7 @@ public class Cart extends AggregateRoot<CartId> {
 
     public static final class Builder {
         private CartId cartId;
+        private CartOwnerType ownerType;
         private UserId userId;
         private List<CartItem> items = List.of();
         private Instant createdAt;
@@ -225,6 +251,11 @@ public class Cart extends AggregateRoot<CartId> {
 
         public Builder cartId(CartId cartId) {
             this.cartId = cartId;
+            return this;
+        }
+
+        public Builder ownerType(CartOwnerType ownerType) {
+            this.ownerType = ownerType;
             return this;
         }
 
@@ -249,7 +280,12 @@ public class Cart extends AggregateRoot<CartId> {
         }
 
         public Cart build() {
-            Objects.requireNonNull(userId, "userId must not be null");
+            Objects.requireNonNull(ownerType, "ownerType must not be null");
+            if (ownerType == CartOwnerType.USER) {
+                Objects.requireNonNull(userId, "userId must not be null for user cart");
+            } else if (userId != null) {
+                throw new CartDomainException("Guest cart must not have a userId.");
+            }
             return new Cart(this);
         }
     }

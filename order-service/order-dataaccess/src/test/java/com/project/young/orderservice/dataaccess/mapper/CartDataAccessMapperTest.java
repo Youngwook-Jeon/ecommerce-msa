@@ -5,6 +5,7 @@ import com.project.young.orderservice.dataaccess.entity.CartEntity;
 import com.project.young.orderservice.dataaccess.entity.CartItemEntity;
 import com.project.young.orderservice.domain.entity.Cart;
 import com.project.young.orderservice.domain.valueobject.CartItemId;
+import com.project.young.orderservice.domain.valueobject.CartOwnerType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -76,6 +77,7 @@ class CartDataAccessMapperTest {
 
       Cart updatedCart = Cart.builder()
           .cartId(CART_ID)
+          .ownerType(CartOwnerType.USER)
           .userId(USER_ID)
           .items(List.of(domainItem(
               ITEM_ID,
@@ -116,6 +118,7 @@ class CartDataAccessMapperTest {
 
       Cart updatedCart = Cart.builder()
           .cartId(CART_ID)
+          .ownerType(CartOwnerType.USER)
           .userId(USER_ID)
           .items(List.of(
               domainItem(ITEM_ID, PRODUCT_ID, VARIANT_ID, sampleSnapshot("100.00"), 1),
