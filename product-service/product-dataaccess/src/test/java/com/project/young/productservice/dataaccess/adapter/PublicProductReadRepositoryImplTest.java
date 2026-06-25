@@ -2,6 +2,7 @@ package com.project.young.productservice.dataaccess.adapter;
 
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.application.policy.StorefrontProductVisibilityPolicy;
+import com.project.young.productservice.application.port.output.view.ReadCartCatalogLineView;
 import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.dataaccess.entity.OptionGroupEntity;
 import com.project.young.productservice.dataaccess.entity.OptionValueEntity;
@@ -10,6 +11,8 @@ import com.project.young.productservice.dataaccess.entity.ProductImageEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionValueEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionValueImageEntity;
+import com.project.young.productservice.dataaccess.entity.ProductVariantEntity;
+import com.project.young.productservice.dataaccess.entity.VariantOptionValueEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
 import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
@@ -20,6 +23,7 @@ import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepo
 import com.project.young.productservice.dataaccess.repository.ProductImageJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductOptionValueImageJpaRepository;
+import com.project.young.productservice.dataaccess.repository.ProductVariantJpaRepository;
 import com.project.young.productservice.dataaccess.repository.PublicProductSearchQueryRepository;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
@@ -41,6 +45,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -59,6 +64,8 @@ class PublicProductReadRepositoryImplTest {
     private ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository;
     @Mock
     private OptionGroupJpaRepository optionGroupJpaRepository;
+    @Mock
+    private ProductVariantJpaRepository productVariantJpaRepository;
 
     @InjectMocks
     private PublicProductReadRepositoryImpl publicProductReadRepository;
@@ -151,6 +158,104 @@ class PublicProductReadRepositoryImplTest {
             assertThatThrownBy(() -> publicProductReadRepository.findStorefrontProductDetailById(null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("productId");
+        }
+    }
+
+    @Nested
+    @DisplayName("findCartCatalogLinesByVariantIds")
+    class FindCartCatalogLinesByVariantIdsTests {
+
+        @Test
+        @DisplayName("여러 상품의 전역 옵션 메타데이터를 한 번에 조회")
+        void loadsOptionMetadataInBulkAcrossProducts() {
+            CartCatalogFixture first = CartCatalogFixture.forProduct("Product A");
+            CartCatalogFixture second = CartCatalogFixture.forProduct("Product B");
+
+            when(productVariantJpaRepository.findStorefrontCartVariantsByIdIn(anyList(), anyList(), eq(CategoryStatusEntity.DELETED)))
+                    .thenReturn(List.of(first.variant(), second.variant()));
+            when(productJpaRepository.findStorefrontOptionsByIdIn(anyList(), anyList(), eq(CategoryStatusEntity.DELETED)))
+                    .thenReturn(List.of(first.product(), second.product()));
+            when(productDataAccessMapper.toDomainStatus(ProductStatusEntity.ACTIVE)).thenReturn(ProductStatus.ACTIVE);
+            when(optionGroupJpaRepository.findAllByIdIn(any()))
+                    .thenReturn(List.of(first.globalOptionGroup(), second.globalOptionGroup()));
+
+            List<ReadCartCatalogLineView> lines = publicProductReadRepository.findCartCatalogLinesByVariantIds(
+                    List.of(first.variant().getId(), second.variant().getId())
+            );
+
+            assertThat(lines).hasSize(2);
+            assertThat(lines.get(0).variantOptions()).hasSize(1);
+            assertThat(lines.get(0).variantOptions().getFirst().optionGroupName()).isEqualTo("Color");
+            assertThat(lines.get(1).variantOptions()).hasSize(1);
+            assertThat(lines.get(1).variantOptions().getFirst().optionValueName()).isEqualTo("Blue");
+            verify(optionGroupJpaRepository, times(1)).findAllByIdIn(any());
+        }
+    }
+
+    private record CartCatalogFixture(
+            ProductEntity product,
+            ProductVariantEntity variant,
+            OptionGroupEntity globalOptionGroup
+    ) {
+        static CartCatalogFixture forProduct(String productName) {
+            UUID productId = UUID.randomUUID();
+            UUID variantId = UUID.randomUUID();
+            UUID globalOptionGroupId = UUID.randomUUID();
+            UUID globalOptionValueId = UUID.randomUUID();
+
+            ProductOptionValueEntity optionValue = ProductOptionValueEntity.builder()
+                    .id(UUID.randomUUID())
+                    .optionValueId(globalOptionValueId)
+                    .priceDelta(BigDecimal.ZERO)
+                    .isDefault(true)
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            ProductOptionGroupEntity optionGroup = ProductOptionGroupEntity.builder()
+                    .id(UUID.randomUUID())
+                    .optionGroupId(globalOptionGroupId)
+                    .stepOrder(1)
+                    .isRequired(true)
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            optionGroup.addOptionValue(optionValue);
+
+            OptionValueEntity globalOptionValue = OptionValueEntity.builder()
+                    .id(globalOptionValueId)
+                    .value(productName.endsWith("B") ? "BLUE" : "RED")
+                    .displayName(productName.endsWith("B") ? "Blue" : "Red")
+                    .sortOrder(0)
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            OptionGroupEntity globalOptionGroup = OptionGroupEntity.builder()
+                    .id(globalOptionGroupId)
+                    .name("color")
+                    .displayName("Color")
+                    .status(OptionStatusEntity.ACTIVE)
+                    .build();
+            globalOptionGroup.addOptionValue(globalOptionValue);
+
+            ProductEntity product = ProductEntity.builder()
+                    .id(productId)
+                    .name(productName)
+                    .brand("Brand")
+                    .basePrice(new BigDecimal("10000"))
+                    .status(ProductStatusEntity.ACTIVE)
+                    .conditionType(ConditionTypeEntity.NEW)
+                    .mainImageUrl("https://example.com/main.jpg")
+                    .build();
+            product.addOptionGroup(optionGroup);
+
+            ProductVariantEntity variant = ProductVariantEntity.builder()
+                    .id(variantId)
+                    .product(product)
+                    .sku("SKU-" + productName)
+                    .stockQuantity(10)
+                    .status(ProductStatusEntity.ACTIVE)
+                    .calculatedPrice(new BigDecimal("12000"))
+                    .build();
+            variant.addSelectedOptionValue(new VariantOptionValueEntity(null, variant, optionValue.getId()));
+
+            return new CartCatalogFixture(product, variant, globalOptionGroup);
         }
     }
 

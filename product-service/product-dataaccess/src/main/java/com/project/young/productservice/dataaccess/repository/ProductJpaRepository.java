@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Collection;
 import java.util.UUID;
 
 public interface ProductJpaRepository extends JpaRepository<ProductEntity, UUID> {
@@ -140,4 +141,18 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, UUID>
     Optional<ProductEntity> findStorefrontDetailWithVariantsById(@Param("productId") UUID productId,
                                                                   @Param("excludedStatuses") List<ProductStatusEntity> excludedStatuses,
                                                                   @Param("excludedCategoryStatus") CategoryStatusEntity excludedCategoryStatus);
+
+    @Query("""
+           SELECT DISTINCT p
+           FROM ProductEntity p
+           LEFT JOIN p.category c
+           LEFT JOIN FETCH p.optionGroups og
+           LEFT JOIN FETCH og.optionValues
+           WHERE p.id IN :productIds
+            AND p.status NOT IN :excludedStatuses
+            AND (c IS NULL OR c.status <> :excludedCategoryStatus)
+           """)
+    List<ProductEntity> findStorefrontOptionsByIdIn(@Param("productIds") Collection<UUID> productIds,
+                                                    @Param("excludedStatuses") List<ProductStatusEntity> excludedStatuses,
+                                                    @Param("excludedCategoryStatus") CategoryStatusEntity excludedCategoryStatus);
 }

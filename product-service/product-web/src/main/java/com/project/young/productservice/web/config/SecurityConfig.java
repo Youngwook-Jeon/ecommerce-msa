@@ -45,6 +45,9 @@ public class SecurityConfig {
                         "/queries/option-groups/**",
                         "/public/**"
                 ).permitAll()
+                .requestMatchers(HttpMethod.POST,
+                        "/public/catalog/cart-lines/search"
+                ).permitAll()
                 .anyRequest().authenticated());
 
         return http.build();

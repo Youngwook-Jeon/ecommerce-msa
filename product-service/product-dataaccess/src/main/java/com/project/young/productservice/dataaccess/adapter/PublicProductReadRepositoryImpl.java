@@ -5,6 +5,9 @@ import com.project.young.productservice.application.dto.condition.PublicProductS
 import com.project.young.productservice.application.dto.query.PublicProductSort;
 import com.project.young.productservice.application.dto.result.PublicProductListPageResult;
 import com.project.young.productservice.application.port.output.PublicProductReadRepository;
+import com.project.young.productservice.application.policy.StorefrontProductVisibilityPolicy;
+import com.project.young.productservice.application.port.output.view.ReadCartCatalogLineView;
+import com.project.young.productservice.application.port.output.view.ReadCartCatalogOptionLineView;
 import com.project.young.productservice.application.port.output.view.ReadProductDetailView;
 import com.project.young.productservice.application.port.output.view.ReadProductImageView;
 import com.project.young.productservice.application.port.output.view.ReadProductOptionGroupView;
@@ -30,7 +33,9 @@ import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepo
 import com.project.young.productservice.dataaccess.repository.ProductImageJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductOptionValueImageJpaRepository;
+import com.project.young.productservice.dataaccess.repository.ProductVariantJpaRepository;
 import com.project.young.productservice.dataaccess.repository.PublicProductSearchQueryRepository;
+import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -38,6 +43,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -60,19 +66,22 @@ public class PublicProductReadRepositoryImpl implements PublicProductReadReposit
     private final ProductImageJpaRepository productImageJpaRepository;
     private final ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository;
     private final OptionGroupJpaRepository optionGroupJpaRepository;
+    private final ProductVariantJpaRepository productVariantJpaRepository;
 
     public PublicProductReadRepositoryImpl(PublicProductSearchQueryRepository publicProductSearchQueryRepository,
                                            ProductJpaRepository productJpaRepository,
                                            ProductDataAccessMapper productDataAccessMapper,
                                            ProductImageJpaRepository productImageJpaRepository,
                                            ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository,
-                                           OptionGroupJpaRepository optionGroupJpaRepository) {
+                                           OptionGroupJpaRepository optionGroupJpaRepository,
+                                           ProductVariantJpaRepository productVariantJpaRepository) {
         this.publicProductSearchQueryRepository = publicProductSearchQueryRepository;
         this.productJpaRepository = productJpaRepository;
         this.productDataAccessMapper = productDataAccessMapper;
         this.productImageJpaRepository = productImageJpaRepository;
         this.productOptionValueImageJpaRepository = productOptionValueImageJpaRepository;
         this.optionGroupJpaRepository = optionGroupJpaRepository;
+        this.productVariantJpaRepository = productVariantJpaRepository;
     }
 
     @Override
@@ -124,6 +133,118 @@ public class PublicProductReadRepositoryImpl implements PublicProductReadReposit
         hydrateStorefrontVariants(productId.getValue());
 
         return optionLoaded.map(this::toReadProductDetailView);
+    }
+
+    @Override
+    public List<ReadCartCatalogLineView> findCartCatalogLinesByVariantIds(List<UUID> productVariantIds) {
+        if (productVariantIds == null || productVariantIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<ProductVariantEntity> variants = productVariantJpaRepository.findStorefrontCartVariantsByIdIn(
+                productVariantIds,
+                EXCLUDED_STOREFRONT_STATUSES,
+                CategoryStatusEntity.DELETED
+        );
+        if (variants.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> productIds = variants.stream()
+                .map(variant -> variant.getProduct().getId())
+                .distinct()
+                .toList();
+
+        Map<UUID, ProductEntity> productsById = productJpaRepository.findStorefrontOptionsByIdIn(
+                        productIds,
+                        EXCLUDED_STOREFRONT_STATUSES,
+                        CategoryStatusEntity.DELETED
+                ).stream()
+                .collect(Collectors.toMap(ProductEntity::getId, Function.identity()));
+
+        OptionMetadataBundle optionMetadata = loadOptionMetadataByOptionGroupIds(
+                collectOptionGroupIds(productsById.values())
+        );
+        Map<UUID, ProductOptionIndex> optionIndexByProductId = productsById.values().stream()
+                .collect(Collectors.toMap(ProductEntity::getId, this::buildProductOptionIndex));
+
+        return variants.stream()
+                .map(variant -> toReadCartCatalogLineView(
+                        variant,
+                        optionMetadata,
+                        optionIndexByProductId.get(variant.getProduct().getId())
+                ))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    private ReadCartCatalogLineView toReadCartCatalogLineView(
+            ProductVariantEntity variant,
+            OptionMetadataBundle optionMetadata,
+            ProductOptionIndex optionIndex
+    ) {
+        if (variant == null || variant.getProduct() == null) {
+            return null;
+        }
+
+        ProductEntity product = variant.getProduct();
+        ProductStatus productStatus = productDataAccessMapper.toDomainStatus(product.getStatus());
+        ProductStatus variantStatus = productDataAccessMapper.toDomainStatus(variant.getStatus());
+        boolean purchasable = StorefrontProductVisibilityPolicy.isPurchasable(productStatus)
+                && variantStatus.isActive();
+
+        String imageUrl = variant.getMainImageUrl() != null ? variant.getMainImageUrl() : product.getMainImageUrl();
+
+        return ReadCartCatalogLineView.builder()
+                .productId(product.getId())
+                .productVariantId(variant.getId())
+                .productName(product.getName())
+                .brand(product.getBrand())
+                .sku(variant.getSku())
+                .imageUrl(imageUrl)
+                .unitPrice(variant.getCalculatedPrice())
+                .purchasable(purchasable)
+                .stockQuantity(variant.getStockQuantity())
+                .variantOptions(buildVariantOptions(variant, optionMetadata, optionIndex))
+                .build();
+    }
+
+    private List<ReadCartCatalogOptionLineView> buildVariantOptions(
+            ProductVariantEntity variant,
+            OptionMetadataBundle optionMetadata,
+            ProductOptionIndex optionIndex
+    ) {
+        if (variant.getSelectedOptionValues() == null || variant.getSelectedOptionValues().isEmpty()) {
+            return List.of();
+        }
+        if (optionIndex == null || optionIndex.isEmpty()) {
+            return List.of();
+        }
+
+        List<ReadCartCatalogOptionLineView> optionLines = new ArrayList<>();
+        for (VariantOptionValueEntity selected : variant.getSelectedOptionValues()) {
+            UUID productOptionValueId = selected.getProductOptionValueId();
+            ProductOptionGroupEntity group = optionIndex.groupByOptionValueId().get(productOptionValueId);
+            ProductOptionValueEntity optionValue = optionIndex.optionValueById().get(productOptionValueId);
+            if (group == null || optionValue == null) {
+                continue;
+            }
+
+            OptionGroupEntity globalGroup = optionMetadata.groupById().get(group.getOptionGroupId());
+            String optionGroupName = globalGroup != null ? globalGroup.getDisplayName() : null;
+            String optionValueName = optionMetadata.valueDisplayNameById().get(optionValue.getOptionValueId());
+
+            optionLines.add(ReadCartCatalogOptionLineView.builder()
+                    .stepOrder((int) group.getStepOrder())
+                    .productOptionGroupId(group.getId())
+                    .optionGroupName(optionGroupName)
+                    .productOptionValueId(productOptionValueId)
+                    .optionValueName(optionValueName)
+                    .build());
+        }
+
+        optionLines.sort(Comparator.comparingInt(ReadCartCatalogOptionLineView::stepOrder));
+        return List.copyOf(optionLines);
     }
 
     private Optional<ProductEntity> fetchStorefrontDetailRoot(UUID productId) {
@@ -189,16 +310,29 @@ public class PublicProductReadRepositoryImpl implements PublicProductReadReposit
     }
 
     private OptionMetadataBundle loadOptionMetadata(ProductEntity entity) {
-        if (entity.getOptionGroups() == null || entity.getOptionGroups().isEmpty()) {
-            return new OptionMetadataBundle(Map.of(), Map.of());
-        }
+        return loadOptionMetadataByOptionGroupIds(collectOptionGroupIds(List.of(entity)));
+    }
 
-        List<UUID> optionGroupIds = entity.getOptionGroups().stream()
+    private List<UUID> collectOptionGroupIds(Collection<ProductEntity> products) {
+        return products.stream()
+                .filter(product -> product.getOptionGroups() != null)
+                .flatMap(product -> product.getOptionGroups().stream())
                 .map(ProductOptionGroupEntity::getOptionGroupId)
                 .distinct()
                 .toList();
+    }
 
-        Map<UUID, OptionGroupEntity> groupById = optionGroupJpaRepository.findAllByIdIn(optionGroupIds).stream()
+    private OptionMetadataBundle loadOptionMetadataByOptionGroupIds(Collection<UUID> optionGroupIds) {
+        if (optionGroupIds == null || optionGroupIds.isEmpty()) {
+            return OptionMetadataBundle.empty();
+        }
+
+        List<UUID> distinctOptionGroupIds = optionGroupIds.stream().distinct().toList();
+        if (distinctOptionGroupIds.isEmpty()) {
+            return OptionMetadataBundle.empty();
+        }
+
+        Map<UUID, OptionGroupEntity> groupById = optionGroupJpaRepository.findAllByIdIn(distinctOptionGroupIds).stream()
                 .collect(Collectors.toMap(OptionGroupEntity::getId, Function.identity()));
 
         Map<UUID, String> valueDisplayNameById = new HashMap<>();
@@ -212,6 +346,29 @@ public class PublicProductReadRepositoryImpl implements PublicProductReadReposit
         }
 
         return new OptionMetadataBundle(groupById, valueDisplayNameById);
+    }
+
+    private ProductOptionIndex buildProductOptionIndex(ProductEntity productWithOptions) {
+        if (productWithOptions == null || productWithOptions.getOptionGroups() == null) {
+            return ProductOptionIndex.empty();
+        }
+
+        Map<UUID, ProductOptionValueEntity> optionValueById = new HashMap<>();
+        Map<UUID, ProductOptionGroupEntity> groupByOptionValueId = new HashMap<>();
+        for (ProductOptionGroupEntity group : productWithOptions.getOptionGroups()) {
+            if (group.getOptionValues() == null) {
+                continue;
+            }
+            for (ProductOptionValueEntity optionValue : group.getOptionValues()) {
+                optionValueById.put(optionValue.getId(), optionValue);
+                groupByOptionValueId.put(optionValue.getId(), group);
+            }
+        }
+
+        if (optionValueById.isEmpty()) {
+            return ProductOptionIndex.empty();
+        }
+        return new ProductOptionIndex(optionValueById, groupByOptionValueId);
     }
 
     private List<ReadProductVariantView> mapVariants(ProductEntity entity) {
@@ -362,5 +519,21 @@ public class PublicProductReadRepositoryImpl implements PublicProductReadReposit
             Map<UUID, OptionGroupEntity> groupById,
             Map<UUID, String> valueDisplayNameById
     ) {
+        private static OptionMetadataBundle empty() {
+            return new OptionMetadataBundle(Map.of(), Map.of());
+        }
+    }
+
+    private record ProductOptionIndex(
+            Map<UUID, ProductOptionValueEntity> optionValueById,
+            Map<UUID, ProductOptionGroupEntity> groupByOptionValueId
+    ) {
+        private static ProductOptionIndex empty() {
+            return new ProductOptionIndex(Map.of(), Map.of());
+        }
+
+        private boolean isEmpty() {
+            return optionValueById.isEmpty();
+        }
     }
 }
