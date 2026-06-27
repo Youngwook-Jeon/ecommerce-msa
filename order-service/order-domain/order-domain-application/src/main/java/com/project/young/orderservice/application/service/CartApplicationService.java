@@ -52,27 +52,18 @@ public class CartApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public Optional<Cart> findUserCart(UserId userId) {
-        Objects.requireNonNull(userId, "userId must not be null");
-        return cartRepository.findByUserId(userId);
-    }
-
-    @Transactional
-    public Cart getOrCreateUserCart(UserId userId) {
-        Objects.requireNonNull(userId, "userId must not be null");
-        return cartRepository.findByUserId(userId)
-                .orElseGet(() -> {
-                    Cart cart = Cart.createForUser(userId, new CartId(idGenerator.generateId()));
-                    cartRepository.insert(cart);
-                    log.debug("Created user cart {}", cart.getId().getValue());
-                    return cart;
-                });
-    }
-
-    @Transactional(readOnly = true)
-    public Optional<Cart> findGuestCart(CartId cartId) {
-        Objects.requireNonNull(cartId, "cartId must not be null");
-        return guestCartRepository.findById(cartId);
+    public Optional<Cart> findCart(CartOwner owner) {
+        Objects.requireNonNull(owner, "owner must not be null");
+        return switch (owner) {
+            case CartOwner.User user -> {
+                Objects.requireNonNull(user.userId(), "userId must not be null");
+                yield cartRepository.findByUserId(user.userId());
+            }
+            case CartOwner.Guest guest -> {
+                Objects.requireNonNull(guest.cartId(), "cartId must not be null");
+                yield guestCartRepository.findById(guest.cartId());
+            }
+        };
     }
 
     @Transactional
@@ -84,7 +75,61 @@ public class CartApplicationService {
     }
 
     @Transactional
-    public Cart getOrCreateGuestCart(CartId cartId) {
+    public Cart addItem(CartOwner owner, ProductId productId, ProductVariantId variantId, int quantity) {
+        Objects.requireNonNull(owner, "owner must not be null");
+        return addItem(getOrCreateCart(owner), productId, variantId, quantity);
+    }
+
+    @Transactional
+    public Cart updateItemQuantity(CartOwner owner, CartItemId itemId, int quantity) {
+        Objects.requireNonNull(owner, "owner must not be null");
+        return updateItemQuantity(requireCart(owner), itemId, quantity);
+    }
+
+    @Transactional
+    public Cart removeItem(CartOwner owner, CartItemId itemId) {
+        Objects.requireNonNull(owner, "owner must not be null");
+        return removeItem(requireCart(owner), itemId);
+    }
+
+    @Transactional
+    public Cart clearCart(CartOwner owner) {
+        Objects.requireNonNull(owner, "owner must not be null");
+        return clearItems(requireCart(owner));
+    }
+
+    @Transactional
+    public CartSyncResult syncCart(CartOwner owner) {
+        Objects.requireNonNull(owner, "owner must not be null");
+        return syncWithCatalog(getOrCreateCart(owner));
+    }
+
+    private Cart getOrCreateCart(CartOwner owner) {
+        return switch (owner) {
+            case CartOwner.User user -> getOrCreateUserCart(user.userId());
+            case CartOwner.Guest guest -> getOrCreateGuestCart(guest.cartId());
+        };
+    }
+
+    private Cart requireCart(CartOwner owner) {
+        return switch (owner) {
+            case CartOwner.User user -> requireUserCart(user.userId());
+            case CartOwner.Guest guest -> requireGuestCart(guest.cartId());
+        };
+    }
+
+    private Cart getOrCreateUserCart(UserId userId) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        return cartRepository.findByUserId(userId)
+                .orElseGet(() -> {
+                    Cart cart = Cart.createForUser(userId, new CartId(idGenerator.generateId()));
+                    cartRepository.insert(cart);
+                    log.debug("Created user cart {}", cart.getId().getValue());
+                    return cart;
+                });
+    }
+
+    private Cart getOrCreateGuestCart(CartId cartId) {
         Objects.requireNonNull(cartId, "cartId must not be null");
         return guestCartRepository.findById(cartId)
                 .orElseGet(() -> {
@@ -93,56 +138,6 @@ public class CartApplicationService {
                     log.debug("Created guest cart {}", cart.getId().getValue());
                     return cart;
                 });
-    }
-
-    @Transactional
-    public Cart addUserItem(UserId userId, ProductId productId, ProductVariantId variantId, int quantity) {
-        return addItem(getOrCreateUserCart(userId), productId, variantId, quantity);
-    }
-
-    @Transactional
-    public Cart addGuestItem(CartId cartId, ProductId productId, ProductVariantId variantId, int quantity) {
-        return addItem(getOrCreateGuestCart(cartId), productId, variantId, quantity);
-    }
-
-    @Transactional
-    public Cart updateUserItemQuantity(UserId userId, CartItemId itemId, int quantity) {
-        return updateItemQuantity(requireUserCart(userId), itemId, quantity);
-    }
-
-    @Transactional
-    public Cart updateGuestItemQuantity(CartId cartId, CartItemId itemId, int quantity) {
-        return updateItemQuantity(requireGuestCart(cartId), itemId, quantity);
-    }
-
-    @Transactional
-    public Cart removeUserItem(UserId userId, CartItemId itemId) {
-        return removeItem(requireUserCart(userId), itemId);
-    }
-
-    @Transactional
-    public Cart removeGuestItem(CartId cartId, CartItemId itemId) {
-        return removeItem(requireGuestCart(cartId), itemId);
-    }
-
-    @Transactional
-    public Cart clearUserCart(UserId userId) {
-        return clearItems(requireUserCart(userId));
-    }
-
-    @Transactional
-    public Cart clearGuestCart(CartId cartId) {
-        return clearItems(requireGuestCart(cartId));
-    }
-
-    @Transactional
-    public CartSyncResult syncUserCart(UserId userId) {
-        return syncWithCatalog(getOrCreateUserCart(userId));
-    }
-
-    @Transactional
-    public CartSyncResult syncGuestCart(CartId cartId) {
-        return syncWithCatalog(getOrCreateGuestCart(cartId));
     }
 
     private Cart addItem(Cart cart, ProductId productId, ProductVariantId variantId, int quantity) {
