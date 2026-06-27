@@ -108,6 +108,43 @@ class CartCatalogMapperTest {
         assertThat(states.get(missingItemId).removalReason()).isEqualTo(CartSyncRemovalReason.VARIANT_NOT_FOUND);
     }
 
+    @Test
+    @DisplayName("toLineStateByItemId: productId 불일치면 PRODUCT_NOT_FOUND")
+    void toLineStateByItemId_productIdMismatch() {
+        UUID cartProductId = UUID.randomUUID();
+        UUID catalogProductId = UUID.randomUUID();
+        UUID variantId = UUID.randomUUID();
+        CartItemId itemId = new CartItemId(UUID.randomUUID());
+
+        Cart cart = Cart.builder()
+                .cartId(new CartId(UUID.randomUUID()))
+                .ownerType(CartOwnerType.GUEST)
+                .items(List.of(
+                        CartItem.reconstitute(
+                                itemId,
+                                new ProductId(cartProductId),
+                                new ProductVariantId(variantId),
+                                new CartItemSnapshot(
+                                        "Item", "Brand", "SKU", null,
+                                        new Money(new BigDecimal("1.00")),
+                                        List.of()
+                                ),
+                                1
+                        )
+                ))
+                .build();
+
+        Map<UUID, CartCatalogLineView> resolved = Map.of(
+                variantId,
+                catalogView(true, 3, catalogProductId, variantId)
+        );
+
+        Map<CartItemId, CartCatalogLineState> states = CartCatalogMapper.toLineStateByItemId(cart, resolved);
+
+        assertThat(states.get(itemId).available()).isFalse();
+        assertThat(states.get(itemId).removalReason()).isEqualTo(CartSyncRemovalReason.PRODUCT_NOT_FOUND);
+    }
+
     private CartCatalogLineView catalogView(boolean purchasable, int stockQuantity) {
         return catalogView(purchasable, stockQuantity, UUID.randomUUID(), UUID.randomUUID());
     }

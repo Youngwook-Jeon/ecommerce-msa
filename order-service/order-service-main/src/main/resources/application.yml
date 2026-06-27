@@ -15,6 +15,32 @@ order-service:
       name: guest_cart_id
       path: /
       max-age-seconds: 2592000
+  product-catalog:
+    base-url: ${PRODUCT_SERVICE_URL:http://localhost:9002}
+    connect-timeout-ms: 2000
+    read-timeout-ms: 3000
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      productCatalog:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+        # 4xx (our request is wrong) must not count toward the failure rate.
+        ignore-exceptions:
+          - com.project.young.orderservice.application.port.output.ProductCatalogClientException
+  timelimiter:
+    instances:
+      productCatalog:
+        timeout-duration: 4s
+        cancel-running-future: true
 
 #spring:
 #  datasource:

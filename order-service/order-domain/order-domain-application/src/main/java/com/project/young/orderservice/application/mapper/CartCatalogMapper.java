@@ -54,6 +54,8 @@ public final class CartCatalogMapper {
             CartCatalogLineView view = resolvedByVariantId.get(variantId);
             if (view == null) {
                 catalogByItemId.put(item.getId(), CartCatalogLineState.unavailable(CartSyncRemovalReason.VARIANT_NOT_FOUND));
+            } else if (!view.productId().equals(item.getProductId().getValue())) {
+                catalogByItemId.put(item.getId(), CartCatalogLineState.unavailable(CartSyncRemovalReason.PRODUCT_NOT_FOUND));
             } else {
                 catalogByItemId.put(item.getId(), toLineState(view));
             }
