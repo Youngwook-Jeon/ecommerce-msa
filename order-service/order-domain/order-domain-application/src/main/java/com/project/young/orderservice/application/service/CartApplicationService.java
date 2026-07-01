@@ -12,9 +12,14 @@ import com.project.young.orderservice.domain.exception.CartDomainException;
 import com.project.young.orderservice.domain.exception.CartNotFoundException;
 import com.project.young.orderservice.domain.repository.CartRepository;
 import com.project.young.orderservice.domain.repository.GuestCartRepository;
+import com.project.young.orderservice.domain.entity.CartItem;
+import com.project.young.orderservice.domain.merge.CartMergeResult;
+import com.project.young.orderservice.domain.merge.CartMergeSkipReason;
+import com.project.young.orderservice.domain.merge.CartMergeSkippedLine;
 import com.project.young.orderservice.domain.sync.CartCatalogLineState;
 import com.project.young.orderservice.domain.sync.CartSyncRemovalReason;
 import com.project.young.orderservice.domain.sync.CartSyncResult;
+import com.project.young.orderservice.domain.valueobject.CartItemSnapshot;
 import com.project.young.orderservice.domain.valueobject.CartId;
 import com.project.young.orderservice.domain.valueobject.CartItemId;
 import com.project.young.orderservice.domain.valueobject.UserId;
@@ -23,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -102,6 +108,80 @@ public class CartApplicationService {
     public CartSyncResult syncCart(CartOwner owner) {
         Objects.requireNonNull(owner, "owner must not be null");
         return syncWithCatalog(getOrCreateCart(owner));
+    }
+
+    /**
+     * Merges a guest cart into the authenticated user's cart, then syncs with catalog.
+     * Idempotent when the guest cart is missing or already deleted.
+     */
+    @Transactional
+    public CartMergeResult mergeGuestCartIntoUser(UserId userId, CartId guestCartId) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        Objects.requireNonNull(guestCartId, "guestCartId must not be null");
+
+        Optional<Cart> guestOptional = guestCartRepository.findById(guestCartId);
+        if (guestOptional.isEmpty()) {
+            return CartMergeResult.noGuestCart(cartRepository.findByUserId(userId).orElse(null));
+        }
+
+        Cart guestCart = guestOptional.get();
+        if (guestCart.isEmpty()) {
+            guestCartRepository.delete(guestCartId);
+            return CartMergeResult.emptyGuest(cartRepository.findByUserId(userId).orElse(null));
+        }
+
+        Map<UUID, CartCatalogLineView> guestCatalog = productCatalogPort.resolveLines(toCatalogLineKeys(guestCart));
+
+        Cart userCart = getOrCreateUserCart(userId);
+        List<CartMergeSkippedLine> skippedLines = new ArrayList<>();
+        int mergedLineCount = 0;
+
+        for (CartItem guestItem : guestCart.getItems()) {
+            UUID variantId = guestItem.getProductVariantId().getValue();
+            CartCatalogLineView view = guestCatalog.get(variantId);
+            if (view == null) {
+                skippedLines.add(CartMergeSkippedLine.fromGuestItem(guestItem, CartMergeSkipReason.VARIANT_NOT_FOUND));
+                continue;
+            }
+            if (!view.productId().equals(guestItem.getProductId().getValue())) {
+                skippedLines.add(CartMergeSkippedLine.fromGuestItem(guestItem, CartMergeSkipReason.PRODUCT_NOT_FOUND));
+                continue;
+            }
+
+            boolean isNewLine = userCart.getItems().stream()
+                    .noneMatch(item -> item.getProductVariantId().equals(guestItem.getProductVariantId()));
+            if (isNewLine && userCart.itemCount() >= Cart.MAX_LINE_ITEMS) {
+                skippedLines.add(CartMergeSkippedLine.fromGuestItem(
+                        guestItem,
+                        CartMergeSkipReason.MAX_LINE_ITEMS_EXCEEDED
+                ));
+                continue;
+            }
+
+            CartItemSnapshot snapshot = CartCatalogMapper.toSnapshot(view);
+            userCart.addOrMergeItem(
+                    guestItem.getProductId(),
+                    guestItem.getProductVariantId(),
+                    snapshot,
+                    guestItem.getQuantity(),
+                    new CartItemId(idGenerator.generateId())
+            );
+            mergedLineCount++;
+        }
+
+        CartSyncResult syncResult = reconcileCartWithCatalog(userCart);
+        cartRepository.update(userCart);
+        guestCartRepository.delete(guestCartId);
+
+        log.debug(
+                "Merged guest cart {} into user cart {} ({} lines, {} skipped)",
+                guestCartId.getValue(),
+                userCart.getId().getValue(),
+                mergedLineCount,
+                skippedLines.size()
+        );
+
+        return new CartMergeResult(userCart, mergedLineCount, skippedLines, syncResult.changes());
     }
 
     private Cart getOrCreateCart(CartOwner owner) {
@@ -195,13 +275,18 @@ public class CartApplicationService {
         if (cart.isEmpty()) {
             return new CartSyncResult(cart, List.of());
         }
-
-        Map<UUID, CartCatalogLineView> resolved = productCatalogPort.resolveLines(toCatalogLineKeys(cart));
-        CartSyncResult result = cart.reconcileWithCatalog(
-                CartCatalogMapper.toLineStateByItemId(cart, resolved)
-        );
+        CartSyncResult result = reconcileCartWithCatalog(cart);
         updateCart(cart);
         return result;
+    }
+
+    private CartSyncResult reconcileCartWithCatalog(Cart cart) {
+        if (cart.isEmpty()) {
+            return new CartSyncResult(cart, List.of());
+        }
+
+        Map<UUID, CartCatalogLineView> resolved = productCatalogPort.resolveLines(toCatalogLineKeys(cart));
+        return cart.reconcileWithCatalog(CartCatalogMapper.toLineStateByItemId(cart, resolved));
     }
 
     private Cart requireUserCart(UserId userId) {
