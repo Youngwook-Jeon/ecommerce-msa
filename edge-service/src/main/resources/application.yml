@@ -42,6 +42,12 @@ spring:
                 - Path=/api/${api-version}/product_service/**
               filters:
                 - RewritePath=/api/${api-version}/product_service/(?<segment>.*), /$\{segment}
+            - id: order-route
+              uri: ${ORDER_SERVICE_URL:http://localhost:9003}
+              predicates:
+                - Path=/api/${api-version}/order_service/**
+              filters:
+                - RewritePath=/api/${api-version}/order_service/(?<segment>.*), /$\{segment}
             - id: spa
               uri: ${spa-uri}
               predicates:
