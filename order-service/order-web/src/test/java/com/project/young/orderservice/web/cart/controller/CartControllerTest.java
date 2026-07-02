@@ -5,6 +5,7 @@ import com.project.young.common.application.web.GlobalExceptionHandler;
 import com.project.young.orderservice.application.service.CartApplicationService;
 import com.project.young.orderservice.application.service.CartOwner;
 import com.project.young.orderservice.domain.entity.Cart;
+import com.project.young.orderservice.domain.merge.CartMergeResult;
 import com.project.young.orderservice.domain.valueobject.CartId;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import com.project.young.orderservice.web.cart.CurrentCartSupport;
@@ -24,11 +25,15 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import jakarta.servlet.http.Cookie;
+
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -137,5 +142,51 @@ class CartControllerTest {
                 .andExpect(jsonPath("$.ownerType").value("USER"));
 
         verify(cartApplicationService).addItem(eq(CartOwner.forUser(USER_ID)), any(), any(), eq(1));
+    }
+
+    @Test
+    @DisplayName("POST /carts/current/merge: 인증 사용자가 게스트 쿠키를 가지면 병합하고 쿠키를 만료한다")
+    void mergeGuestCart_authenticatedWithCookie_mergesAndExpiresCookie() throws Exception {
+        CartId guestCartId = new CartId(UUID.fromString("018f0000-0000-7000-8000-0000000003ff"));
+        Cart userCart = Cart.createForUser(USER_ID, CART_ID);
+        CartMergeResult mergeResult = new CartMergeResult(userCart, 1, List.of(), List.of());
+
+        when(cartApplicationService.mergeGuestCart(eq(USER_ID), eq(guestCartId)))
+                .thenReturn(mergeResult);
+
+        mockMvc.perform(post("/carts/current/merge")
+                        .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT)))
+                        .cookie(new Cookie("guest_cart_id", guestCartId.getValue().toString())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mergedLineCount").value(1))
+                .andExpect(jsonPath("$.cart.ownerType").value("USER"))
+                .andExpect(cookie().maxAge("guest_cart_id", 0));
+
+        verify(cartApplicationService).mergeGuestCart(eq(USER_ID), eq(guestCartId));
+    }
+
+    @Test
+    @DisplayName("POST /carts/current/merge: 게스트 쿠키가 없으면 병합 없이 현재 카트를 반환한다")
+    void mergeGuestCart_authenticatedWithoutCookie_returnsCurrentCart() throws Exception {
+        Cart userCart = Cart.createForUser(USER_ID, CART_ID);
+        when(cartApplicationService.findCart(CartOwner.forUser(USER_ID))).thenReturn(Optional.of(userCart));
+
+        mockMvc.perform(post("/carts/current/merge")
+                        .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.mergedLineCount").value(0))
+                .andExpect(jsonPath("$.cart.ownerType").value("USER"));
+
+        verify(cartApplicationService, never()).mergeGuestCart(any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /carts/current/merge: 비인증 요청은 401")
+    void mergeGuestCart_unauthenticated_returnsUnauthorized() throws Exception {
+        mockMvc.perform(post("/carts/current/merge")
+                        .cookie(new Cookie("guest_cart_id", CART_ID.getValue().toString())))
+                .andExpect(status().isUnauthorized());
+
+        verify(cartApplicationService, never()).mergeGuestCart(any(), any());
     }
 }

@@ -8,6 +8,7 @@ import com.project.young.orderservice.domain.exception.CartDomainException;
 import com.project.young.orderservice.domain.exception.CartItemNotFoundException;
 import com.project.young.orderservice.domain.exception.CartNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
@@ -72,6 +73,17 @@ public class OrderServiceGlobalExceptionHandler extends GlobalExceptionHandler {
         return ErrorDTO.builder()
                 .code(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())
                 .message(exception.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDTO handleOptimisticLockingFailureException(OptimisticLockingFailureException exception) {
+        log.warn("Cart was modified concurrently: {}", exception.getMessage());
+        return ErrorDTO.builder()
+                .code(HttpStatus.CONFLICT.getReasonPhrase())
+                .message("The cart was modified concurrently. Please retry.")
                 .build();
     }
 

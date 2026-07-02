@@ -25,6 +25,9 @@ import com.project.young.orderservice.domain.valueobject.CartItemId;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,10 +43,18 @@ public class CartApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(CartApplicationService.class);
 
+    private static final int MAX_MERGE_ATTEMPTS = 2;
+
     private final CartRepository cartRepository;
     private final GuestCartRepository guestCartRepository;
     private final ProductCatalogPort productCatalogPort;
     private final IdGenerator idGenerator;
+
+    /**
+     * Self-reference through the Spring proxy so the retry wrapper can start a fresh
+     * transaction per attempt. Injected lazily to break the circular dependency.
+     */
+    private CartApplicationService self;
 
     public CartApplicationService(
             CartRepository cartRepository,
@@ -55,6 +66,11 @@ public class CartApplicationService {
         this.guestCartRepository = guestCartRepository;
         this.productCatalogPort = productCatalogPort;
         this.idGenerator = idGenerator;
+    }
+
+    @Autowired
+    public void setSelf(@Lazy CartApplicationService self) {
+        this.self = self;
     }
 
     @Transactional(readOnly = true)
@@ -111,8 +127,35 @@ public class CartApplicationService {
     }
 
     /**
+     * Merges a guest cart into the authenticated user's cart with optimistic-lock retry.
+     * The actual merge runs in {@link #mergeGuestCartIntoUser(UserId, CartId)}; on a lost-update
+     * conflict this retries in a fresh transaction. The retry is safe because the merge is
+     * idempotent: once a winning transaction deletes the guest cart, a later attempt finds none
+     * and returns the (already merged) user cart unchanged.
+     */
+    public CartMergeResult mergeGuestCart(UserId userId, CartId guestCartId) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        Objects.requireNonNull(guestCartId, "guestCartId must not be null");
+
+        OptimisticLockingFailureException lastConflict = null;
+        for (int attempt = 1; attempt <= MAX_MERGE_ATTEMPTS; attempt++) {
+            try {
+                return self.mergeGuestCartIntoUser(userId, guestCartId);
+            } catch (OptimisticLockingFailureException ex) {
+                lastConflict = ex;
+                log.warn(
+                        "Optimistic lock conflict merging guest cart {} into user {} (attempt {}/{})",
+                        guestCartId.getValue(), userId.value(), attempt, MAX_MERGE_ATTEMPTS
+                );
+            }
+        }
+        throw lastConflict;
+    }
+
+    /**
      * Merges a guest cart into the authenticated user's cart, then syncs with catalog.
-     * Idempotent when the guest cart is missing or already deleted.
+     * Idempotent when the guest cart is missing or already deleted. Prefer calling
+     * {@link #mergeGuestCart(UserId, CartId)} which adds optimistic-lock retry.
      */
     @Transactional
     public CartMergeResult mergeGuestCartIntoUser(UserId userId, CartId guestCartId) {

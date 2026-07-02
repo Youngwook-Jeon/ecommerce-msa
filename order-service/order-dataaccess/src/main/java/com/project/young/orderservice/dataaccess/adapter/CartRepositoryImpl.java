@@ -12,6 +12,7 @@ import com.project.young.orderservice.domain.valueobject.CartId;
 import com.project.young.orderservice.domain.valueobject.CartOwnerType;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -78,7 +79,12 @@ public class CartRepositoryImpl implements CartRepository {
                 .orElseThrow(() -> new CartNotFoundException("Cart not found: " + cart.getId().getValue()));
 
         cartDataAccessMapper.updateEntityFromDomain(cart, current);
-        // Let dirty checking flush changes on commit.
+        // Force-increment the aggregate-root version even when only cart_items changed,
+        // so concurrent writers to the same cart conflict. Flush now to surface any
+        // OptimisticLockException at this call (before the caller mutates external stores
+        // such as the guest cart in Redis during a merge).
+        entityManager.lock(current, LockModeType.OPTIMISTIC_FORCE_INCREMENT);
+        entityManager.flush();
     }
 
     @Override

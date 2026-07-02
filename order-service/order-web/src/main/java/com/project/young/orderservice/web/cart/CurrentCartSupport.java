@@ -8,6 +8,7 @@ import com.project.young.orderservice.domain.valueobject.CartId;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
@@ -46,6 +47,21 @@ public class CurrentCartSupport {
         return guestCartCookieSupport.readCartId(request)
                 .map(CartOwner::forGuest)
                 .orElseGet(() -> createGuestOwner(response, guestCartPolicy));
+    }
+
+    public UserId requireAuthenticatedUser(Jwt jwt) {
+        if (!isAuthenticated(jwt)) {
+            throw new AuthenticationCredentialsNotFoundException("Authentication is required to merge a guest cart.");
+        }
+        return new UserId(jwt.getSubject());
+    }
+
+    public Optional<CartId> readGuestCartId(HttpServletRequest request) {
+        return guestCartCookieSupport.readCartId(request);
+    }
+
+    public void expireGuestCart(HttpServletResponse response) {
+        guestCartCookieSupport.expire(response);
     }
 
     private CartOwner createGuestOwner(HttpServletResponse response, GuestCartPolicy guestCartPolicy) {

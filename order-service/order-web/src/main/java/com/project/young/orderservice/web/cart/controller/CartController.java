@@ -5,10 +5,14 @@ import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.orderservice.application.service.CartApplicationService;
 import com.project.young.orderservice.application.service.CartOwner;
 import com.project.young.orderservice.domain.entity.Cart;
+import com.project.young.orderservice.domain.merge.CartMergeResult;
+import com.project.young.orderservice.domain.valueobject.CartId;
 import com.project.young.orderservice.domain.valueobject.CartItemId;
+import com.project.young.orderservice.domain.valueobject.UserId;
 import com.project.young.orderservice.web.cart.CurrentCartSupport;
 import com.project.young.orderservice.web.cart.GuestCartPolicy;
 import com.project.young.orderservice.web.cart.dto.AddCartItemRequest;
+import com.project.young.orderservice.web.cart.dto.CartMergeResponse;
 import com.project.young.orderservice.web.cart.dto.CartResponse;
 import com.project.young.orderservice.web.cart.dto.CartSyncResponse;
 import com.project.young.orderservice.web.cart.dto.UpdateCartItemQuantityRequest;
@@ -29,6 +33,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -129,5 +134,25 @@ public class CartController {
         CartOwner owner = currentCartSupport.resolveOwnerForMutation(
                 jwt, httpRequest, httpResponse, GuestCartPolicy.CREATE_IF_ABSENT);
         return ResponseEntity.ok(cartResponseMapper.toSyncResponse(cartApplicationService.syncCart(owner)));
+    }
+
+    @PostMapping("/current/merge")
+    public ResponseEntity<CartMergeResponse> mergeGuestCart(
+            @AuthenticationPrincipal Jwt jwt,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse
+    ) {
+        UserId userId = currentCartSupport.requireAuthenticatedUser(jwt);
+        CartOwner owner = CartOwner.forUser(userId);
+
+        Optional<CartId> guestCartId = currentCartSupport.readGuestCartId(httpRequest);
+        if (guestCartId.isEmpty()) {
+            return ResponseEntity.ok(
+                    cartResponseMapper.noOpMergeResponse(cartApplicationService.findCart(owner), owner));
+        }
+
+        CartMergeResult result = cartApplicationService.mergeGuestCart(userId, guestCartId.get());
+        currentCartSupport.expireGuestCart(httpResponse);
+        return ResponseEntity.ok(cartResponseMapper.toMergeResponse(result, owner));
     }
 }

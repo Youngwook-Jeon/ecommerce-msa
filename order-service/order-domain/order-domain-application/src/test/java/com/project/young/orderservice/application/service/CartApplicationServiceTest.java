@@ -15,6 +15,7 @@ import com.project.young.orderservice.domain.exception.CartNotFoundException;
 import com.project.young.orderservice.domain.merge.CartMergeResult;
 import com.project.young.orderservice.domain.merge.CartMergeSkipReason;
 import com.project.young.orderservice.domain.repository.CartRepository;
+import org.springframework.dao.OptimisticLockingFailureException;
 import com.project.young.orderservice.domain.repository.GuestCartRepository;
 import com.project.young.orderservice.domain.sync.CartSyncChange;
 import com.project.young.orderservice.domain.sync.CartSyncResult;
@@ -42,7 +43,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -426,6 +429,36 @@ class CartApplicationServiceTest {
         InOrder inOrder = inOrder(cartRepository, guestCartRepository);
         inOrder.verify(cartRepository).update(any(Cart.class));
         inOrder.verify(guestCartRepository).delete(GUEST_CART_ID);
+    }
+
+    @Test
+    @DisplayName("mergeGuestCart: 낙관적 락 충돌 시 재시도하여 성공한다")
+    void mergeGuestCart_retriesOnOptimisticLockConflict() {
+        CartApplicationService self = mock(CartApplicationService.class);
+        cartApplicationService.setSelf(self);
+        CartMergeResult expected = new CartMergeResult(Cart.createForUser(USER_ID, CART_ID), 1, List.of(), List.of());
+        when(self.mergeGuestCartIntoUser(USER_ID, GUEST_CART_ID))
+                .thenThrow(new OptimisticLockingFailureException("conflict"))
+                .thenReturn(expected);
+
+        CartMergeResult result = cartApplicationService.mergeGuestCart(USER_ID, GUEST_CART_ID);
+
+        assertThat(result).isSameAs(expected);
+        verify(self, times(2)).mergeGuestCartIntoUser(USER_ID, GUEST_CART_ID);
+    }
+
+    @Test
+    @DisplayName("mergeGuestCart: 재시도 횟수를 초과하면 예외를 던진다")
+    void mergeGuestCart_rethrowsWhenRetriesExhausted() {
+        CartApplicationService self = mock(CartApplicationService.class);
+        cartApplicationService.setSelf(self);
+        when(self.mergeGuestCartIntoUser(USER_ID, GUEST_CART_ID))
+                .thenThrow(new OptimisticLockingFailureException("conflict"));
+
+        assertThatThrownBy(() -> cartApplicationService.mergeGuestCart(USER_ID, GUEST_CART_ID))
+                .isInstanceOf(OptimisticLockingFailureException.class);
+
+        verify(self, times(2)).mergeGuestCartIntoUser(USER_ID, GUEST_CART_ID);
     }
 
     private Cart guestCartWithItem(ProductVariantId variantId, int quantity) {

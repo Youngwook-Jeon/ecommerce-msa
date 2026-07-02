@@ -3,6 +3,8 @@ package com.project.young.orderservice.web.cart.mapper;
 import com.project.young.orderservice.application.service.CartOwner;
 import com.project.young.orderservice.domain.entity.Cart;
 import com.project.young.orderservice.domain.entity.CartItem;
+import com.project.young.orderservice.domain.merge.CartMergeResult;
+import com.project.young.orderservice.domain.merge.CartMergeSkippedLine;
 import com.project.young.orderservice.domain.sync.CartSyncChange;
 import com.project.young.orderservice.domain.sync.CartSyncResult;
 import com.project.young.orderservice.domain.valueobject.CartItemOptionLine;
@@ -10,6 +12,8 @@ import com.project.young.orderservice.domain.valueobject.CartItemSnapshot;
 import com.project.young.orderservice.domain.valueobject.CartOwnerType;
 import com.project.young.orderservice.web.cart.dto.CartItemOptionResponse;
 import com.project.young.orderservice.web.cart.dto.CartItemResponse;
+import com.project.young.orderservice.web.cart.dto.CartMergeResponse;
+import com.project.young.orderservice.web.cart.dto.CartMergeSkippedLineResponse;
 import com.project.young.orderservice.web.cart.dto.CartResponse;
 import com.project.young.orderservice.web.cart.dto.CartSyncChangeResponse;
 import com.project.young.orderservice.web.cart.dto.CartSyncChangeType;
@@ -44,6 +48,43 @@ public class CartResponseMapper {
     public CartResponse emptyResponse(Optional<CartOwner> owner) {
         return owner.map(this::emptyResponse)
                 .orElseGet(() -> emptyResponse(CartOwnerType.GUEST));
+    }
+
+    public CartMergeResponse noOpMergeResponse(Optional<Cart> currentCart, CartOwner owner) {
+        CartResponse cart = currentCart.map(this::toResponse)
+                .orElseGet(() -> emptyResponse(owner));
+        return CartMergeResponse.builder()
+                .cart(cart)
+                .mergedLineCount(0)
+                .build();
+    }
+
+    public CartMergeResponse toMergeResponse(CartMergeResult result, CartOwner owner) {
+        CartResponse cart = result.cart() == null
+                ? emptyResponse(owner)
+                : toResponse(result.cart());
+        List<CartMergeSkippedLineResponse> skipped = result.skippedLines().stream()
+                .map(this::toSkippedLineResponse)
+                .toList();
+        List<CartSyncChangeResponse> changes = result.syncChanges().stream()
+                .map(this::toChangeResponse)
+                .toList();
+        return CartMergeResponse.builder()
+                .cart(cart)
+                .mergedLineCount(result.mergedLineCount())
+                .skippedLines(skipped)
+                .syncChanges(changes)
+                .build();
+    }
+
+    private CartMergeSkippedLineResponse toSkippedLineResponse(CartMergeSkippedLine line) {
+        return CartMergeSkippedLineResponse.builder()
+                .productId(line.productId().getValue())
+                .productVariantId(line.productVariantId().getValue())
+                .productName(line.productName())
+                .quantity(line.quantity())
+                .reason(line.reason())
+                .build();
     }
 
     private CartResponse emptyResponse(CartOwner owner) {
