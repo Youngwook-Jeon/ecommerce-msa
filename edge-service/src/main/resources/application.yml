@@ -27,7 +27,6 @@ spring:
         webflux:
           default-filters:
             - DedupeResponseHeader=Access-Control-Allow-Credentials Access-Control-Allow-Origin Access-Control-Request-Headers
-            - SaveSession
           routes:
             #                - id: customer-route
             #                  uri: ${CUSTOMER_SERVICE_URL:http://localhost:9001}
@@ -48,6 +47,31 @@ spring:
                 - Path=/api/${api-version}/order_service/**
               filters:
                 - RewritePath=/api/${api-version}/order_service/(?<segment>.*), /$\{segment}
+            # Gateway-owned endpoints must be forwarded locally (before SPA catch-all).
+            - id: gateway-authentication
+              uri: forward:/authentication
+              predicates:
+                - Path=/authentication
+              filters:
+                - SaveSession
+            - id: gateway-logout
+              uri: forward:/logout
+              predicates:
+                - Path=/logout
+              filters:
+                - SaveSession
+            - id: gateway-oauth2-authorization
+              uri: forward:/oauth2/authorization/{registrationId}
+              predicates:
+                - Path=/oauth2/authorization/{registrationId}
+              filters:
+                - SaveSession
+            - id: gateway-oauth2-callback
+              uri: forward:/login/oauth2/code/{registrationId}
+              predicates:
+                - Path=/login/oauth2/code/{registrationId}
+              filters:
+                - SaveSession
             - id: spa
               uri: ${spa-uri}
               predicates:

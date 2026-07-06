@@ -64,6 +64,8 @@ public class SecurityConfig {
             @Value("${post-logout-redirect-uri}") String postLogoutRedirectUri,
             @Value("${api-version:v1}") String apiVersion) {
 
+        http.securityMatcher(exchange -> matchesSecurityChain(exchange, sessionKey));
+
         http.authorizeExchange(auth -> auth
                 .pathMatchers(HttpMethod.GET, PublicApiPaths.productPublic(apiVersion)).permitAll()
                 .pathMatchers("/dashboard/admin/**").hasAuthority("ADMIN")
@@ -95,6 +97,18 @@ public class SecurityConfig {
     @Bean
     WebFilter csrfCookieWebFilter() {
         return (exchange, chain) -> {
+            String path = exchange.getRequest().getPath().value();
+            HttpMethod method = exchange.getRequest().getMethod();
+            boolean isMutatingApiRequest = path.startsWith("/api")
+                    && method != null
+                    && method != HttpMethod.GET
+                    && method != HttpMethod.HEAD;
+            boolean isSessionBootstrapRequest = "/authentication".equals(path);
+
+            if (!isMutatingApiRequest && !isSessionBootstrapRequest) {
+                return chain.filter(exchange);
+            }
+
             exchange.getAttributeOrDefault(CsrfToken.class.getName(), Mono.empty()).subscribe();
             return chain.filter(exchange);
         };
@@ -202,6 +216,33 @@ public class SecurityConfig {
     }
 
 
+
+    private Mono<ServerWebExchangeMatcher.MatchResult> matchesSecurityChain(
+            ServerWebExchange exchange,
+            String sessionKey
+    ) {
+        String path = exchange.getRequest().getPath().value();
+        HttpMethod method = exchange.getRequest().getMethod();
+
+        if (path.startsWith("/oauth2")
+                || path.startsWith("/login/oauth2")
+                || "/authentication".equals(path)
+                || "/logout".equals(path)) {
+            return match();
+        }
+
+        if (path.startsWith("/api")) {
+            if (method != null && method != HttpMethod.GET && method != HttpMethod.HEAD) {
+                return match();
+            }
+            if (exchange.getRequest().getCookies().containsKey(sessionKey)) {
+                return match();
+            }
+            return notMatch();
+        }
+
+        return notMatch();
+    }
 
     private Mono<ServerWebExchangeMatcher.MatchResult> isCsrfProtectedPath(ServerWebExchange exchange) {
         String path = exchange.getRequest().getPath().toString();
