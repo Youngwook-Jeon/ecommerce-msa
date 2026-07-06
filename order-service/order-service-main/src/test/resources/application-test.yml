@@ -1,0 +1,41 @@
+schema:
+  name: orders
+
+issuer-uri: http://test-issuer
+
+order-service:
+  guest-cart:
+    enabled: false
+  product-catalog:
+    base-url: http://catalog.test
+    connect-timeout-ms: 2000
+    read-timeout-ms: 3000
+
+spring:
+  main:
+    allow-bean-definition-overriding: true
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+  flyway:
+    enabled: true
+    schemas: ${schema.name}
+    locations: classpath:db/migration
+  jpa:
+    open-in-view: false
+    show-sql: true
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ${schema.name}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${issuer-uri}
+
+logging:
+  level:
+    org.springframework.security: WARN

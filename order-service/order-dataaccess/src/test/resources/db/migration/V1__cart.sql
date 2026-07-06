@@ -1,4 +1,4 @@
--- V1: Authenticated-user cart tables (schema: order, see application.yml)
+-- V1: Authenticated-user cart tables (schema: orders, see application.yml)
 -- Guest carts live in Redis (same item snapshot shape as cart_items).
 
 -- ============================================================================

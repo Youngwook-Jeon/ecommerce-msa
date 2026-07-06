@@ -4,7 +4,7 @@ server:
 issuer-uri: http://localhost:8080/realms/Ecomart
 
 schema:
-  name: order
+  name: orders
 
 order-service:
   guest-cart:
