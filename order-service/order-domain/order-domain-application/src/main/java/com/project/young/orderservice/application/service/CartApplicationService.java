@@ -121,9 +121,30 @@ public class CartApplicationService {
     }
 
     @Transactional
+    public Cart clearCart(Cart cart) {
+        Objects.requireNonNull(cart, "cart must not be null");
+        return clearItems(cart);
+    }
+
+    @Transactional
     public CartSyncResult syncCart(CartOwner owner) {
         Objects.requireNonNull(owner, "owner must not be null");
         return syncWithCatalog(getOrCreateCart(owner));
+    }
+
+    /**
+     * Syncs an existing authenticated user's cart without creating a new one.
+     * Used at checkout when an empty cart must be rejected.
+     */
+    @Transactional
+    public CartSyncResult syncExistingUserCart(UserId userId) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        Cart cart = cartRepository.findByUserId(userId)
+                .orElseThrow(() -> new CartDomainException("Cart is empty."));
+        if (cart.isEmpty()) {
+            throw new CartDomainException("Cart is empty.");
+        }
+        return syncWithCatalog(cart);
     }
 
     /**
@@ -319,7 +340,9 @@ public class CartApplicationService {
             return new CartSyncResult(cart, List.of());
         }
         CartSyncResult result = reconcileCartWithCatalog(cart);
-        updateCart(cart);
+        if (!result.changes().isEmpty()) {
+            updateCart(cart);
+        }
         return result;
     }
 

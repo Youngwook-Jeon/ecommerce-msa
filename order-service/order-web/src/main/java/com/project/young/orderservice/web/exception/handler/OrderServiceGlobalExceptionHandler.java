@@ -7,6 +7,9 @@ import com.project.young.orderservice.application.port.output.ProductCatalogUnav
 import com.project.young.orderservice.domain.exception.CartDomainException;
 import com.project.young.orderservice.domain.exception.CartItemNotFoundException;
 import com.project.young.orderservice.domain.exception.CartNotFoundException;
+import com.project.young.orderservice.domain.exception.OrderCheckoutValidationException;
+import com.project.young.orderservice.domain.exception.OrderDomainException;
+import com.project.young.orderservice.domain.exception.OrderNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -47,6 +50,39 @@ public class OrderServiceGlobalExceptionHandler extends GlobalExceptionHandler {
     @ExceptionHandler(CartItemNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorDTO handleCartItemNotFoundException(CartItemNotFoundException exception) {
+        log.warn(exception.getMessage(), exception);
+        return ErrorDTO.builder()
+                .code(HttpStatus.NOT_FOUND.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(OrderDomainException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorDTO handleOrderDomainException(OrderDomainException exception) {
+        log.warn(exception.getMessage(), exception);
+        return ErrorDTO.builder()
+                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(OrderCheckoutValidationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDTO handleOrderCheckoutValidationException(OrderCheckoutValidationException exception) {
+        log.warn(exception.getMessage(), exception);
+        return ErrorDTO.builder()
+                .code(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(OrderNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorDTO handleOrderNotFoundException(OrderNotFoundException exception) {
         log.warn(exception.getMessage(), exception);
         return ErrorDTO.builder()
                 .code(HttpStatus.NOT_FOUND.getReasonPhrase())

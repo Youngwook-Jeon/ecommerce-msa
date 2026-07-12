@@ -36,9 +36,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/carts")
-@Slf4j
 public class CartController {
 
     private final CartApplicationService cartApplicationService;
@@ -60,6 +60,7 @@ public class CartController {
             @AuthenticationPrincipal Jwt jwt,
             HttpServletRequest request
     ) {
+        log.info("A get request to get current Cart");
         var owner = currentCartSupport.resolveOwner(jwt, request);
         CartResponse response = owner
                 .flatMap(cartApplicationService::findCart)
@@ -75,6 +76,12 @@ public class CartController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
+        log.info(
+                "A post request to add item to Cart: productId={}, productVariantId={}, quantity={}",
+                request.productId(),
+                request.productVariantId(),
+                request.quantity()
+        );
         CartOwner owner = currentCartSupport.resolveOwnerForMutation(
                 jwt, httpRequest, httpResponse, GuestCartPolicy.CREATE_IF_ABSENT);
         Cart cart = cartApplicationService.addItem(
@@ -93,6 +100,7 @@ public class CartController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
+        log.info("A patch request to update Cart item quantity: itemId={}, quantity={}", itemId, request.quantity());
         CartOwner owner = currentCartSupport.resolveOwnerForMutation(
                 jwt, httpRequest, httpResponse, GuestCartPolicy.REQUIRE_EXISTING);
         Cart cart = cartApplicationService.updateItemQuantity(
@@ -107,6 +115,7 @@ public class CartController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
+        log.info("A delete request to remove Cart item: itemId={}", itemId);
         CartOwner owner = currentCartSupport.resolveOwnerForMutation(
                 jwt, httpRequest, httpResponse, GuestCartPolicy.REQUIRE_EXISTING);
         Cart cart = cartApplicationService.removeItem(owner, new CartItemId(itemId));
@@ -119,6 +128,7 @@ public class CartController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
+        log.info("A delete request to clear Cart items");
         CartOwner owner = currentCartSupport.resolveOwnerForMutation(
                 jwt, httpRequest, httpResponse, GuestCartPolicy.REQUIRE_EXISTING);
         Cart cart = cartApplicationService.clearCart(owner);
@@ -131,6 +141,7 @@ public class CartController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
+        log.info("A post request to sync Cart with catalog");
         CartOwner owner = currentCartSupport.resolveOwnerForMutation(
                 jwt, httpRequest, httpResponse, GuestCartPolicy.CREATE_IF_ABSENT);
         return ResponseEntity.ok(cartResponseMapper.toSyncResponse(cartApplicationService.syncCart(owner)));
@@ -142,6 +153,7 @@ public class CartController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse
     ) {
+        log.info("A post request to merge guest Cart for user: {}", jwt.getSubject());
         UserId userId = currentCartSupport.requireAuthenticatedUser(jwt);
         CartOwner owner = CartOwner.forUser(userId);
 

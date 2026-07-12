@@ -3,6 +3,7 @@ package com.project.young.orderservice.application.service;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.common.domain.valueobject.ProductVariantId;
+import com.project.young.orderservice.application.mapper.CartCatalogMapper;
 import com.project.young.orderservice.application.port.output.CartCatalogLineKey;
 import com.project.young.orderservice.application.port.output.IdGenerator;
 import com.project.young.orderservice.application.port.output.ProductCatalogPort;
@@ -185,6 +186,30 @@ class CartApplicationServiceTest {
         assertThat(result.changes().getFirst()).isInstanceOf(CartSyncChange.PriceUpdated.class);
         verify(productCatalogPort).resolveLines(any());
         verify(guestCartRepository).update(cart);
+    }
+
+    @Test
+    @DisplayName("syncCart: 변경점이 없으면 repository update를 건너뛴다")
+    void syncCart_noChanges_skipsUpdate() {
+        CartCatalogLineView catalog = catalogView(true, 5);
+        Cart cart = Cart.createForGuest(CART_ID);
+        cart.addOrMergeItem(
+                PRODUCT_ID,
+                VARIANT_ID,
+                CartCatalogMapper.toSnapshot(catalog),
+                1,
+                new CartItemId(UUID.randomUUID())
+        );
+        when(guestCartRepository.findById(CART_ID)).thenReturn(Optional.of(cart));
+        when(productCatalogPort.resolveLines(any())).thenReturn(Map.of(
+                VARIANT_ID.getValue(),
+                catalog
+        ));
+
+        CartSyncResult result = cartApplicationService.syncCart(CartOwner.forGuest(CART_ID));
+
+        assertThat(result.changes()).isEmpty();
+        verify(guestCartRepository, never()).update(any());
     }
 
     @Test

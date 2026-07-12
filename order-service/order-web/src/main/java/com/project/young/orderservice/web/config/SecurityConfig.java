@@ -43,6 +43,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/carts/**").permitAll()
                 .requestMatchers(HttpMethod.PATCH, "/carts/**").permitAll()
                 .requestMatchers(HttpMethod.DELETE, "/carts/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/orders/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/orders/**").authenticated()
                 .anyRequest().authenticated());
 
         return http.build();
