@@ -25,6 +25,12 @@ public class OrderIntegrationTestConfiguration {
 
     @Bean
     @Primary
+    RestClient inventoryReservationRestClient() {
+        return RestClient.builder().baseUrl("http://inventory.test").build();
+    }
+
+    @Bean
+    @Primary
     JwtDecoder jwtDecoder() {
         return NimbusJwtDecoder.withSecretKey(
                 new SecretKeySpec("integration-test-secret-key-32b!!".getBytes(), "HmacSHA256")

@@ -10,6 +10,10 @@ order-service:
     base-url: http://catalog.test
     connect-timeout-ms: 2000
     read-timeout-ms: 3000
+  product-inventory:
+    base-url: http://inventory.test
+    connect-timeout-ms: 2000
+    read-timeout-ms: 3000
 
 spring:
   main:
