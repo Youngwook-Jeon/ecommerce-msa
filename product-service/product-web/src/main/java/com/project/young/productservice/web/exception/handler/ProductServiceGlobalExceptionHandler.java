@@ -106,6 +106,39 @@ public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler
     }
 
     @ResponseBody
+    @ExceptionHandler(value = {InventoryDomainException.class})
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorDTO handleException(InventoryDomainException inventoryDomainException) {
+        log.warn(inventoryDomainException.getMessage(), inventoryDomainException);
+        return ErrorDTO.builder()
+                .code(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(inventoryDomainException.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(value = {InsufficientInventoryException.class})
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDTO handleException(InsufficientInventoryException insufficientInventoryException) {
+        log.warn(insufficientInventoryException.getMessage(), insufficientInventoryException);
+        return ErrorDTO.builder()
+                .code(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(insufficientInventoryException.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(value = {InventoryReservationNotFoundException.class})
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorDTO handleException(InventoryReservationNotFoundException notFoundException) {
+        log.warn(notFoundException.getMessage(), notFoundException);
+        return ErrorDTO.builder()
+                .code(HttpStatus.NOT_FOUND.getReasonPhrase())
+                .message(notFoundException.getMessage())
+                .build();
+    }
+
+    @ResponseBody
     @ExceptionHandler(value = {AccessDeniedException.class})
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ErrorDTO handleAccessDeniedException(AccessDeniedException accessDeniedException) {

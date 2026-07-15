@@ -19,6 +19,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -128,6 +129,30 @@ class ProductVariantJpaRepositoryTest {
         ProductVariantEntity reloaded = testEntityManager.find(ProductVariantEntity.class, graph.variantId());
         assertThat(updated).isEqualTo(1);
         assertThat(reloaded.getMainImageUrl()).isEqualTo(bulkUrl);
+    }
+
+    @Test
+    @DisplayName("findAllByIdInWithProductOrdered: variant를 id 순으로 product와 함께 조회한다")
+    void findAllByIdInWithProductOrdered_ordersAndFetchesProduct() {
+        List<ProductVariantEntity> variants = productVariantJpaRepository.findAllByIdInWithProductOrdered(
+                List.of(UUID.fromString("ffffffff-ffff-ffff-ffff-ffffffffffff"), graph.variantId())
+        );
+
+        assertThat(variants).hasSize(1);
+        assertThat(variants.getFirst().getId()).isEqualTo(graph.variantId());
+        assertThat(variants.getFirst().getProduct().getId()).isEqualTo(graph.productId());
+    }
+
+    @Test
+    @DisplayName("@Version: variant 재고 변경 시 version이 증가한다")
+    void versionIncrementsWhenStockChanges() {
+        ProductVariantEntity variant = productVariantJpaRepository.findById(graph.variantId()).orElseThrow();
+        assertThat(variant.getVersion()).isZero();
+
+        variant.setStockQuantity(variant.getStockQuantity() - 1);
+        productVariantJpaRepository.flush();
+
+        assertThat(variant.getVersion()).isEqualTo(1);
     }
 
     @Configuration

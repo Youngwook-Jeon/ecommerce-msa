@@ -5,6 +5,11 @@ issuer-uri: http://localhost:8080/realms/Ecomart
 
 product-service:
   product-topic-name: product
+  inventory:
+    reservation-ttl: 15m
+    expire-batch-size: 100
+    expire-fixed-delay-ms: 30000
+    max-optimistic-attempts: 3
   storefront-cache:
     enabled: true
     key-prefix: "ecomart:product:storefront:"

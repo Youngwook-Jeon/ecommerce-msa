@@ -52,6 +52,10 @@ public class ProductVariantEntity {
     @Column(name = "stock_quantity", nullable = false)
     private int stockQuantity;
 
+    @Version
+    @Column(name = "version", nullable = false)
+    private Integer version;
+
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)

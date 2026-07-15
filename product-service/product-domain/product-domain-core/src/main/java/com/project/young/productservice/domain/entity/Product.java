@@ -297,6 +297,21 @@ public class Product extends AggregateRoot<ProductId> {
         return target;
     }
 
+    /**
+     * Confirms a soft-hold by deducting on-hand stock for the variant.
+     */
+    public ProductVariant deductVariantStock(ProductVariantId variantId, int quantity) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot deduct stock from a deleted product.");
+        }
+        ProductVariant target = this.variants.stream()
+                .filter(v -> v.getId().equals(variantId))
+                .findFirst()
+                .orElseThrow(() -> new ProductDomainException("Variant not found in this product."));
+        target.decreaseStock(quantity);
+        return target;
+    }
+
     public ProductVariant deleteVariant(ProductVariantId variantId) {
         if (isDeleted()) {
             throw new ProductDomainException("Cannot delete variant in a deleted product.");

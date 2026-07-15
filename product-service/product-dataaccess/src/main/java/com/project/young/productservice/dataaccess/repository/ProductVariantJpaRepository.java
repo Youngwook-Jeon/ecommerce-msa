@@ -82,4 +82,13 @@ public interface ProductVariantJpaRepository extends JpaRepository<ProductVarian
             @Param("excludedProductStatuses") List<ProductStatusEntity> excludedProductStatuses,
             @Param("excludedCategoryStatus") CategoryStatusEntity excludedCategoryStatus
     );
+
+    @Query("""
+            SELECT v
+            FROM ProductVariantEntity v
+            JOIN FETCH v.product
+            WHERE v.id IN :variantIds
+            ORDER BY v.id ASC
+            """)
+    List<ProductVariantEntity> findAllByIdInWithProductOrdered(@Param("variantIds") Collection<UUID> variantIds);
 }

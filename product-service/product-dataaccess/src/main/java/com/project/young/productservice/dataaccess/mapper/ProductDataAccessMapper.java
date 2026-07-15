@@ -122,6 +122,7 @@ public class ProductDataAccessMapper {
                     .orElseGet(() -> {
                         ProductVariantEntity newEntity = new ProductVariantEntity();
                         newEntity.setId(domainVariant.getId().getValue());
+                        newEntity.setVersion(0);
                         productEntity.addVariant(newEntity);
                         return newEntity;
                     });
