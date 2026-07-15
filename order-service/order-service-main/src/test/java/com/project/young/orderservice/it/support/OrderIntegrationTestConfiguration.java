@@ -18,6 +18,11 @@ public class OrderIntegrationTestConfiguration {
     }
 
     @Bean
+    InventoryTestRestClientHolder inventoryTestRestClientHolder() {
+        return InventoryTestRestClientHolder.create();
+    }
+
+    @Bean
     @Primary
     RestClient productCatalogRestClient(CatalogTestRestClientHolder holder) {
         return holder.restClient();
@@ -25,8 +30,8 @@ public class OrderIntegrationTestConfiguration {
 
     @Bean
     @Primary
-    RestClient inventoryReservationRestClient() {
-        return RestClient.builder().baseUrl("http://inventory.test").build();
+    RestClient inventoryReservationRestClient(InventoryTestRestClientHolder holder) {
+        return holder.restClient();
     }
 
     @Bean

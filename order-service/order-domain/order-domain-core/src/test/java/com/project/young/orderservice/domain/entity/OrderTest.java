@@ -49,6 +49,16 @@ class OrderTest {
     }
 
     @Test
+    @DisplayName("placePendingPayment: PENDING_PAYMENT 주문을 생성한다")
+    void placePendingPayment_createsPendingPaymentOrder() {
+        OrderLine line = sampleOrderLine(new OrderLineId(UUID.randomUUID()), 1);
+
+        Order order = Order.placePendingPayment(ORDER_ID, USER_ID, List.of(line), sampleShippingAddress());
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+    }
+
+    @Test
     @DisplayName("place: 지정한 상태로 주문을 생성한다")
     void place_createsOrderWithGivenStatus() {
         OrderLine line = sampleOrderLine(new OrderLineId(UUID.randomUUID()), 1);

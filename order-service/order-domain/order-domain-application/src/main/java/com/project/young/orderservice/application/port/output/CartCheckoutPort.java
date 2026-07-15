@@ -18,7 +18,8 @@ public interface CartCheckoutPort {
     CartSyncResult syncForCheckout(UserId userId);
 
     /**
-     * Clears the synced cart after a successful order placement.
+     * Clears the synced cart after payment succeeds (not at order placement).
+     * Kept here so payment confirmation can reuse the same checkout port.
      */
     void clearAfterOrder(Cart cart);
 }

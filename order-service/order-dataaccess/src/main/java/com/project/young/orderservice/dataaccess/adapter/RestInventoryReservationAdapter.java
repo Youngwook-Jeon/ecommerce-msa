@@ -164,6 +164,16 @@ public class RestInventoryReservationAdapter implements InventoryReservationPort
   }
 
   private <T> T handleFallback(Throwable throwable) {
+    if (throwable instanceof InventoryReservationConflictException conflict) {
+      throw conflict;
+    }
+    if (throwable instanceof InventoryReservationClientException clientException) {
+      throw clientException;
+    }
+    if (throwable instanceof InventoryReservationUnavailableException unavailable) {
+      throw unavailable;
+    }
+
     log.error("Calling inventory reservation API has failed: {}", throwable.getMessage());
     throw new InventoryReservationUnavailableException(
         "Product inventory reservation is currently unavailable.",

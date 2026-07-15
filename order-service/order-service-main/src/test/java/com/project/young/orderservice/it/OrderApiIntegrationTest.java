@@ -3,6 +3,7 @@ package com.project.young.orderservice.it;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.orderservice.OrderServiceMain;
 import com.project.young.orderservice.it.support.CatalogTestRestClientHolder;
+import com.project.young.orderservice.it.support.InventoryTestRestClientHolder;
 import com.project.young.orderservice.it.support.OrderIntegrationTestConfiguration;
 import com.project.young.orderservice.it.support.ProductCatalogTestSupport;
 import com.project.young.orderservice.it.support.ProductCatalogTestSupport.CatalogLineStub;
@@ -34,6 +35,7 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import static com.project.young.orderservice.it.support.InventoryReservationTestSupport.stubReserveSuccess;
 import static com.project.young.orderservice.it.support.ProductCatalogTestSupport.stubCatalogLines;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -84,7 +86,11 @@ class OrderApiIntegrationTest {
     @Autowired
     private CatalogTestRestClientHolder catalogTestRestClientHolder;
 
+    @Autowired
+    private InventoryTestRestClientHolder inventoryTestRestClientHolder;
+
     private MockRestServiceServer catalogServer;
+    private MockRestServiceServer inventoryServer;
 
     @BeforeEach
     void setUp() {
@@ -95,6 +101,8 @@ class OrderApiIntegrationTest {
 
         catalogServer = catalogTestRestClientHolder.mockServer();
         catalogServer.reset();
+        inventoryServer = inventoryTestRestClientHolder.mockServer();
+        inventoryServer.reset();
     }
 
     @Nested
@@ -121,9 +129,10 @@ class OrderApiIntegrationTest {
         }
 
         @Test
-        @DisplayName("카트 스냅샷으로 주문을 생성하고 카트를 비운다")
-        void authenticatedUser_placesOrderAndClearsCart() throws Exception {
+        @DisplayName("카트 스냅샷으로 PENDING_PAYMENT 주문을 생성하고 카트는 유지한다")
+        void authenticatedUser_placesOrderAndKeepsCart() throws Exception {
             stubCatalogLines(catalogServer, catalogLine("Phone", "100.00", 5));
+            stubReserveSuccess(inventoryServer);
             addItemAsUser(2);
 
             MvcResult placeResult = mockMvc.perform(post("/orders")
@@ -131,7 +140,7 @@ class OrderApiIntegrationTest {
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(placeOrderRequest())))
                     .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                    .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
                     .andExpect(jsonPath("$.userId").value(USER_SUBJECT))
                     .andExpect(jsonPath("$.shippingAmount").value(0))
                     .andExpect(jsonPath("$.subtotal").value(200.00))
@@ -148,13 +157,13 @@ class OrderApiIntegrationTest {
             mockMvc.perform(get("/carts/current")
                             .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT))))
                     .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.itemCount").value(0));
+                    .andExpect(jsonPath("$.itemCount").value(1));
 
             mockMvc.perform(get("/orders/{orderId}", orderId)
                             .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT))))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.orderId").value(orderId))
-                    .andExpect(jsonPath("$.status").value("CONFIRMED"));
+                    .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"));
         }
     }
 
@@ -166,6 +175,7 @@ class OrderApiIntegrationTest {
         @DisplayName("다른 사용자 주문은 404")
         void otherUser_returnsNotFound() throws Exception {
             stubCatalogLines(catalogServer, catalogLine("Phone", "100.00", 5));
+            stubReserveSuccess(inventoryServer);
             addItemAsUser(1);
 
             MvcResult placeResult = mockMvc.perform(post("/orders")

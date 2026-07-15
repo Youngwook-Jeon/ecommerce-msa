@@ -3,6 +3,13 @@ package com.project.young.orderservice.application.service;
 import com.project.young.orderservice.application.dto.command.PlaceOrderCommand;
 import com.project.young.orderservice.application.port.output.CartCheckoutPort;
 import com.project.young.orderservice.application.port.output.IdGenerator;
+import com.project.young.orderservice.application.port.output.InventoryReservationClientException;
+import com.project.young.orderservice.application.port.output.InventoryReservationConflictException;
+import com.project.young.orderservice.application.port.output.InventoryReservationPort;
+import com.project.young.orderservice.application.port.output.view.ReserveInventoryLineResultView;
+import com.project.young.orderservice.application.port.output.view.ReserveInventoryLineView;
+import com.project.young.orderservice.application.port.output.view.ReserveInventoryResultView;
+import com.project.young.orderservice.application.support.OrderPlacementTxExecutor;
 import com.project.young.orderservice.domain.entity.Cart;
 import com.project.young.orderservice.domain.entity.Order;
 import com.project.young.orderservice.domain.entity.OrderLine;
@@ -20,29 +27,58 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
+/**
+ * Checkout orchestration for order placement.
+ * <p>
+ * Local DB work and external inventory calls are intentionally separated:
+ * cart sync and order insert each run in their own transactions, while
+ * {@code reserve}/{@code release} stay outside those boundaries. Cart is not
+ * cleared here — clearing is deferred until payment succeeds.
+ */
 @Service
 public class OrderApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderApplicationService.class);
+    private static final String ACTIVE_RESERVATION_STATUS = "ACTIVE";
+    /** Allows local clock to be slightly ahead of product-service without rejecting a valid hold. */
+    private static final Duration RESERVE_EXPIRES_AT_CLOCK_SKEW = Duration.ofSeconds(30);
 
     private final OrderRepository orderRepository;
     private final CartCheckoutPort cartCheckoutPort;
+    private final InventoryReservationPort inventoryReservationPort;
+    private final OrderPlacementTxExecutor orderPlacementTxExecutor;
     private final IdGenerator idGenerator;
+    private final Clock clock;
 
     public OrderApplicationService(
             OrderRepository orderRepository,
             CartCheckoutPort cartCheckoutPort,
-            IdGenerator idGenerator
+            InventoryReservationPort inventoryReservationPort,
+            OrderPlacementTxExecutor orderPlacementTxExecutor,
+            IdGenerator idGenerator,
+            Clock clock
     ) {
         this.orderRepository = orderRepository;
         this.cartCheckoutPort = cartCheckoutPort;
+        this.inventoryReservationPort = inventoryReservationPort;
+        this.orderPlacementTxExecutor = orderPlacementTxExecutor;
         this.idGenerator = idGenerator;
+        this.clock = clock;
     }
 
-    @Transactional
+    /**
+     * Places a {@code PENDING_PAYMENT} order after soft-holding inventory.
+     * Not transactional: orchestration only. Cart remains until payment confirmation.
+     */
     public Order placeOrder(UserId userId, PlaceOrderCommand command) {
         Objects.requireNonNull(userId, "userId must not be null");
         Objects.requireNonNull(command, "command must not be null");
@@ -68,19 +104,23 @@ public class OrderApplicationService {
             throw new OrderDomainException("Cannot place order from an empty cart.");
         }
 
+        OrderId orderId = new OrderId(idGenerator.generateId());
+        List<ReserveInventoryLineView> reserveLines = toReserveLines(cart);
+        reserveInventoryForCheckout(orderId, reserveLines);
+
         List<OrderLine> lines = cart.getItems().stream()
                 .map(item -> OrderLine.fromCartItem(item, new OrderLineId(idGenerator.generateId())))
                 .toList();
 
-        Order order = Order.placeConfirmed(
-                new OrderId(idGenerator.generateId()),
-                userId,
-                lines,
-                shippingAddress
-        );
+        Order order = Order.placePendingPayment(orderId, userId, lines, shippingAddress);
 
-        orderRepository.insert(order);
-        cartCheckoutPort.clearAfterOrder(cart);
+        try {
+            // REQUIRES_NEW so commit completes (or fails) before we return — catch covers commit failures.
+            orderPlacementTxExecutor.runInNewTransaction(() -> orderRepository.insert(order));
+        } catch (RuntimeException persistFailure) {
+            compensateInventoryRelease(orderId, persistFailure);
+            throw persistFailure;
+        }
 
         log.debug(
                 "Placed order {} for user {} (lines={}, total={})",
@@ -104,6 +144,118 @@ public class OrderApplicationService {
                     log.warn("Order {} not found for user {}", orderId.getValue(), userId.value());
                     return new OrderNotFoundException("Order not found: " + orderId.getValue());
                 });
+    }
+
+    private void reserveInventoryForCheckout(OrderId orderId, List<ReserveInventoryLineView> reserveLines) {
+        ReserveInventoryResultView result;
+        try {
+            result = inventoryReservationPort.reserve(orderId.getValue(), reserveLines);
+        } catch (InventoryReservationConflictException conflict) {
+            log.warn(
+                    "Checkout rejected for order {}: inventory reserve conflict ({})",
+                    orderId.getValue(),
+                    conflict.getMessage()
+            );
+            throw new OrderCheckoutValidationException(
+                    "Insufficient inventory for one or more items. Please review your cart and try again.");
+        }
+
+        try {
+            validateReserveResult(orderId, reserveLines, result);
+        } catch (InventoryReservationClientException invalidResponse) {
+            log.warn(
+                    "Invalid reserve response for order {}; releasing inventory reservation ({})",
+                    orderId.getValue(),
+                    invalidResponse.getMessage()
+            );
+            compensateInventoryRelease(orderId, invalidResponse);
+            throw invalidResponse;
+        }
+    }
+
+    private void validateReserveResult(
+            OrderId orderId,
+            List<ReserveInventoryLineView> requested,
+            ReserveInventoryResultView result
+    ) {
+        if (result == null) {
+            throw new InventoryReservationClientException(
+                    "Product inventory returned an empty reserve response.");
+        }
+        if (!orderId.getValue().equals(result.checkoutId())) {
+            throw new InventoryReservationClientException(
+                    "Product inventory reserve response checkoutId does not match orderId.");
+        }
+        Instant expiresAt = result.expiresAt();
+        Instant earliestAcceptableExpiry = clock.instant().minus(RESERVE_EXPIRES_AT_CLOCK_SKEW);
+        if (expiresAt == null || !expiresAt.isAfter(earliestAcceptableExpiry)) {
+            throw new InventoryReservationClientException(
+                    "Product inventory reserve response has a missing or expired expiresAt.");
+        }
+
+        List<ReserveInventoryLineResultView> resultLines = result.lines();
+        if (resultLines == null) {
+            throw new InventoryReservationClientException(
+                    "Product inventory reserve response lines must not be null.");
+        }
+
+        Map<UUID, Integer> requestedByVariant = new HashMap<>();
+        for (ReserveInventoryLineView line : requested) {
+            requestedByVariant.merge(line.productVariantId(), line.quantity(), Integer::sum);
+        }
+
+        Map<UUID, Integer> reservedByVariant = new HashMap<>();
+        for (ReserveInventoryLineResultView line : resultLines) {
+            if (line.reservationId() == null) {
+                throw new InventoryReservationClientException(
+                        "Product inventory reserve response contains a line without reservationId.");
+            }
+            if (line.productVariantId() == null) {
+                throw new InventoryReservationClientException(
+                        "Product inventory reserve response contains a line without productVariantId.");
+            }
+            if (!ACTIVE_RESERVATION_STATUS.equals(line.status())) {
+                throw new InventoryReservationClientException(
+                        "Product inventory reserve response contains a non-ACTIVE line status: "
+                                + line.status());
+            }
+            if (line.quantity() <= 0) {
+                throw new InventoryReservationClientException(
+                        "Product inventory reserve response contains a non-positive quantity.");
+            }
+            reservedByVariant.merge(line.productVariantId(), line.quantity(), Integer::sum);
+        }
+
+        if (!requestedByVariant.equals(reservedByVariant)) {
+            throw new InventoryReservationClientException(
+                    "Product inventory reserve response lines do not match the requested variants/quantities.");
+        }
+    }
+
+    private void compensateInventoryRelease(OrderId orderId, RuntimeException cause) {
+        log.warn(
+                "Releasing inventory reservation for order {} after failure: {}",
+                orderId.getValue(),
+                cause.getMessage(),
+                cause
+        );
+        try {
+            inventoryReservationPort.release(orderId.getValue());
+        } catch (RuntimeException releaseFailure) {
+            log.error(
+                    "Failed to release inventory reservation for order {} after failure",
+                    orderId.getValue(),
+                    releaseFailure
+            );
+        }
+    }
+
+    private static List<ReserveInventoryLineView> toReserveLines(Cart cart) {
+        return cart.getItems().stream()
+                .map(item -> new ReserveInventoryLineView(
+                        item.getProductVariantId().getValue(),
+                        item.getQuantity()))
+                .toList();
     }
 
     private static ShippingAddress toShippingAddress(PlaceOrderCommand command) {

@@ -2,6 +2,8 @@ package com.project.young.orderservice.web.exception.handler;
 
 import com.project.young.common.application.web.ErrorDTO;
 import com.project.young.common.application.web.GlobalExceptionHandler;
+import com.project.young.orderservice.application.port.output.InventoryReservationClientException;
+import com.project.young.orderservice.application.port.output.InventoryReservationUnavailableException;
 import com.project.young.orderservice.application.port.output.ProductCatalogClientException;
 import com.project.young.orderservice.application.port.output.ProductCatalogUnavailableException;
 import com.project.young.orderservice.domain.exception.CartDomainException;
@@ -102,9 +104,33 @@ public class OrderServiceGlobalExceptionHandler extends GlobalExceptionHandler {
     }
 
     @ResponseBody
+    @ExceptionHandler(InventoryReservationUnavailableException.class)
+    @ResponseStatus(HttpStatus.SERVICE_UNAVAILABLE)
+    public ErrorDTO handleInventoryReservationUnavailableException(
+            InventoryReservationUnavailableException exception
+    ) {
+        log.warn(exception.getMessage(), exception);
+        return ErrorDTO.builder()
+                .code(HttpStatus.SERVICE_UNAVAILABLE.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
+
+    @ResponseBody
     @ExceptionHandler(ProductCatalogClientException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ErrorDTO handleProductCatalogClientException(ProductCatalogClientException exception) {
+        log.error(exception.getMessage(), exception);
+        return ErrorDTO.builder()
+                .code(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(InventoryReservationClientException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ErrorDTO handleInventoryReservationClientException(InventoryReservationClientException exception) {
         log.error(exception.getMessage(), exception);
         return ErrorDTO.builder()
                 .code(HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())

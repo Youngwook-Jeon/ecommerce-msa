@@ -49,6 +49,15 @@ public class Order extends AggregateRoot<OrderId> {
         return place(orderId, userId, lines, shippingAddress, OrderStatus.CONFIRMED);
     }
 
+    public static Order placePendingPayment(
+            OrderId orderId,
+            UserId userId,
+            List<OrderLine> lines,
+            ShippingAddress shippingAddress
+    ) {
+        return place(orderId, userId, lines, shippingAddress, OrderStatus.PENDING_PAYMENT);
+    }
+
     public static Order place(
             OrderId orderId,
             UserId userId,
