@@ -4,10 +4,9 @@ import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.orderservice.domain.exception.OrderDomainException;
-import com.project.young.orderservice.domain.valueobject.CartItemId;
+import com.project.young.orderservice.domain.exception.OrderStateConflictException;
 import com.project.young.orderservice.domain.valueobject.CartItemOptionLine;
 import com.project.young.orderservice.domain.valueobject.CartItemSnapshot;
-import com.project.young.orderservice.domain.valueobject.CartId;
 import com.project.young.orderservice.domain.valueobject.OrderId;
 import com.project.young.orderservice.domain.valueobject.OrderLineId;
 import com.project.young.orderservice.domain.valueobject.OrderStatus;
@@ -56,6 +55,69 @@ class OrderTest {
         Order order = Order.placePendingPayment(ORDER_ID, USER_ID, List.of(line), sampleShippingAddress());
 
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING_PAYMENT);
+    }
+
+    @Test
+    @DisplayName("confirmPayment: PENDING_PAYMENT를 CONFIRMED로 전이한다")
+    void confirmPayment_pendingOrder_transitionsToConfirmed() {
+        Order order = Order.placePendingPayment(
+                ORDER_ID,
+                USER_ID,
+                List.of(sampleOrderLine(new OrderLineId(UUID.randomUUID()), 1)),
+                sampleShippingAddress()
+        );
+
+        order.confirmPayment();
+        order.confirmPayment();
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("confirmPayment: CANCELLED 주문은 확정할 수 없다")
+    void confirmPayment_cancelledOrder_throws() {
+        Order order = Order.placePendingPayment(
+                ORDER_ID,
+                USER_ID,
+                List.of(sampleOrderLine(new OrderLineId(UUID.randomUUID()), 1)),
+                sampleShippingAddress()
+        );
+        order.cancel();
+
+        assertThatThrownBy(order::confirmPayment)
+                .isInstanceOf(OrderStateConflictException.class)
+                .hasMessageContaining("CANCELLED");
+    }
+
+    @Test
+    @DisplayName("cancel: PENDING_PAYMENT를 CANCELLED로 전이한다")
+    void cancel_pendingOrder_transitionsToCancelled() {
+        Order order = Order.placePendingPayment(
+                ORDER_ID,
+                USER_ID,
+                List.of(sampleOrderLine(new OrderLineId(UUID.randomUUID()), 1)),
+                sampleShippingAddress()
+        );
+
+        order.cancel();
+        order.cancel();
+
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("cancel: CONFIRMED 주문은 취소할 수 없다")
+    void cancel_confirmedOrder_throws() {
+        Order order = Order.placeConfirmed(
+                ORDER_ID,
+                USER_ID,
+                List.of(sampleOrderLine(new OrderLineId(UUID.randomUUID()), 1)),
+                sampleShippingAddress()
+        );
+
+        assertThatThrownBy(order::cancel)
+                .isInstanceOf(OrderStateConflictException.class)
+                .hasMessageContaining("CONFIRMED");
     }
 
     @Test

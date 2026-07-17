@@ -2,7 +2,7 @@ package com.project.young.orderservice.application.adapter;
 
 import com.project.young.orderservice.application.port.output.CartCheckoutPort;
 import com.project.young.orderservice.application.service.CartApplicationService;
-import com.project.young.orderservice.domain.entity.Cart;
+import com.project.young.orderservice.domain.entity.Order;
 import com.project.young.orderservice.domain.sync.CartSyncResult;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import org.springframework.stereotype.Component;
@@ -25,8 +25,8 @@ public class CartCheckoutPortAdapter implements CartCheckoutPort {
     }
 
     @Override
-    public void clearAfterOrder(Cart cart) {
-        Objects.requireNonNull(cart, "cart must not be null");
-        cartApplicationService.clearCart(cart);
+    public void clearAfterPayment(Order order) {
+        Objects.requireNonNull(order, "order must not be null");
+        cartApplicationService.clearCartAfterPayment(order);
     }
 }

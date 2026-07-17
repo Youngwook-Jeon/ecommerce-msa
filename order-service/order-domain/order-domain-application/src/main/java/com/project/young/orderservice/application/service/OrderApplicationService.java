@@ -16,10 +16,12 @@ import com.project.young.orderservice.domain.entity.OrderLine;
 import com.project.young.orderservice.domain.exception.OrderCheckoutValidationException;
 import com.project.young.orderservice.domain.exception.OrderDomainException;
 import com.project.young.orderservice.domain.exception.OrderNotFoundException;
+import com.project.young.orderservice.domain.exception.OrderStateConflictException;
 import com.project.young.orderservice.domain.repository.OrderRepository;
 import com.project.young.orderservice.domain.sync.CartSyncResult;
 import com.project.young.orderservice.domain.valueobject.OrderId;
 import com.project.young.orderservice.domain.valueobject.OrderLineId;
+import com.project.young.orderservice.domain.valueobject.OrderStatus;
 import com.project.young.orderservice.domain.valueobject.ShippingAddress;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import org.slf4j.Logger;
@@ -132,6 +134,68 @@ public class OrderApplicationService {
         return order;
     }
 
+    /**
+     * Stub payment-success flow. Inventory confirmation is idempotent; after it succeeds,
+     * the local status transition commits in a separate transaction. A retry can complete
+     * a prior partial attempt. Cart clearing is last and preserves a cart changed meanwhile.
+     */
+    public Order confirmPayment(UserId userId, OrderId orderId) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        Objects.requireNonNull(orderId, "orderId must not be null");
+
+        Order current = requireOrder(userId, orderId);
+        if (current.getStatus() == OrderStatus.CONFIRMED) {
+            cartCheckoutPort.clearAfterPayment(current);
+            return current;
+        }
+        if (current.getStatus() != OrderStatus.PENDING_PAYMENT) {
+            current.confirmPayment(); // raises the domain transition error
+        }
+
+        inventoryReservationPort.confirm(orderId.getValue());
+
+        Order confirmed = orderPlacementTxExecutor.executeInNewTransaction(() -> {
+            Order order = requireOrder(userId, orderId);
+            if (order.getStatus() == OrderStatus.CONFIRMED) {
+                return order;
+            }
+            order.confirmPayment();
+            if (!orderRepository.updateStatus(order, OrderStatus.PENDING_PAYMENT)) {
+                throw new OrderStateConflictException(
+                        "Order status changed concurrently. Please retry payment confirmation.");
+            }
+            return order;
+        });
+
+        cartCheckoutPort.clearAfterPayment(confirmed);
+        return confirmed;
+    }
+
+    /**
+     * Stub payment-cancel flow. Persist cancellation first so a release outage cannot leave
+     * an order payable; release remains retryable and the soft hold also expires by TTL.
+     */
+    public Order cancelOrder(UserId userId, OrderId orderId) {
+        Objects.requireNonNull(userId, "userId must not be null");
+        Objects.requireNonNull(orderId, "orderId must not be null");
+
+        Order cancelled = orderPlacementTxExecutor.executeInNewTransaction(() -> {
+            Order order = requireOrder(userId, orderId);
+            if (order.getStatus() == OrderStatus.CANCELLED) {
+                return order;
+            }
+            order.cancel();
+            if (!orderRepository.updateStatus(order, OrderStatus.PENDING_PAYMENT)) {
+                throw new OrderStateConflictException(
+                        "Order status changed concurrently. Please retry cancellation.");
+            }
+            return order;
+        });
+
+        inventoryReservationPort.release(orderId.getValue());
+        return cancelled;
+    }
+
     @Transactional(readOnly = true)
     public Order getOrder(UserId userId, OrderId orderId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -139,6 +203,10 @@ public class OrderApplicationService {
 
         log.debug("Fetching order {} for user {}", orderId.getValue(), userId.value());
 
+        return requireOrder(userId, orderId);
+    }
+
+    private Order requireOrder(UserId userId, OrderId orderId) {
         return orderRepository.findByIdAndUserId(orderId, userId)
                 .orElseThrow(() -> {
                     log.warn("Order {} not found for user {}", orderId.getValue(), userId.value());

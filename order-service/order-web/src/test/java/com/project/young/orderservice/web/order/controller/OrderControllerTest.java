@@ -88,7 +88,7 @@ class OrderControllerTest {
                         .content(objectMapper.writeValueAsString(placeOrderCommand())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.orderId").value(ORDER_ID.toString()))
-                .andExpect(jsonPath("$.status").value("CONFIRMED"))
+                .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"))
                 .andExpect(jsonPath("$.lines[0].productName").value("Phone"));
 
         verify(orderApplicationService).placeOrder(eq(new UserId(USER_SUBJECT)), any(PlaceOrderCommand.class));
@@ -106,6 +106,44 @@ class OrderControllerTest {
                 .andExpect(jsonPath("$.orderId").value(ORDER_ID.toString()));
     }
 
+    @Test
+    @DisplayName("POST /orders/{orderId}/confirm-payment: 결제 성공을 확정한다")
+    void confirmPayment_authenticated_returnsConfirmedOrder() throws Exception {
+        when(orderApplicationService.confirmPayment(
+                new UserId(USER_SUBJECT),
+                new OrderId(ORDER_ID)
+        )).thenReturn(sampleOrder(OrderStatus.CONFIRMED));
+
+        mockMvc.perform(post("/orders/{orderId}/confirm-payment", ORDER_ID)
+                        .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED"));
+
+        verify(orderApplicationService).confirmPayment(
+                new UserId(USER_SUBJECT),
+                new OrderId(ORDER_ID)
+        );
+    }
+
+    @Test
+    @DisplayName("POST /orders/{orderId}/cancel: 주문을 취소한다")
+    void cancelOrder_authenticated_returnsCancelledOrder() throws Exception {
+        when(orderApplicationService.cancelOrder(
+                new UserId(USER_SUBJECT),
+                new OrderId(ORDER_ID)
+        )).thenReturn(sampleOrder(OrderStatus.CANCELLED));
+
+        mockMvc.perform(post("/orders/{orderId}/cancel", ORDER_ID)
+                        .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+        verify(orderApplicationService).cancelOrder(
+                new UserId(USER_SUBJECT),
+                new OrderId(ORDER_ID)
+        );
+    }
+
     private PlaceOrderCommand placeOrderCommand() {
         return PlaceOrderCommand.builder()
                 .recipientName("Kim Young")
@@ -118,6 +156,10 @@ class OrderControllerTest {
     }
 
     private Order sampleOrder() {
+        return sampleOrder(OrderStatus.PENDING_PAYMENT);
+    }
+
+    private Order sampleOrder(OrderStatus status) {
         OrderLine line = OrderLine.reconstitute(
                 new OrderLineId(LINE_ID),
                 new com.project.young.common.domain.valueobject.ProductId(PRODUCT_ID),
@@ -129,7 +171,7 @@ class OrderControllerTest {
         return Order.builder()
                 .orderId(new OrderId(ORDER_ID))
                 .userId(new UserId(USER_SUBJECT))
-                .status(OrderStatus.CONFIRMED)
+                .status(status)
                 .shippingAddress(new ShippingAddress(
                         "Kim Young", "01012345678", "123 Main St", null, "Seoul", "04524", "KR"))
                 .lines(List.of(line))

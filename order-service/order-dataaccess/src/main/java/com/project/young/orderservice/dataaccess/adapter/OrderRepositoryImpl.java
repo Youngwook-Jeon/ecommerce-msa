@@ -8,11 +8,13 @@ import com.project.young.orderservice.domain.entity.Order;
 import com.project.young.orderservice.domain.entity.OrderLine;
 import com.project.young.orderservice.domain.repository.OrderRepository;
 import com.project.young.orderservice.domain.valueobject.OrderId;
+import com.project.young.orderservice.domain.valueobject.OrderStatus;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.Optional;
 
 @Repository
@@ -53,6 +55,24 @@ public class OrderRepositoryImpl implements OrderRepository {
 
         OrderEntity toPersist = orderDataAccessMapper.orderToOrderEntity(order);
         entityManager.persist(toPersist);
+    }
+
+    @Override
+    @Transactional
+    public boolean updateStatus(Order order, OrderStatus expectedStatus) {
+        if (order == null || order.getId() == null) {
+            throw new IllegalArgumentException("order and order id must not be null");
+        }
+        if (expectedStatus == null) {
+            throw new IllegalArgumentException("expectedStatus must not be null");
+        }
+        return orderJpaRepository.updateStatusIfCurrent(
+                order.getId().getValue(),
+                order.getUserId().value(),
+                orderDataAccessMapper.toEntityStatus(expectedStatus),
+                orderDataAccessMapper.toEntityStatus(order.getStatus()),
+                Instant.now()
+        ) == 1;
     }
 
     @Override

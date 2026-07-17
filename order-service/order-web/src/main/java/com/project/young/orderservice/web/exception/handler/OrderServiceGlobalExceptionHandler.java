@@ -12,6 +12,7 @@ import com.project.young.orderservice.domain.exception.CartNotFoundException;
 import com.project.young.orderservice.domain.exception.OrderCheckoutValidationException;
 import com.project.young.orderservice.domain.exception.OrderDomainException;
 import com.project.young.orderservice.domain.exception.OrderNotFoundException;
+import com.project.young.orderservice.domain.exception.OrderStateConflictException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -74,6 +75,17 @@ public class OrderServiceGlobalExceptionHandler extends GlobalExceptionHandler {
     @ExceptionHandler(OrderCheckoutValidationException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorDTO handleOrderCheckoutValidationException(OrderCheckoutValidationException exception) {
+        log.warn(exception.getMessage(), exception);
+        return ErrorDTO.builder()
+                .code(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(OrderStateConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDTO handleOrderStateConflictException(OrderStateConflictException exception) {
         log.warn(exception.getMessage(), exception);
         return ErrorDTO.builder()
                 .code(HttpStatus.CONFLICT.getReasonPhrase())

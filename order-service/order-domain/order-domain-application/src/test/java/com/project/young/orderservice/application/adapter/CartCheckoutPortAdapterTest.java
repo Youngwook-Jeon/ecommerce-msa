@@ -2,6 +2,7 @@ package com.project.young.orderservice.application.adapter;
 
 import com.project.young.orderservice.application.service.CartApplicationService;
 import com.project.young.orderservice.domain.entity.Cart;
+import com.project.young.orderservice.domain.entity.Order;
 import com.project.young.orderservice.domain.sync.CartSyncResult;
 import com.project.young.orderservice.domain.valueobject.CartId;
 import com.project.young.orderservice.domain.valueobject.UserId;
@@ -44,12 +45,12 @@ class CartCheckoutPortAdapterTest {
     }
 
     @Test
-    @DisplayName("clearAfterOrder: CartApplicationService.clearCart에 위임한다")
-    void clearAfterOrder_delegatesToCartApplicationService() {
-        Cart cart = Cart.createForUser(USER_ID, new CartId(UUID.randomUUID()));
+    @DisplayName("clearAfterPayment: CartApplicationService.clearCartAfterPayment에 위임한다")
+    void clearAfterPayment_delegatesToCartApplicationService() {
+        Order order = org.mockito.Mockito.mock(Order.class);
 
-        cartCheckoutPortAdapter.clearAfterOrder(cart);
+        cartCheckoutPortAdapter.clearAfterPayment(order);
 
-        verify(cartApplicationService).clearCart(cart);
+        verify(cartApplicationService).clearCartAfterPayment(order);
     }
 }

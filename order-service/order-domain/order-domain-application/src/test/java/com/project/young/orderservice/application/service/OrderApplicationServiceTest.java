@@ -19,6 +19,7 @@ import com.project.young.orderservice.domain.entity.Order;
 import com.project.young.orderservice.domain.exception.OrderCheckoutValidationException;
 import com.project.young.orderservice.domain.exception.OrderDomainException;
 import com.project.young.orderservice.domain.exception.OrderNotFoundException;
+import com.project.young.orderservice.domain.exception.OrderStateConflictException;
 import com.project.young.orderservice.domain.repository.OrderRepository;
 import com.project.young.orderservice.domain.sync.CartSyncChange;
 import com.project.young.orderservice.domain.sync.CartSyncResult;
@@ -45,6 +46,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -103,6 +105,10 @@ class OrderApplicationServiceTest {
             action.run();
             return null;
         }).when(orderPlacementTxExecutor).runInNewTransaction(any(Runnable.class));
+        lenient().doAnswer(invocation -> {
+            Supplier<?> action = invocation.getArgument(0);
+            return action.get();
+        }).when(orderPlacementTxExecutor).executeInNewTransaction(any());
     }
 
     @Test
@@ -142,7 +148,7 @@ class OrderApplicationServiceTest {
         verify(orderRepository).insert(orderCaptor.capture());
 
         assertThat(orderCaptor.getValue().getId()).isEqualTo(new OrderId(GENERATED_ORDER_ID));
-        verify(cartCheckoutPort, never()).clearAfterOrder(any());
+        verify(cartCheckoutPort, never()).clearAfterPayment(any());
     }
 
     @Test
@@ -161,7 +167,7 @@ class OrderApplicationServiceTest {
 
         verify(orderPlacementTxExecutor, never()).runInNewTransaction(any(Runnable.class));
         verify(orderRepository, never()).insert(any());
-        verify(cartCheckoutPort, never()).clearAfterOrder(any());
+        verify(cartCheckoutPort, never()).clearAfterPayment(any());
         verify(inventoryReservationPort, never()).release(any());
     }
 
@@ -180,7 +186,7 @@ class OrderApplicationServiceTest {
 
         verify(orderPlacementTxExecutor, never()).runInNewTransaction(any(Runnable.class));
         verify(orderRepository, never()).insert(any());
-        verify(cartCheckoutPort, never()).clearAfterOrder(any());
+        verify(cartCheckoutPort, never()).clearAfterPayment(any());
     }
 
     @Test
@@ -287,7 +293,7 @@ class OrderApplicationServiceTest {
         inOrder.verify(inventoryReservationPort).reserve(eq(GENERATED_ORDER_ID), any());
         inOrder.verify(orderPlacementTxExecutor).runInNewTransaction(any(Runnable.class));
         inOrder.verify(inventoryReservationPort).release(GENERATED_ORDER_ID);
-        verify(cartCheckoutPort, never()).clearAfterOrder(any());
+        verify(cartCheckoutPort, never()).clearAfterPayment(any());
     }
 
     @Test
@@ -308,7 +314,7 @@ class OrderApplicationServiceTest {
 
         verify(inventoryReservationPort, never()).reserve(any(), any());
         verify(orderPlacementTxExecutor, never()).runInNewTransaction(any(Runnable.class));
-        verify(cartCheckoutPort, never()).clearAfterOrder(any());
+        verify(cartCheckoutPort, never()).clearAfterPayment(any());
     }
 
     @Test
@@ -331,6 +337,120 @@ class OrderApplicationServiceTest {
     void placeOrder_nullCommand_throws() {
         assertThatThrownBy(() -> orderApplicationService.placeOrder(USER_ID, null))
                 .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("confirmPayment: inventory confirm 후 주문을 CONFIRMED로 바꾸고 카트를 비운다")
+    void confirmPayment_confirmsInventoryTransitionsOrderAndClearsCart() {
+        Order order = storedOrder(OrderStatus.PENDING_PAYMENT);
+        when(orderRepository.findByIdAndUserId(new OrderId(GENERATED_ORDER_ID), USER_ID))
+                .thenReturn(Optional.of(order));
+        when(orderRepository.updateStatus(order, OrderStatus.PENDING_PAYMENT)).thenReturn(true);
+
+        Order result = orderApplicationService.confirmPayment(
+                USER_ID,
+                new OrderId(GENERATED_ORDER_ID)
+        );
+
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        InOrder inOrder = inOrder(inventoryReservationPort, orderPlacementTxExecutor, cartCheckoutPort);
+        inOrder.verify(inventoryReservationPort).confirm(GENERATED_ORDER_ID);
+        inOrder.verify(orderPlacementTxExecutor).executeInNewTransaction(any());
+        inOrder.verify(cartCheckoutPort).clearAfterPayment(order);
+        verify(orderRepository).updateStatus(order, OrderStatus.PENDING_PAYMENT);
+    }
+
+    @Test
+    @DisplayName("confirmPayment: 이미 CONFIRMED면 inventory를 재확정하지 않고 카트 정리만 재시도한다")
+    void confirmPayment_alreadyConfirmed_isIdempotent() {
+        Order order = storedOrder(OrderStatus.CONFIRMED);
+        when(orderRepository.findByIdAndUserId(new OrderId(GENERATED_ORDER_ID), USER_ID))
+                .thenReturn(Optional.of(order));
+
+        Order result = orderApplicationService.confirmPayment(
+                USER_ID,
+                new OrderId(GENERATED_ORDER_ID)
+        );
+
+        assertThat(result).isSameAs(order);
+        verify(inventoryReservationPort, never()).confirm(any());
+        verify(orderPlacementTxExecutor, never()).executeInNewTransaction(any());
+        verify(cartCheckoutPort).clearAfterPayment(order);
+    }
+
+    @Test
+    @DisplayName("cancelOrder: 주문을 CANCELLED로 커밋한 후 inventory를 release한다")
+    void cancelOrder_transitionsOrderThenReleasesInventory() {
+        Order order = storedOrder(OrderStatus.PENDING_PAYMENT);
+        when(orderRepository.findByIdAndUserId(new OrderId(GENERATED_ORDER_ID), USER_ID))
+                .thenReturn(Optional.of(order));
+        when(orderRepository.updateStatus(order, OrderStatus.PENDING_PAYMENT)).thenReturn(true);
+
+        Order result = orderApplicationService.cancelOrder(
+                USER_ID,
+                new OrderId(GENERATED_ORDER_ID)
+        );
+
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        InOrder inOrder = inOrder(orderPlacementTxExecutor, inventoryReservationPort);
+        inOrder.verify(orderPlacementTxExecutor).executeInNewTransaction(any());
+        inOrder.verify(inventoryReservationPort).release(GENERATED_ORDER_ID);
+        verify(orderRepository).updateStatus(order, OrderStatus.PENDING_PAYMENT);
+        verify(cartCheckoutPort, never()).clearAfterPayment(any());
+    }
+
+    @Test
+    @DisplayName("cancelOrder: 이미 CANCELLED여도 release를 재시도한다")
+    void cancelOrder_alreadyCancelled_retriesRelease() {
+        Order order = storedOrder(OrderStatus.CANCELLED);
+        when(orderRepository.findByIdAndUserId(new OrderId(GENERATED_ORDER_ID), USER_ID))
+                .thenReturn(Optional.of(order));
+
+        Order result = orderApplicationService.cancelOrder(
+                USER_ID,
+                new OrderId(GENERATED_ORDER_ID)
+        );
+
+        assertThat(result).isSameAs(order);
+        verify(orderRepository, never()).updateStatus(any(), any());
+        verify(inventoryReservationPort).release(GENERATED_ORDER_ID);
+    }
+
+    @Test
+    @DisplayName("confirmPayment: CANCELLED 주문은 OrderStateConflictException")
+    void confirmPayment_cancelledOrder_throwsStateConflict() {
+        Order order = storedOrder(OrderStatus.CANCELLED);
+        when(orderRepository.findByIdAndUserId(new OrderId(GENERATED_ORDER_ID), USER_ID))
+                .thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> orderApplicationService.confirmPayment(
+                USER_ID,
+                new OrderId(GENERATED_ORDER_ID)
+        ))
+                .isInstanceOf(OrderStateConflictException.class)
+                .hasMessageContaining("CANCELLED");
+
+        verify(inventoryReservationPort, never()).confirm(any());
+        verify(cartCheckoutPort, never()).clearAfterPayment(any());
+    }
+
+    @Test
+    @DisplayName("confirmPayment: CAS 실패면 OrderStateConflictException")
+    void confirmPayment_casFailure_throwsStateConflict() {
+        Order order = storedOrder(OrderStatus.PENDING_PAYMENT);
+        when(orderRepository.findByIdAndUserId(new OrderId(GENERATED_ORDER_ID), USER_ID))
+                .thenReturn(Optional.of(order));
+        when(orderRepository.updateStatus(order, OrderStatus.PENDING_PAYMENT)).thenReturn(false);
+
+        assertThatThrownBy(() -> orderApplicationService.confirmPayment(
+                USER_ID,
+                new OrderId(GENERATED_ORDER_ID)
+        ))
+                .isInstanceOf(OrderStateConflictException.class)
+                .hasMessageContaining("concurrently");
+
+        verify(inventoryReservationPort).confirm(GENERATED_ORDER_ID);
+        verify(cartCheckoutPort, never()).clearAfterPayment(any());
     }
 
     @Test
@@ -367,6 +487,20 @@ class OrderApplicationServiceTest {
         ))
                 .isInstanceOf(OrderNotFoundException.class)
                 .hasMessageContaining("Order not found");
+    }
+
+    private static Order storedOrder(OrderStatus status) {
+        return Order.builder()
+                .orderId(new OrderId(GENERATED_ORDER_ID))
+                .userId(USER_ID)
+                .status(status)
+                .shippingAddress(new com.project.young.orderservice.domain.valueobject.ShippingAddress(
+                        "Kim Young", "01012345678", "123 Main St", null, "Seoul", "04524", "KR"))
+                .lines(List.of())
+                .subtotalAmount(Money.ZERO)
+                .shippingAmount(Money.ZERO)
+                .totalAmount(Money.ZERO)
+                .build();
     }
 
     private static ReserveInventoryResultView validReserveResult(int quantity) {

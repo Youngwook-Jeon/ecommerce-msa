@@ -8,6 +8,7 @@ import com.project.young.orderservice.application.port.output.IdGenerator;
 import com.project.young.orderservice.application.port.output.ProductCatalogPort;
 import com.project.young.orderservice.application.port.output.view.CartCatalogLineView;
 import com.project.young.orderservice.domain.entity.Cart;
+import com.project.young.orderservice.domain.entity.Order;
 import com.project.young.orderservice.domain.exception.CartDomainException;
 import com.project.young.orderservice.domain.exception.CartNotFoundException;
 import com.project.young.orderservice.domain.repository.CartRepository;
@@ -124,6 +125,30 @@ public class CartApplicationService {
     public Cart clearCart(Cart cart) {
         Objects.requireNonNull(cart, "cart must not be null");
         return clearItems(cart);
+    }
+
+    /**
+     * Clears only an unchanged checkout cart. If the user edited the cart while payment
+     * was pending, preserve it rather than deleting new or changed items.
+     */
+    @Transactional
+    public void clearCartAfterPayment(Order order) {
+        Objects.requireNonNull(order, "order must not be null");
+        Optional<Cart> cartOptional = cartRepository.findByUserId(order.getUserId());
+        if (cartOptional.isEmpty()) {
+            return;
+        }
+
+        Cart cart = cartOptional.get();
+        if (!cart.hasSameItemsAs(order.getLines())) {
+            log.info(
+                    "Preserving changed cart {} after payment for order {}",
+                    cart.getId().getValue(),
+                    order.getId().getValue()
+            );
+            return;
+        }
+        clearItems(cart);
     }
 
     @Transactional

@@ -4,19 +4,23 @@ import com.project.young.orderservice.dataaccess.entity.OrderEntity;
 import com.project.young.orderservice.dataaccess.mapper.OrderAggregateMapper;
 import com.project.young.orderservice.dataaccess.mapper.OrderDataAccessMapper;
 import com.project.young.orderservice.dataaccess.repository.OrderJpaRepository;
+import com.project.young.orderservice.dataaccess.enums.OrderStatusEntity;
 import com.project.young.orderservice.domain.entity.Order;
 import com.project.young.orderservice.domain.entity.OrderLine;
 import com.project.young.orderservice.domain.valueobject.OrderId;
+import com.project.young.orderservice.domain.valueobject.OrderStatus;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +30,7 @@ import static com.project.young.orderservice.dataaccess.support.OrderMapperTestF
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -102,6 +107,90 @@ class OrderRepositoryImplTest {
             verify(orderDataAccessMapper).orderToOrderEntity(order);
             verify(entityManager).persist(toPersist);
             verify(orderJpaRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("updateStatus 테스트")
+    class UpdateStatusTests {
+
+        @Test
+        @DisplayName("updateStatus: 조건부 상태 변경이 성공하면 true")
+        void updateStatus_matchingExpected_returnsTrue() {
+            Order order = pendingPaymentOrder();
+            order.confirmPayment();
+            when(orderDataAccessMapper.toEntityStatus(OrderStatus.PENDING_PAYMENT))
+                    .thenReturn(OrderStatusEntity.PENDING_PAYMENT);
+            when(orderDataAccessMapper.toEntityStatus(OrderStatus.CONFIRMED))
+                    .thenReturn(OrderStatusEntity.CONFIRMED);
+            when(orderJpaRepository.updateStatusIfCurrent(
+                    eq(ORDER_ID.getValue()),
+                    eq(USER_ID.value()),
+                    eq(OrderStatusEntity.PENDING_PAYMENT),
+                    eq(OrderStatusEntity.CONFIRMED),
+                    any(Instant.class)
+            )).thenReturn(1);
+
+            boolean updated = orderRepository.updateStatus(order, OrderStatus.PENDING_PAYMENT);
+
+            assertThat(updated).isTrue();
+            ArgumentCaptor<Instant> updatedAtCaptor = ArgumentCaptor.forClass(Instant.class);
+            verify(orderJpaRepository).updateStatusIfCurrent(
+                    eq(ORDER_ID.getValue()),
+                    eq(USER_ID.value()),
+                    eq(OrderStatusEntity.PENDING_PAYMENT),
+                    eq(OrderStatusEntity.CONFIRMED),
+                    updatedAtCaptor.capture()
+            );
+            assertThat(updatedAtCaptor.getValue()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("updateStatus: 기대 상태가 맞지 않으면 false")
+        void updateStatus_noMatchingRow_returnsFalse() {
+            Order order = pendingPaymentOrder();
+            order.cancel();
+            when(orderDataAccessMapper.toEntityStatus(OrderStatus.PENDING_PAYMENT))
+                    .thenReturn(OrderStatusEntity.PENDING_PAYMENT);
+            when(orderDataAccessMapper.toEntityStatus(OrderStatus.CANCELLED))
+                    .thenReturn(OrderStatusEntity.CANCELLED);
+            when(orderJpaRepository.updateStatusIfCurrent(
+                    eq(ORDER_ID.getValue()),
+                    eq(USER_ID.value()),
+                    eq(OrderStatusEntity.PENDING_PAYMENT),
+                    eq(OrderStatusEntity.CANCELLED),
+                    any(Instant.class)
+            )).thenReturn(0);
+
+            boolean updated = orderRepository.updateStatus(order, OrderStatus.PENDING_PAYMENT);
+
+            assertThat(updated).isFalse();
+        }
+
+        @Test
+        @DisplayName("updateStatus: null expectedStatus면 예외")
+        void updateStatus_nullExpectedStatus_throws() {
+            Order order = pendingPaymentOrder();
+
+            assertThatThrownBy(() -> orderRepository.updateStatus(order, null))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("expectedStatus must not be null");
+
+            verify(orderJpaRepository, never()).updateStatusIfCurrent(any(), any(), any(), any(), any());
+        }
+
+        private static Order pendingPaymentOrder() {
+            Order confirmed = domainOrderWithOneLine();
+            return Order.builder()
+                    .orderId(confirmed.getId())
+                    .userId(confirmed.getUserId())
+                    .status(OrderStatus.PENDING_PAYMENT)
+                    .shippingAddress(confirmed.getShippingAddress())
+                    .lines(confirmed.getLines())
+                    .subtotalAmount(confirmed.getSubtotalAmount())
+                    .shippingAmount(confirmed.getShippingAmount())
+                    .totalAmount(confirmed.getTotalAmount())
+                    .build();
         }
     }
 

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 public class Cart extends AggregateRoot<CartId> {
 
@@ -193,6 +194,27 @@ public class Cart extends AggregateRoot<CartId> {
         return items.stream()
                 .map(CartItem::lineAmount)
                 .reduce(Money.ZERO, Money::add);
+    }
+
+    /**
+     * Returns true only when the current cart still represents exactly the purchased lines.
+     * This prevents payment completion from deleting items added or changed after checkout.
+     */
+    public boolean hasSameItemsAs(List<OrderLine> orderLines) {
+        Objects.requireNonNull(orderLines, "orderLines must not be null");
+        Map<ProductVariantId, Integer> cartQuantities = items.stream()
+                .collect(Collectors.toMap(
+                        CartItem::getProductVariantId,
+                        CartItem::getQuantity,
+                        Integer::sum
+                ));
+        Map<ProductVariantId, Integer> orderQuantities = orderLines.stream()
+                .collect(Collectors.toMap(
+                        OrderLine::getProductVariantId,
+                        OrderLine::getQuantity,
+                        Integer::sum
+                ));
+        return cartQuantities.equals(orderQuantities);
     }
 
     public List<CartItem> getItems() {

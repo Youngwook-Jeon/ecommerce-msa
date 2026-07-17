@@ -1,6 +1,6 @@
 package com.project.young.orderservice.application.port.output;
 
-import com.project.young.orderservice.domain.entity.Cart;
+import com.project.young.orderservice.domain.entity.Order;
 import com.project.young.orderservice.domain.sync.CartSyncResult;
 import com.project.young.orderservice.domain.valueobject.UserId;
 
@@ -18,8 +18,8 @@ public interface CartCheckoutPort {
     CartSyncResult syncForCheckout(UserId userId);
 
     /**
-     * Clears the synced cart after payment succeeds (not at order placement).
-     * Kept here so payment confirmation can reuse the same checkout port.
+     * Clears the user's cart after payment only if it still exactly matches the order.
+     * A changed cart is preserved to avoid deleting post-checkout edits.
      */
-    void clearAfterOrder(Cart cart);
+    void clearAfterPayment(Order order);
 }

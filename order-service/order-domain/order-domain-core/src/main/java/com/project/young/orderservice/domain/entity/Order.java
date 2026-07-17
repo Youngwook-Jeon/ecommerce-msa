@@ -3,6 +3,7 @@ package com.project.young.orderservice.domain.entity;
 import com.project.young.common.domain.entity.AggregateRoot;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.orderservice.domain.exception.OrderDomainException;
+import com.project.young.orderservice.domain.exception.OrderStateConflictException;
 import com.project.young.orderservice.domain.valueobject.OrderId;
 import com.project.young.orderservice.domain.valueobject.OrderStatus;
 import com.project.young.orderservice.domain.valueobject.ShippingAddress;
@@ -18,7 +19,7 @@ public class Order extends AggregateRoot<OrderId> {
     private static final Money FREE_SHIPPING = Money.ZERO;
 
     private final UserId userId;
-    private final OrderStatus status;
+    private OrderStatus status;
     private final ShippingAddress shippingAddress;
     private final Money subtotalAmount;
     private final Money shippingAmount;
@@ -101,6 +102,28 @@ public class Order extends AggregateRoot<OrderId> {
 
     public int totalQuantity() {
         return lines.stream().mapToInt(OrderLine::getQuantity).sum();
+    }
+
+    public void confirmPayment() {
+        if (status == OrderStatus.CONFIRMED) {
+            return;
+        }
+        if (status != OrderStatus.PENDING_PAYMENT) {
+            throw new OrderStateConflictException(
+                    "Cannot confirm payment for order in status " + status + ".");
+        }
+        status = OrderStatus.CONFIRMED;
+    }
+
+    public void cancel() {
+        if (status == OrderStatus.CANCELLED) {
+            return;
+        }
+        if (status != OrderStatus.PENDING_PAYMENT) {
+            throw new OrderStateConflictException(
+                    "Cannot cancel order in status " + status + ".");
+        }
+        status = OrderStatus.CANCELLED;
     }
 
     public UserId getUserId() {

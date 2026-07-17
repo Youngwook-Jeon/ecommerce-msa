@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.http.client.MockClientHttpRequest;
 import org.springframework.test.web.client.ExpectedCount;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.client.ResponseCreator;
@@ -39,9 +40,25 @@ public final class InventoryReservationTestSupport {
         stubReleaseSuccess(server, ExpectedCount.manyTimes());
     }
 
+    public static void stubConfirmSuccess(MockRestServiceServer server, UUID checkoutId) {
+        server.expect(ExpectedCount.once(), requestTo(
+                        "http://inventory.test/internal/inventory/reservations/"
+                                + checkoutId + "/confirm"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+    }
+
+    public static void stubReleaseSuccess(MockRestServiceServer server, UUID checkoutId) {
+        server.expect(ExpectedCount.once(), requestTo(
+                        "http://inventory.test/internal/inventory/reservations/"
+                                + checkoutId + "/release"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+    }
+
     public static void stubReleaseSuccess(MockRestServiceServer server, ExpectedCount expectedCount) {
-        server.expect(expectedCount, requestTo(org.hamcrest.Matchers.startsWith(
-                        "http://inventory.test/internal/inventory/reservations/")))
+        server.expect(expectedCount, requestTo(org.hamcrest.Matchers.matchesPattern(
+                        "http://inventory\\.test/internal/inventory/reservations/.+/release")))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess());
     }
@@ -51,7 +68,8 @@ public final class InventoryReservationTestSupport {
      */
     private static ResponseCreator echoReserveSuccess() {
         return request -> {
-            JsonNode body = OBJECT_MAPPER.readTree(request.getBody());
+            JsonNode body = OBJECT_MAPPER.readTree(
+                    ((MockClientHttpRequest) request).getBodyAsBytes());
             String checkoutId = body.path("checkoutId").asText();
             Instant expiresAt = Instant.now().plusSeconds(900);
 

@@ -5,7 +5,6 @@ import com.project.young.orderservice.OrderServiceMain;
 import com.project.young.orderservice.it.support.CatalogTestRestClientHolder;
 import com.project.young.orderservice.it.support.InventoryTestRestClientHolder;
 import com.project.young.orderservice.it.support.OrderIntegrationTestConfiguration;
-import com.project.young.orderservice.it.support.ProductCatalogTestSupport;
 import com.project.young.orderservice.it.support.ProductCatalogTestSupport.CatalogLineStub;
 import com.project.young.orderservice.web.cart.dto.AddCartItemRequest;
 import com.project.young.orderservice.application.dto.command.PlaceOrderCommand;
@@ -25,7 +24,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -35,6 +34,8 @@ import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+import static com.project.young.orderservice.it.support.InventoryReservationTestSupport.stubConfirmSuccess;
+import static com.project.young.orderservice.it.support.InventoryReservationTestSupport.stubReleaseSuccess;
 import static com.project.young.orderservice.it.support.InventoryReservationTestSupport.stubReserveSuccess;
 import static com.project.young.orderservice.it.support.ProductCatalogTestSupport.stubCatalogLines;
 import static org.hamcrest.Matchers.hasSize;
@@ -53,7 +54,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import(OrderIntegrationTestConfiguration.class)
-@Transactional
 class OrderApiIntegrationTest {
 
     private static final String USER_SUBJECT = "018f0000-0000-7000-8000-000000000101";
@@ -84,6 +84,9 @@ class OrderApiIntegrationTest {
     private EntityManager entityManager;
 
     @Autowired
+    private TransactionTemplate transactionTemplate;
+
+    @Autowired
     private CatalogTestRestClientHolder catalogTestRestClientHolder;
 
     @Autowired
@@ -94,10 +97,14 @@ class OrderApiIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        entityManager.createNativeQuery("TRUNCATE TABLE orders RESTART IDENTITY CASCADE").executeUpdate();
-        entityManager.createNativeQuery("TRUNCATE TABLE carts RESTART IDENTITY CASCADE").executeUpdate();
-        entityManager.flush();
-        entityManager.clear();
+        // Commit truncate before each test. A class-level @Transactional would hold the
+        // TRUNCATE lock and deadlock placeOrder's REQUIRES_NEW insert.
+        transactionTemplate.executeWithoutResult(status -> {
+            entityManager.createNativeQuery("TRUNCATE TABLE orders RESTART IDENTITY CASCADE").executeUpdate();
+            entityManager.createNativeQuery("TRUNCATE TABLE carts RESTART IDENTITY CASCADE").executeUpdate();
+            entityManager.flush();
+            entityManager.clear();
+        });
 
         catalogServer = catalogTestRestClientHolder.mockServer();
         catalogServer.reset();
@@ -164,6 +171,65 @@ class OrderApiIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.orderId").value(orderId))
                     .andExpect(jsonPath("$.status").value("PENDING_PAYMENT"));
+        }
+
+        @Test
+        @DisplayName("confirm-payment은 재고를 확정하고 주문과 카트를 완료한다")
+        void confirmPayment_confirmsOrderAndClearsUnchangedCart() throws Exception {
+            stubCatalogLines(catalogServer, catalogLine("Phone", "100.00", 5));
+            stubReserveSuccess(inventoryServer);
+            addItemAsUser(2);
+
+            MvcResult placeResult = mockMvc.perform(post("/orders")
+                            .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT)))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(placeOrderRequest())))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+            UUID orderId = UUID.fromString(objectMapper.readTree(
+                    placeResult.getResponse().getContentAsString()).path("orderId").asText());
+
+            // MockRestServiceServer forbids new expectations after requests; reset for the next phase.
+            inventoryServer.reset();
+            stubConfirmSuccess(inventoryServer, orderId);
+            mockMvc.perform(post("/orders/{orderId}/confirm-payment", orderId)
+                            .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("CONFIRMED"));
+
+            mockMvc.perform(get("/carts/current")
+                            .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.itemCount").value(0));
+        }
+
+        @Test
+        @DisplayName("cancel은 재고 예약을 해제하고 카트를 유지한다")
+        void cancel_releasesInventoryAndKeepsCart() throws Exception {
+            stubCatalogLines(catalogServer, catalogLine("Phone", "100.00", 5));
+            stubReserveSuccess(inventoryServer);
+            addItemAsUser(1);
+
+            MvcResult placeResult = mockMvc.perform(post("/orders")
+                            .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT)))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(placeOrderRequest())))
+                    .andExpect(status().isCreated())
+                    .andReturn();
+            UUID orderId = UUID.fromString(objectMapper.readTree(
+                    placeResult.getResponse().getContentAsString()).path("orderId").asText());
+
+            inventoryServer.reset();
+            stubReleaseSuccess(inventoryServer, orderId);
+            mockMvc.perform(post("/orders/{orderId}/cancel", orderId)
+                            .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.status").value("CANCELLED"));
+
+            mockMvc.perform(get("/carts/current")
+                            .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT))))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.itemCount").value(1));
         }
     }
 
