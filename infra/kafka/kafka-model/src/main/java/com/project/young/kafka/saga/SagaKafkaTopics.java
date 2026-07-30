@@ -2,6 +2,7 @@ package com.project.young.kafka.saga;
 
 /**
  * Kafka topic names for the order-payment saga (Debezium outbox CDC relay).
+ * Payloads are JSON; see {@link com.project.young.kafka.saga.dto} for Debezium message records.
  */
 public final class SagaKafkaTopics {
 
