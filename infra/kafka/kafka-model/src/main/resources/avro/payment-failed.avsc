@@ -1,0 +1,36 @@
+{
+  "namespace": "com.project.young.kafka.payment.avro.model",
+  "type": "record",
+  "name": "PaymentFailedAvroModel",
+  "doc": "Emitted when payment fails. Triggers order cancellation and inventory release.",
+  "fields": [
+    {
+      "name": "eventId",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "paymentId",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "orderId",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "userId",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "amount",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "failureReason",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "occurredAt",
+      "type": "long"
+    }
+  ]
+}

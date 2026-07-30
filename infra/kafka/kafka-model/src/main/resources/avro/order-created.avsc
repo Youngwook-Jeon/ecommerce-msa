@@ -1,0 +1,34 @@
+{
+  "namespace": "com.project.young.kafka.order.avro.model",
+  "type": "record",
+  "name": "OrderCreatedAvroModel",
+  "doc": "Emitted after order placement (PENDING_PAYMENT). Mirrors orders.order_outbox row for polling relay.",
+  "fields": [
+    {
+      "name": "eventId",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "orderId",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "userId",
+      "type": { "type": "string", "avro.java.string": "String" }
+    },
+    {
+      "name": "totalAmount",
+      "type": { "type": "string", "avro.java.string": "String" },
+      "doc": "Decimal string, same as Debezium decimal.handling.mode=string"
+    },
+    {
+      "name": "currency",
+      "type": { "type": "string", "avro.java.string": "String" },
+      "default": "KRW"
+    },
+    {
+      "name": "occurredAt",
+      "type": "long"
+    }
+  ]
+}
