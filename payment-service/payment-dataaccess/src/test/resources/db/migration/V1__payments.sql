@@ -6,7 +6,7 @@ CREATE TABLE payments
     order_id        UUID                    NOT NULL,
     user_id         VARCHAR(36)             NOT NULL,
     amount          DECIMAL(12, 2)          NOT NULL,
-    currency        VARCHAR(3)              NOT NULL DEFAULT 'KRW',
+    currency        VARCHAR(3)              NOT NULL DEFAULT 'USD',
     status          VARCHAR(32)             NOT NULL,
     failure_reason  VARCHAR(500),
     created_at      TIMESTAMPTZ             NOT NULL DEFAULT CURRENT_TIMESTAMP,

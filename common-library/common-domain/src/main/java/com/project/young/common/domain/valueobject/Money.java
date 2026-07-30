@@ -9,6 +9,11 @@ public class Money {
     private final BigDecimal amount;
     public static final Money ZERO = new Money(BigDecimal.ZERO);
 
+    /**
+     * Maximum supported monetary value matching {@code DECIMAL(12, 2)} columns used across services.
+     */
+    public static final Money MAX = new Money(new BigDecimal("9999999999.99"));
+
     public Money(BigDecimal amount) {
         if (amount == null) {
             throw new IllegalArgumentException("Amount cannot be null");
@@ -46,6 +51,14 @@ public class Money {
 
     public boolean isLessThan(Money money) {
         return amount.compareTo(money.getAmount()) < 0;
+    }
+
+    public boolean isGreaterThan(Money money) {
+        return amount.compareTo(money.getAmount()) > 0;
+    }
+
+    public boolean exceedsMax() {
+        return isGreaterThan(MAX);
     }
 
     @Override
