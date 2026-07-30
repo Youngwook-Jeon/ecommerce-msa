@@ -1,5 +1,6 @@
 CREATE DATABASE ecodb_order;
 CREATE DATABASE ecodb_product;
+CREATE DATABASE ecodb_payment;
 
 -- Debezium CDC (logical replication). Table-level GRANTs are applied after Flyway:
 --   deployment/docker/scripts/grant-debezium-outbox.sh
