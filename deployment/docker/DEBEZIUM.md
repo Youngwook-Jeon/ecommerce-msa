@@ -76,8 +76,8 @@ flowchart LR
 
 ```text
 wal_level = logical
-max_replication_slots = 4
-max_wal_senders = 4
+max_replication_slots = 8
+max_wal_senders = 8
 ```
 
 > **주의:** 기존 Postgres 볼륨이 있으면 `wal_level` 이 반영되지 않습니다.  
@@ -142,6 +142,35 @@ GRANT CONNECT ON DATABASE ecodb_product
 
 폴링 → CDC 전환 시 `published_at IS NULL` 인 미발행 row는 **1회 수동 발행** 또는 snapshot 1회 실행 정책이 필요합니다.
 
+## payment-service outbox CDC
+
+`payments.payment_outbox` INSERT를 Debezium이 캡처해 `event_type`별로 relay합니다.
+
+| Connector | Slot | Topic | Filter |
+|-----------|------|-------|--------|
+| `payment-completed-outbox-connector` | `payment_completed_outbox_slot` | `payment.completed` | `PAYMENT_COMPLETED` |
+| `payment-failed-outbox-connector` | `payment_failed_outbox_slot` | `payment.failed` | `PAYMENT_FAILED` |
+
+- **DB:** `ecodb_payment`, schema `payments`
+- **Publication:** `dbz_payment_outbox_pub` (`grant-debezium-payment-outbox.sh`)
+- **Key:** `order_id`
+- **Value:** JSON (`ExtractNewRecordState`, snake_case)
+
+로컬 기동 시 product-service와 함께 payment-service Flyway를 먼저 실행한 뒤 `./scripts/setup-debezium.sh`를 실행합니다.
+
+## order-service outbox CDC
+
+`orders.order_outbox` INSERT를 Debezium이 캡처해 `order.created`로 relay합니다.
+
+| Connector | Slot | Topic |
+|-----------|------|-------|
+| `order-created-outbox-connector` | `order_created_outbox_slot` | `order.created` |
+
+- **DB:** `ecodb_order`, schema `orders`
+- **Publication:** `dbz_order_outbox_pub` (`grant-debezium-order-outbox.sh`)
+- **Key:** `order_id`
+- **Value:** JSON (`ExtractNewRecordState`, snake_case) matching `OrderCreatedMessage`
+
 ## 로컬 기동 순서
 
 ```bash
@@ -150,8 +179,10 @@ cd deployment/docker
 # 1) Zookeeper → Kafka → topics → Postgres/Redis/Keycloak → Connect
 ./startup.sh
 
-# 2) product-service 1회 기동 (Flyway V6 outbox 테이블 생성)
+# 2) product-service / order-service / payment-service 1회 기동 (Flyway outbox 테이블 생성)
 #    mvn -pl product-service/product-service-main spring-boot:run
+#    mvn -pl order-service/order-service-main spring-boot:run
+#    mvn -pl payment-service/payment-service-main spring-boot:run
 
 # 3) Debezium grant + connector 등록
 chmod +x scripts/*.sh

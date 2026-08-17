@@ -4,12 +4,14 @@ import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.orderservice.application.dto.command.PlaceOrderCommand;
+import com.project.young.orderservice.application.dto.event.OrderCreatedEvent;
 import com.project.young.orderservice.application.port.output.CartCheckoutPort;
 import com.project.young.orderservice.application.port.output.IdGenerator;
 import com.project.young.orderservice.application.port.output.InventoryReservationClientException;
 import com.project.young.orderservice.application.port.output.InventoryReservationConflictException;
 import com.project.young.orderservice.application.port.output.InventoryReservationPort;
 import com.project.young.orderservice.application.port.output.InventoryReservationUnavailableException;
+import com.project.young.orderservice.application.port.output.OrderOutboxPort;
 import com.project.young.orderservice.application.port.output.view.ReserveInventoryLineResultView;
 import com.project.young.orderservice.application.port.output.view.ReserveInventoryLineView;
 import com.project.young.orderservice.application.port.output.view.ReserveInventoryResultView;
@@ -68,6 +70,7 @@ class OrderApplicationServiceTest {
     private static final ProductVariantId VARIANT_ID = new ProductVariantId(UUID.randomUUID());
     private static final UUID GENERATED_LINE_ID = UUID.randomUUID();
     private static final UUID GENERATED_ORDER_ID = UUID.randomUUID();
+    private static final UUID GENERATED_EVENT_ID = UUID.randomUUID();
     private static final Instant FIXED_NOW = Instant.parse("2026-07-16T00:00:00Z");
     private static final Instant EXPIRES_AT = Instant.parse("2026-07-16T00:15:00Z");
     private static final Clock CLOCK = Clock.fixed(FIXED_NOW, ZoneOffset.UTC);
@@ -80,6 +83,9 @@ class OrderApplicationServiceTest {
 
     @Mock
     private InventoryReservationPort inventoryReservationPort;
+
+    @Mock
+    private OrderOutboxPort orderOutboxPort;
 
     @Mock
     private OrderPlacementTxExecutor orderPlacementTxExecutor;
@@ -95,6 +101,7 @@ class OrderApplicationServiceTest {
                 orderRepository,
                 cartCheckoutPort,
                 inventoryReservationPort,
+                orderOutboxPort,
                 orderPlacementTxExecutor,
                 idGenerator,
                 CLOCK
@@ -117,7 +124,7 @@ class OrderApplicationServiceTest {
         Cart cart = cartWithOneItem();
         when(cartCheckoutPort.syncForCheckout(USER_ID))
                 .thenReturn(new CartSyncResult(cart, List.of()));
-        when(idGenerator.generateId()).thenReturn(GENERATED_ORDER_ID, GENERATED_LINE_ID);
+        when(idGenerator.generateId()).thenReturn(GENERATED_ORDER_ID, GENERATED_LINE_ID, GENERATED_EVENT_ID);
         when(inventoryReservationPort.reserve(eq(GENERATED_ORDER_ID), any()))
                 .thenReturn(validReserveResult(2));
 
@@ -149,6 +156,15 @@ class OrderApplicationServiceTest {
 
         assertThat(orderCaptor.getValue().getId()).isEqualTo(new OrderId(GENERATED_ORDER_ID));
         verify(cartCheckoutPort, never()).clearAfterPayment(any());
+
+        ArgumentCaptor<OrderCreatedEvent> outboxCaptor = ArgumentCaptor.forClass(OrderCreatedEvent.class);
+        verify(orderOutboxPort).enqueueCreated(outboxCaptor.capture());
+        OrderCreatedEvent event = outboxCaptor.getValue();
+        assertThat(event.eventId()).isEqualTo(GENERATED_EVENT_ID);
+        assertThat(event.orderId()).isEqualTo(GENERATED_ORDER_ID);
+        assertThat(event.userId()).isEqualTo(USER_ID.value());
+        assertThat(event.currency()).isEqualTo(OrderApplicationService.DEFAULT_CURRENCY);
+        assertThat(event.occurredAt()).isEqualTo(FIXED_NOW);
     }
 
     @Test
@@ -223,7 +239,7 @@ class OrderApplicationServiceTest {
         Cart cart = cartWithOneItem();
         when(cartCheckoutPort.syncForCheckout(USER_ID))
                 .thenReturn(new CartSyncResult(cart, List.of()));
-        when(idGenerator.generateId()).thenReturn(GENERATED_ORDER_ID, GENERATED_LINE_ID);
+        when(idGenerator.generateId()).thenReturn(GENERATED_ORDER_ID, GENERATED_LINE_ID, GENERATED_EVENT_ID);
         when(inventoryReservationPort.reserve(eq(GENERATED_ORDER_ID), any()))
                 .thenReturn(reserveResult(FIXED_NOW.minusSeconds(29), 2));
 
@@ -279,7 +295,7 @@ class OrderApplicationServiceTest {
         Cart cart = cartWithOneItem();
         when(cartCheckoutPort.syncForCheckout(USER_ID))
                 .thenReturn(new CartSyncResult(cart, List.of()));
-        when(idGenerator.generateId()).thenReturn(GENERATED_ORDER_ID, GENERATED_LINE_ID);
+        when(idGenerator.generateId()).thenReturn(GENERATED_ORDER_ID, GENERATED_LINE_ID, GENERATED_EVENT_ID);
         when(inventoryReservationPort.reserve(eq(GENERATED_ORDER_ID), any()))
                 .thenReturn(validReserveResult(2));
 
@@ -294,6 +310,7 @@ class OrderApplicationServiceTest {
         inOrder.verify(orderPlacementTxExecutor).runInNewTransaction(any(Runnable.class));
         inOrder.verify(inventoryReservationPort).release(GENERATED_ORDER_ID);
         verify(cartCheckoutPort, never()).clearAfterPayment(any());
+        verify(orderOutboxPort, never()).enqueueCreated(any());
     }
 
     @Test

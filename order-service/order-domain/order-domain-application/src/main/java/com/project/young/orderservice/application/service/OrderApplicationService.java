@@ -1,11 +1,13 @@
 package com.project.young.orderservice.application.service;
 
 import com.project.young.orderservice.application.dto.command.PlaceOrderCommand;
+import com.project.young.orderservice.application.dto.event.OrderCreatedEvent;
 import com.project.young.orderservice.application.port.output.CartCheckoutPort;
 import com.project.young.orderservice.application.port.output.IdGenerator;
 import com.project.young.orderservice.application.port.output.InventoryReservationClientException;
 import com.project.young.orderservice.application.port.output.InventoryReservationConflictException;
 import com.project.young.orderservice.application.port.output.InventoryReservationPort;
+import com.project.young.orderservice.application.port.output.OrderOutboxPort;
 import com.project.young.orderservice.application.port.output.view.ReserveInventoryLineResultView;
 import com.project.young.orderservice.application.port.output.view.ReserveInventoryLineView;
 import com.project.young.orderservice.application.port.output.view.ReserveInventoryResultView;
@@ -51,12 +53,14 @@ public class OrderApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderApplicationService.class);
     private static final String ACTIVE_RESERVATION_STATUS = "ACTIVE";
+    static final String DEFAULT_CURRENCY = "USD";
     /** Allows local clock to be slightly ahead of product-service without rejecting a valid hold. */
     private static final Duration RESERVE_EXPIRES_AT_CLOCK_SKEW = Duration.ofSeconds(30);
 
     private final OrderRepository orderRepository;
     private final CartCheckoutPort cartCheckoutPort;
     private final InventoryReservationPort inventoryReservationPort;
+    private final OrderOutboxPort orderOutboxPort;
     private final OrderPlacementTxExecutor orderPlacementTxExecutor;
     private final IdGenerator idGenerator;
     private final Clock clock;
@@ -65,6 +69,7 @@ public class OrderApplicationService {
             OrderRepository orderRepository,
             CartCheckoutPort cartCheckoutPort,
             InventoryReservationPort inventoryReservationPort,
+            OrderOutboxPort orderOutboxPort,
             OrderPlacementTxExecutor orderPlacementTxExecutor,
             IdGenerator idGenerator,
             Clock clock
@@ -72,6 +77,7 @@ public class OrderApplicationService {
         this.orderRepository = orderRepository;
         this.cartCheckoutPort = cartCheckoutPort;
         this.inventoryReservationPort = inventoryReservationPort;
+        this.orderOutboxPort = orderOutboxPort;
         this.orderPlacementTxExecutor = orderPlacementTxExecutor;
         this.idGenerator = idGenerator;
         this.clock = clock;
@@ -118,7 +124,8 @@ public class OrderApplicationService {
 
         try {
             // REQUIRES_NEW so commit completes (or fails) before we return — catch covers commit failures.
-            orderPlacementTxExecutor.runInNewTransaction(() -> orderRepository.insert(order));
+            // Order insert and outbox enqueue share this transaction for Debezium CDC.
+            orderPlacementTxExecutor.runInNewTransaction(() -> persistPendingPaymentOrder(order));
         } catch (RuntimeException persistFailure) {
             compensateInventoryRelease(orderId, persistFailure);
             throw persistFailure;
@@ -132,6 +139,18 @@ public class OrderApplicationService {
                 order.getTotalAmount().getAmount()
         );
         return order;
+    }
+
+    private void persistPendingPaymentOrder(Order order) {
+        orderRepository.insert(order);
+        orderOutboxPort.enqueueCreated(new OrderCreatedEvent(
+                idGenerator.generateId(),
+                order.getId().getValue(),
+                order.getUserId().value(),
+                order.getTotalAmount(),
+                DEFAULT_CURRENCY,
+                clock.instant()
+        ));
     }
 
     /**

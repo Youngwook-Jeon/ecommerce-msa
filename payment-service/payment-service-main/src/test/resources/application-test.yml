@@ -1,0 +1,28 @@
+schema:
+  name: payments
+
+issuer-uri: http://test-issuer
+
+payment-service:
+  stub-payment:
+    always-succeed: true
+  saga-events:
+    enabled: false
+
+spring:
+  flyway:
+    enabled: true
+    schemas: ${schema.name}
+    locations: classpath:db/migration
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: ${schema.name}
+
+logging:
+  level:
+    org.springframework.kafka: WARN
+    org.apache.kafka: WARN

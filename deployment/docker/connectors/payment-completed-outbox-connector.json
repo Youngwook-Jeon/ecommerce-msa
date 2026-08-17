@@ -1,0 +1,45 @@
+{
+  "name": "payment-completed-outbox-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+
+    "database.hostname": "eco-postgres",
+    "database.port": "5432",
+    "database.user": "debezium",
+    "database.password": "debezium",
+    "database.dbname": "ecodb_payment",
+
+    "topic.prefix": "cdc.ecodb_payment",
+    "schema.include.list": "payments",
+    "table.include.list": "payments.payment_outbox",
+
+    "plugin.name": "pgoutput",
+    "slot.name": "payment_completed_outbox_slot",
+    "publication.name": "dbz_payment_outbox_pub",
+    "publication.autocreate.mode": "disabled",
+
+    "snapshot.mode": "no_data",
+    "skipped.operations": "u,d,t",
+    "heartbeat.interval.ms": "10000",
+    "decimal.handling.mode": "string",
+    "time.precision.mode": "adaptive_time_microseconds",
+
+    "message.key.columns": "payments.payment_outbox:order_id",
+
+    "transforms": "unwrap,filterCompleted,route",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "transforms.unwrap.delete.handling.mode": "none",
+    "transforms.filterCompleted.type": "io.debezium.transforms.Filter",
+    "transforms.filterCompleted.language": "jsr223.groovy",
+    "transforms.filterCompleted.condition": "value.event_type == 'PAYMENT_COMPLETED'",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": ".*payment_outbox",
+    "transforms.route.replacement": "payment.completed",
+
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}

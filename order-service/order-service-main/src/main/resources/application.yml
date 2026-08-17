@@ -23,7 +23,20 @@ order-service:
     base-url: ${PRODUCT_SERVICE_URL:http://localhost:9002}
     connect-timeout-ms: 2000
     read-timeout-ms: 3000
-    
+  saga-events:
+    enabled: true
+    payment-completed-topic: payment.completed
+    payment-failed-topic: payment.failed
+    payment-completed-consumer-group: order-service-payment-completed
+    payment-failed-consumer-group: order-service-payment-failed
+
+kafka-config:
+  bootstrap-servers: localhost:19092, localhost:29092, localhost:39092
+  schema-registry-url-key: schema.registry.url
+  schema-registry-url: http://localhost:8081
+  num-of-partitions: 3
+  replication-factor: 3
+
 resilience4j:
   circuitbreaker:
     instances:

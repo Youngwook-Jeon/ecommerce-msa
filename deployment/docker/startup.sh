@@ -63,4 +63,4 @@ done
 echo "Kafka Connect is running (http://localhost:8083)"
 
 echo "Our services are up and running."
-echo "Debezium outbox CDC: run ./scripts/setup-debezium.sh after product-service Flyway (see DEBEZIUM.md)"
+echo "Debezium outbox CDC: run ./scripts/setup-debezium.sh after product/order/payment-service Flyway (see DEBEZIUM.md)"

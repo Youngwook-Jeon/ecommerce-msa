@@ -14,6 +14,8 @@ order-service:
     base-url: http://inventory.test
     connect-timeout-ms: 2000
     read-timeout-ms: 3000
+  saga-events:
+    enabled: false
 
 spring:
   main:
