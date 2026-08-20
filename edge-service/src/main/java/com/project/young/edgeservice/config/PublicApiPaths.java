@@ -11,4 +11,19 @@ public final class PublicApiPaths {
     public static String productPublic(String apiVersion) {
         return "/api/" + apiVersion + "/product_service/public/**";
     }
+
+    /** Block browser access; order-service calls product-service directly. */
+    public static String productInternal(String apiVersion) {
+        return "/api/" + apiVersion + "/product_service/internal/**";
+    }
+
+    /** Checkout / order APIs — require gateway login session. */
+    public static String orderOrders(String apiVersion) {
+        return "/api/" + apiVersion + "/order_service/orders/**";
+    }
+
+    /** Guest→user cart merge — requires gateway login session. */
+    public static String orderCartMerge(String apiVersion) {
+        return "/api/" + apiVersion + "/order_service/carts/current/merge";
+    }
 }

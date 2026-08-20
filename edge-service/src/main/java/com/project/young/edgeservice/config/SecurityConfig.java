@@ -20,6 +20,7 @@ import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMap
 import org.springframework.security.oauth2.client.endpoint.*;
 import org.springframework.security.oauth2.client.oidc.web.server.logout.OidcClientInitiatedServerLogoutSuccessHandler;
 import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
+import org.springframework.security.oauth2.client.web.server.ServerOAuth2AuthorizedClientRepository;
 import org.springframework.security.oauth2.core.oidc.user.OidcUserAuthority;
 import org.springframework.security.oauth2.core.user.OAuth2UserAuthority;
 import org.springframework.security.web.server.SecurityWebFilterChain;
@@ -57,6 +58,7 @@ public class SecurityConfig {
     SecurityWebFilterChain clientFilterChain(
             ServerHttpSecurity http,
             ReactiveClientRegistrationRepository clientRegistrationRepository,
+            ServerOAuth2AuthorizedClientRepository authorizedClientRepository,
             @Value("${server.reactive.session.cookie.name:SESSION_edge-service}") String sessionKey,
             @Value("${gateway-uri}") URI gatewayUri,
             @Value("${pre-authorization-status:FOUND}") HttpStatus preAuthorizationStatus,
@@ -68,12 +70,17 @@ public class SecurityConfig {
 
         http.authorizeExchange(auth -> auth
                 .pathMatchers(HttpMethod.GET, PublicApiPaths.productPublic(apiVersion)).permitAll()
+                .pathMatchers(PublicApiPaths.productInternal(apiVersion)).denyAll()
+                .pathMatchers(PublicApiPaths.orderOrders(apiVersion)).authenticated()
+                .pathMatchers(HttpMethod.POST, PublicApiPaths.orderCartMerge(apiVersion)).authenticated()
                 .pathMatchers("/dashboard/admin/**").hasAuthority("ADMIN")
 //                .pathMatchers("/profile/**").authenticated()
                 .anyExchange().permitAll()
         );
 
         http.oauth2Login(login -> {
+            // Same repository ReactiveTokenRefreshFilter reads from.
+            login.authorizedClientRepository(authorizedClientRepository);
             login.authorizationRedirectStrategy(new OAuth2ServerRedirectStrategy(preAuthorizationStatus));
 
             final URI ui = UriComponentsBuilder.fromUri(gatewayUri).build().toUri();

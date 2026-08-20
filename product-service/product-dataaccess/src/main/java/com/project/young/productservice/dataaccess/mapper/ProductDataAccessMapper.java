@@ -122,7 +122,7 @@ public class ProductDataAccessMapper {
                     .orElseGet(() -> {
                         ProductVariantEntity newEntity = new ProductVariantEntity();
                         newEntity.setId(domainVariant.getId().getValue());
-                        newEntity.setVersion(0);
+                        // Keep @Version null: non-null version makes Hibernate treat assigned-id entities as detached.
                         productEntity.addVariant(newEntity);
                         return newEntity;
                     });

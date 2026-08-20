@@ -19,7 +19,9 @@ import java.util.UUID;
 
 /**
  * Internal inventory soft-hold API for checkout/payment orchestration.
- * Gateway path prefix: {@code /api/v1/product_service/internal/inventory}.
+ * <p>
+ * Called directly by order-service ({@code localhost:9002}), not via user JWT.
+ * Gateway must not expose this path anonymously.
  */
 @Slf4j
 @RestController

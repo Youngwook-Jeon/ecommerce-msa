@@ -18,7 +18,7 @@ import org.springframework.web.reactive.function.server.ServerResponse;
 import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
 
 @WebFluxTest
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, OAuth2ClientConfig.class})
 @TestPropertySource(properties = {
         "gateway-uri=http://localhost:9000",
         "post-logout-redirect-uri=http://localhost:9000/",

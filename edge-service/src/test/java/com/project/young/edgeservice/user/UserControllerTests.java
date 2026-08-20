@@ -1,5 +1,6 @@
 package com.project.young.edgeservice.user;
 
+import com.project.young.edgeservice.config.OAuth2ClientConfig;
 import com.project.young.edgeservice.config.SecurityConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +18,7 @@ import static com.project.young.edgeservice.user.UserController.ROLES_CLAIM;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @WebFluxTest(UserController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, OAuth2ClientConfig.class})
 public class UserControllerTests {
 
     public static final String AUTH_ENDPOINT = "/authentication";

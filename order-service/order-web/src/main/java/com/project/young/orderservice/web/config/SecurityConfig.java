@@ -39,7 +39,9 @@ public class SecurityConfig {
         http.csrf(CsrfConfigurer::disable);
 
         http.authorizeHttpRequests(requests -> requests
+                // Guest cart stays anonymous; JWT (when present) selects the user cart in CurrentCartSupport.
                 .requestMatchers(HttpMethod.GET, "/carts/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/carts/current/merge").authenticated()
                 .requestMatchers(HttpMethod.POST, "/carts/**").permitAll()
                 .requestMatchers(HttpMethod.PATCH, "/carts/**").permitAll()
                 .requestMatchers(HttpMethod.DELETE, "/carts/**").permitAll()

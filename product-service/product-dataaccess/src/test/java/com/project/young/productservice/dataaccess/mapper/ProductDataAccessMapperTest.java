@@ -100,6 +100,7 @@ class ProductDataAccessMapperTest {
 
             ProductVariantEntity mappedVariant = entity.getVariants().iterator().next();
             assertThat(mappedVariant.getProduct()).isSameAs(entity);
+            assertThat(mappedVariant.getVersion()).isNull();
             assertThat(mappedVariant.getSelectedOptionValues()).hasSize(1);
             assertThat(mappedVariant.getSelectedOptionValues().iterator().next().getVariant()).isSameAs(mappedVariant);
         }
@@ -237,6 +238,55 @@ class ProductDataAccessMapperTest {
             assertThat(mergedVariant.getSelectedOptionValues().stream()
                     .map(VariantOptionValueEntity::getProductOptionValueId))
                     .containsExactlyInAnyOrder(selectedKeep, selectedAdd);
+        }
+
+        @Test
+        @DisplayName("신규 variant는 @Version을 null로 두어 cascade persist가 detached로 오인하지 않게 한다")
+        void updateEntityFromDomain_newVariant_leavesVersionNull() {
+            UUID productId = UUID.randomUUID();
+            UUID newVariantId = UUID.randomUUID();
+            UUID selectedPovId = UUID.randomUUID();
+
+            ProductEntity targetEntity = ProductEntity.builder()
+                    .id(productId)
+                    .name("상품")
+                    .description("설명")
+                    .basePrice(new BigDecimal("10000"))
+                    .status(ProductStatusEntity.ACTIVE)
+                    .conditionType(ConditionTypeEntity.NEW)
+                    .brand("브랜드")
+                    .mainImageUrl("https://example.com/image.jpg")
+                    .optionGroups(new java.util.HashSet<>())
+                    .variants(new java.util.HashSet<>())
+                    .build();
+
+            ProductVariant domainVariant = ProductVariant.reconstitute(
+                    new ProductVariantId(newVariantId),
+                    "SKU-NEW",
+                    5,
+                    ProductStatus.ACTIVE,
+                    new Money(new BigDecimal("10000")),
+                    Set.of(new ProductOptionValueId(selectedPovId))
+            );
+            Product domain = Product.reconstitute(
+                    new ProductId(productId),
+                    null,
+                    "상품",
+                    "설명",
+                    new Money(new BigDecimal("10000")),
+                    ProductStatus.ACTIVE,
+                    ConditionType.NEW,
+                    "브랜드",
+                    "https://example.com/image.jpg",
+                    List.of(),
+                    List.of(domainVariant)
+            );
+
+            mapper.updateEntityFromDomain(domain, targetEntity, null);
+
+            ProductVariantEntity added = targetEntity.getVariants().iterator().next();
+            assertThat(added.getId()).isEqualTo(newVariantId);
+            assertThat(added.getVersion()).isNull();
         }
     }
 

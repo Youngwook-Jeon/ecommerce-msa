@@ -48,6 +48,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST,
                         "/public/catalog/cart-lines/search"
                 ).permitAll()
+                // Service-to-service only (order-service calls product:9002 directly).
+                // Not a user JWT flow — Kafka saga confirm/release has no SecurityContext.
+                // Gateway must deny /api/*/product_service/internal/** from browsers.
+                .requestMatchers("/internal/inventory/**").permitAll()
                 .anyRequest().authenticated());
 
         return http.build();
