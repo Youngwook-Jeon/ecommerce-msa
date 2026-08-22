@@ -7,7 +7,7 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Clock;
 
 @Configuration
-@EnableConfigurationProperties(StubPaymentProperties.class)
+@EnableConfigurationProperties({StubPaymentProperties.class, PaymentProviderProperties.class})
 public class PaymentServiceConfig {
 
     @Bean

@@ -4,6 +4,7 @@ schema:
 issuer-uri: http://test-issuer
 
 payment-service:
+  provider: stub
   stub-payment:
     always-succeed: true
   saga-events:
@@ -21,6 +22,13 @@ spring:
     properties:
       hibernate:
         default_schema: ${schema.name}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Empty so Boot does not fetch OIDC metadata from the fake issuer-uri.
+          # Kafka ITs supply a JwtDecoder bean via PaymentIntegrationTestConfiguration.
+          issuer-uri:
 
 logging:
   level:

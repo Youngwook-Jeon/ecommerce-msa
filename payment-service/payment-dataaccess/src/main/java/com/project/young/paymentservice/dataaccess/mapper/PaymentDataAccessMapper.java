@@ -19,6 +19,9 @@ public class PaymentDataAccessMapper {
                 .currency(payment.getCurrency())
                 .status(toEntityStatus(payment.getStatus()))
                 .failureReason(payment.getFailureReason())
+                .provider(payment.getProvider() == null ? null : payment.getProvider().name())
+                .providerPaymentId(payment.getProviderPaymentId())
+                .clientSecret(payment.getClientSecret())
                 .build();
     }
 

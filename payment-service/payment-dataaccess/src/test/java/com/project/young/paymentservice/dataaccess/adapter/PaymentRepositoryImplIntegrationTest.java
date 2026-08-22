@@ -66,7 +66,7 @@ class PaymentRepositoryImplIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        entityManager.createNativeQuery("TRUNCATE TABLE payments.payment_outbox, payments.payments CASCADE")
+        entityManager.createNativeQuery("TRUNCATE TABLE payments.payment_provider_events, payments.payment_outbox, payments.payments CASCADE")
                 .executeUpdate();
         entityManager.flush();
         entityManager.clear();

@@ -15,6 +15,8 @@ public interface PaymentJpaRepository extends JpaRepository<PaymentEntity, UUID>
 
     Optional<PaymentEntity> findByOrderId(UUID orderId);
 
+    Optional<PaymentEntity> findByProviderAndProviderPaymentId(String provider, String providerPaymentId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             update PaymentEntity p
@@ -29,6 +31,23 @@ public interface PaymentJpaRepository extends JpaRepository<PaymentEntity, UUID>
             @Param("expectedStatus") PaymentStatusEntity expectedStatus,
             @Param("targetStatus") PaymentStatusEntity targetStatus,
             @Param("failureReason") String failureReason,
+            @Param("updatedAt") Instant updatedAt
+    );
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            update PaymentEntity p
+               set p.provider = :provider,
+                   p.providerPaymentId = :providerPaymentId,
+                   p.clientSecret = :clientSecret,
+                   p.updatedAt = :updatedAt
+             where p.id = :paymentId
+            """)
+    int updateProviderSession(
+            @Param("paymentId") UUID paymentId,
+            @Param("provider") String provider,
+            @Param("providerPaymentId") String providerPaymentId,
+            @Param("clientSecret") String clientSecret,
             @Param("updatedAt") Instant updatedAt
     );
 }

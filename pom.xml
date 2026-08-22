@@ -34,6 +34,7 @@
         <flyway.version>11.10.2</flyway.version>
         <uuid-generator.version>5.2.0</uuid-generator.version>
         <s3.version>2.44.3</s3.version>
+        <stripe.version>33.3.0</stripe.version>
     </properties>
 
     <dependencies>
@@ -193,6 +194,11 @@
                 <groupId>io.confluent</groupId>
                 <artifactId>kafka-avro-serializer</artifactId>
                 <version>${kafka-avro-serializer.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.stripe</groupId>
+                <artifactId>stripe-java</artifactId>
+                <version>${stripe.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

@@ -6,6 +6,7 @@ import com.project.young.paymentservice.domain.exception.PaymentDomainException;
 import com.project.young.paymentservice.domain.exception.PaymentStateConflictException;
 import com.project.young.paymentservice.domain.valueobject.OrderId;
 import com.project.young.paymentservice.domain.valueobject.PaymentId;
+import com.project.young.paymentservice.domain.valueobject.PaymentProvider;
 import com.project.young.paymentservice.domain.valueobject.PaymentStatus;
 import com.project.young.paymentservice.domain.valueobject.UserId;
 
@@ -26,6 +27,9 @@ public class Payment extends AggregateRoot<PaymentId> {
     private final String currency;
     private PaymentStatus status;
     private String failureReason;
+    private PaymentProvider provider;
+    private String providerPaymentId;
+    private String clientSecret;
     private Instant createdAt;
     private Instant updatedAt;
 
@@ -37,6 +41,9 @@ public class Payment extends AggregateRoot<PaymentId> {
         this.currency = builder.currency;
         this.status = builder.status;
         this.failureReason = builder.failureReason;
+        this.provider = builder.provider;
+        this.providerPaymentId = builder.providerPaymentId;
+        this.clientSecret = builder.clientSecret;
         this.createdAt = builder.createdAt;
         this.updatedAt = builder.updatedAt;
     }
@@ -49,6 +56,9 @@ public class Payment extends AggregateRoot<PaymentId> {
             String currency,
             PaymentStatus status,
             String failureReason,
+            PaymentProvider provider,
+            String providerPaymentId,
+            String clientSecret,
             Instant createdAt,
             Instant updatedAt
     ) {
@@ -59,6 +69,9 @@ public class Payment extends AggregateRoot<PaymentId> {
         this.currency = currency;
         this.status = status;
         this.failureReason = failureReason;
+        this.provider = provider;
+        this.providerPaymentId = providerPaymentId;
+        this.clientSecret = clientSecret;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -106,6 +119,36 @@ public class Payment extends AggregateRoot<PaymentId> {
             Instant createdAt,
             Instant updatedAt
     ) {
+        return reconstitute(
+                paymentId,
+                orderId,
+                userId,
+                amount,
+                currency,
+                status,
+                failureReason,
+                null,
+                null,
+                null,
+                createdAt,
+                updatedAt
+        );
+    }
+
+    public static Payment reconstitute(
+            PaymentId paymentId,
+            OrderId orderId,
+            UserId userId,
+            Money amount,
+            String currency,
+            PaymentStatus status,
+            String failureReason,
+            PaymentProvider provider,
+            String providerPaymentId,
+            String clientSecret,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
         return new Payment(
                 paymentId,
                 orderId,
@@ -114,6 +157,9 @@ public class Payment extends AggregateRoot<PaymentId> {
                 currency,
                 status,
                 failureReason,
+                provider,
+                providerPaymentId,
+                clientSecret,
                 createdAt,
                 updatedAt
         );
@@ -121,6 +167,35 @@ public class Payment extends AggregateRoot<PaymentId> {
 
     public static Builder builder() {
         return new Builder();
+    }
+
+    /**
+     * Attaches an external PSP session (PaymentIntent id + client secret) while still PENDING.
+     */
+    public void assignProviderSession(PaymentProvider provider, String providerPaymentId, String clientSecret) {
+        Objects.requireNonNull(provider, "provider must not be null");
+        String normalizedProviderPaymentId = normalizeRequiredText(providerPaymentId, "providerPaymentId");
+        String normalizedClientSecret = normalizeRequiredText(clientSecret, "clientSecret");
+
+        if (status != PaymentStatus.PENDING) {
+            throw new PaymentStateConflictException(
+                    "Cannot assign provider session unless payment is PENDING (was " + status + ").");
+        }
+        if (this.providerPaymentId != null
+                && (!Objects.equals(this.provider, provider)
+                || !this.providerPaymentId.equals(normalizedProviderPaymentId))) {
+            throw new PaymentStateConflictException(
+                    "Payment already has a different provider session (" + this.provider + "/"
+                            + this.providerPaymentId + ").");
+        }
+
+        this.provider = provider;
+        this.providerPaymentId = normalizedProviderPaymentId;
+        this.clientSecret = normalizedClientSecret;
+    }
+
+    public boolean hasProviderSession() {
+        return provider != null && providerPaymentId != null && clientSecret != null;
     }
 
     public void complete() {
@@ -190,6 +265,15 @@ public class Payment extends AggregateRoot<PaymentId> {
         return normalized;
     }
 
+    private static String normalizeRequiredText(String value, String fieldName) {
+        Objects.requireNonNull(value, fieldName + " must not be null");
+        String normalized = value.trim();
+        if (normalized.isBlank()) {
+            throw new PaymentDomainException(fieldName + " must not be blank.");
+        }
+        return normalized;
+    }
+
     public OrderId getOrderId() {
         return orderId;
     }
@@ -214,6 +298,18 @@ public class Payment extends AggregateRoot<PaymentId> {
         return failureReason;
     }
 
+    public PaymentProvider getProvider() {
+        return provider;
+    }
+
+    public String getProviderPaymentId() {
+        return providerPaymentId;
+    }
+
+    public String getClientSecret() {
+        return clientSecret;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
@@ -230,6 +326,9 @@ public class Payment extends AggregateRoot<PaymentId> {
         private String currency = DEFAULT_CURRENCY;
         private PaymentStatus status = PaymentStatus.PENDING;
         private String failureReason;
+        private PaymentProvider provider;
+        private String providerPaymentId;
+        private String clientSecret;
         private Instant createdAt;
         private Instant updatedAt;
 
@@ -265,6 +364,21 @@ public class Payment extends AggregateRoot<PaymentId> {
 
         public Builder failureReason(String failureReason) {
             this.failureReason = failureReason;
+            return this;
+        }
+
+        public Builder provider(PaymentProvider provider) {
+            this.provider = provider;
+            return this;
+        }
+
+        public Builder providerPaymentId(String providerPaymentId) {
+            this.providerPaymentId = providerPaymentId;
+            return this;
+        }
+
+        public Builder clientSecret(String clientSecret) {
+            this.clientSecret = clientSecret;
             return this;
         }
 

@@ -1,6 +1,7 @@
 package com.project.young.paymentservice.it;
 
 import com.project.young.paymentservice.PaymentServiceMain;
+import com.project.young.paymentservice.it.support.PaymentIntegrationTestConfiguration;
 import jakarta.persistence.EntityManager;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -34,6 +36,7 @@ import static org.awaitility.Awaitility.await;
         webEnvironment = SpringBootTest.WebEnvironment.NONE,
         classes = PaymentServiceMain.class
 )
+@Import(PaymentIntegrationTestConfiguration.class)
 @Testcontainers
 @ActiveProfiles("test")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -73,7 +76,7 @@ class PaymentOrderCreatedKafkaIntegrationTest {
     @BeforeEach
     void setUp() {
         transactionTemplate.executeWithoutResult(status -> {
-            entityManager.createNativeQuery("TRUNCATE TABLE payments.payment_outbox, payments.payments RESTART IDENTITY CASCADE")
+            entityManager.createNativeQuery("TRUNCATE TABLE payments.payment_provider_events, payments.payment_outbox, payments.payments RESTART IDENTITY CASCADE")
                     .executeUpdate();
             entityManager.flush();
             entityManager.clear();

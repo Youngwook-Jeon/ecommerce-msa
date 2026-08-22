@@ -16,7 +16,15 @@ public interface PaymentRepository {
      */
     boolean updateStatus(Payment payment, PaymentStatus expectedStatus);
 
+    /**
+     * Persists provider session fields ({@code provider}, {@code provider_payment_id}, {@code client_secret})
+     * for an existing PENDING payment.
+     */
+    void updateProviderSession(Payment payment);
+
     Optional<Payment> findById(PaymentId paymentId);
 
     Optional<Payment> findByOrderId(OrderId orderId);
+
+    Optional<Payment> findByProviderPaymentId(String provider, String providerPaymentId);
 }

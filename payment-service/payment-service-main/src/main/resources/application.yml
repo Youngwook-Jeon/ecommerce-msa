@@ -7,9 +7,14 @@ schema:
   name: payments
 
 payment-service:
+  # stub (default) | stripe
+  provider: ${PAYMENT_PROVIDER:stub}
   stub-payment:
     always-succeed: true
     decline-when-fractional-part: "0.99"
+  stripe:
+    api-key: ${STRIPE_API_KEY:}
+    webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
   saga-events:
     enabled: true
     order-created-topic: order.created

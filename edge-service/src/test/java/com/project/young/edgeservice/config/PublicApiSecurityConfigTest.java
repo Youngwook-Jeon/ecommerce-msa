@@ -16,6 +16,7 @@ import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.springframework.web.reactive.function.server.ServerResponse;
 
 import static org.springframework.web.reactive.function.server.RequestPredicates.GET;
+import static org.springframework.web.reactive.function.server.RequestPredicates.POST;
 
 @WebFluxTest
 @Import({SecurityConfig.class, OAuth2ClientConfig.class})
@@ -28,6 +29,9 @@ class PublicApiSecurityConfigTest {
 
     private static final String PUBLIC_PRODUCTS =
             "/api/v1/product_service/public/products";
+
+    private static final String STRIPE_WEBHOOK =
+            "/api/v1/payment_service/webhooks/stripe";
 
     @Autowired
     private WebTestClient webTestClient;
@@ -45,13 +49,27 @@ class PublicApiSecurityConfigTest {
                 .expectBody(String.class).isEqualTo("ok");
     }
 
+    @Test
+    @DisplayName("POST Stripe webhook — anonymous without CSRF is permitted")
+    void postStripeWebhook_withoutCsrf_isPermitted() {
+        webTestClient.post()
+                .uri(STRIPE_WEBHOOK)
+                .bodyValue("{\"id\":\"evt_test\"}")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class).isEqualTo("ok");
+    }
+
     @TestConfiguration
     static class PublicApiProbeRoutes {
 
         @Bean
-        RouterFunction<ServerResponse> publicProductsRoute() {
+        RouterFunction<ServerResponse> publicApiProbeRoutes() {
             return RouterFunctions.route(
                     GET(PUBLIC_PRODUCTS),
+                    request -> ServerResponse.ok().bodyValue("ok")
+            ).andRoute(
+                    POST(STRIPE_WEBHOOK),
                     request -> ServerResponse.ok().bodyValue("ok")
             );
         }

@@ -73,6 +73,8 @@ public class SecurityConfig {
                 .pathMatchers(PublicApiPaths.productInternal(apiVersion)).denyAll()
                 .pathMatchers(PublicApiPaths.orderOrders(apiVersion)).authenticated()
                 .pathMatchers(HttpMethod.POST, PublicApiPaths.orderCartMerge(apiVersion)).authenticated()
+                .pathMatchers(HttpMethod.POST, PublicApiPaths.paymentStripeWebhook(apiVersion)).permitAll()
+                .pathMatchers(HttpMethod.GET, PublicApiPaths.paymentClientSecret(apiVersion)).authenticated()
                 .pathMatchers("/dashboard/admin/**").hasAuthority("ADMIN")
 //                .pathMatchers("/profile/**").authenticated()
                 .anyExchange().permitAll()
@@ -106,10 +108,12 @@ public class SecurityConfig {
         return (exchange, chain) -> {
             String path = exchange.getRequest().getPath().value();
             HttpMethod method = exchange.getRequest().getMethod();
+            boolean isStripeWebhook = PublicApiPaths.isPaymentStripeWebhook(path);
             boolean isMutatingApiRequest = path.startsWith("/api")
                     && method != null
                     && method != HttpMethod.GET
-                    && method != HttpMethod.HEAD;
+                    && method != HttpMethod.HEAD
+                    && !isStripeWebhook;
             boolean isSessionBootstrapRequest = "/authentication".equals(path);
 
             if (!isMutatingApiRequest && !isSessionBootstrapRequest) {
@@ -252,8 +256,12 @@ public class SecurityConfig {
     }
 
     private Mono<ServerWebExchangeMatcher.MatchResult> isCsrfProtectedPath(ServerWebExchange exchange) {
-        String path = exchange.getRequest().getPath().toString();
+        String path = exchange.getRequest().getPath().value();
         HttpMethod method = exchange.getRequest().getMethod();
+
+        if (PublicApiPaths.isPaymentStripeWebhook(path)) {
+            return notMatch();
+        }
 
         boolean isProtectedPath = Arrays.stream(CsrfProtectedPath.values())
                 .anyMatch(rule -> rule.matches(path));

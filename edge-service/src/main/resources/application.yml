@@ -47,6 +47,12 @@ spring:
                 - Path=/api/${api-version}/order_service/**
               filters:
                 - RewritePath=/api/${api-version}/order_service/(?<segment>.*), /$\{segment}
+            - id: payment-route
+              uri: ${PAYMENT_SERVICE_URL:http://localhost:9004}
+              predicates:
+                - Path=/api/${api-version}/payment_service/**
+              filters:
+                - RewritePath=/api/${api-version}/payment_service/(?<segment>.*), /$\{segment}
             # Gateway-owned endpoints must be forwarded locally (before SPA catch-all).
             - id: gateway-authentication
               uri: forward:/authentication

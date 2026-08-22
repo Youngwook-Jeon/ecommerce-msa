@@ -5,6 +5,7 @@ import com.project.young.paymentservice.domain.exception.PaymentDomainException;
 import com.project.young.paymentservice.domain.exception.PaymentStateConflictException;
 import com.project.young.paymentservice.domain.valueobject.OrderId;
 import com.project.young.paymentservice.domain.valueobject.PaymentId;
+import com.project.young.paymentservice.domain.valueobject.PaymentProvider;
 import com.project.young.paymentservice.domain.valueobject.PaymentStatus;
 import com.project.young.paymentservice.domain.valueobject.UserId;
 import org.junit.jupiter.api.DisplayName;
@@ -173,6 +174,31 @@ class PaymentTest {
         payment.complete();
 
         assertThatThrownBy(() -> payment.fail("too late"))
+                .isInstanceOf(PaymentStateConflictException.class);
+    }
+
+    @Test
+    @DisplayName("assignProviderSession: PENDING에서 provider 세션을 붙인다")
+    void assignProviderSession_attachesSessionWhilePending() {
+        Payment payment = Payment.createPending(PAYMENT_ID, ORDER_ID, USER_ID, AMOUNT);
+
+        payment.assignProviderSession(PaymentProvider.STRIPE, "pi_123", "pi_123_secret_abc");
+
+        assertThat(payment.hasProviderSession()).isTrue();
+        assertThat(payment.getProvider()).isEqualTo(PaymentProvider.STRIPE);
+        assertThat(payment.getProviderPaymentId()).isEqualTo("pi_123");
+        assertThat(payment.getClientSecret()).isEqualTo("pi_123_secret_abc");
+        assertThat(payment.getStatus()).isEqualTo(PaymentStatus.PENDING);
+    }
+
+    @Test
+    @DisplayName("assignProviderSession: 다른 provider 세션이면 PaymentStateConflictException")
+    void assignProviderSession_whenDifferentSession_throws() {
+        Payment payment = Payment.createPending(PAYMENT_ID, ORDER_ID, USER_ID, AMOUNT);
+        payment.assignProviderSession(PaymentProvider.STUB, "stub_pi", "stub_secret");
+
+        assertThatThrownBy(() -> payment.assignProviderSession(
+                PaymentProvider.STRIPE, "pi_other", "secret_other"))
                 .isInstanceOf(PaymentStateConflictException.class);
     }
 }

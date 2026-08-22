@@ -6,6 +6,7 @@ import com.project.young.paymentservice.dataaccess.enums.PaymentStatusEntity;
 import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.valueobject.OrderId;
 import com.project.young.paymentservice.domain.valueobject.PaymentId;
+import com.project.young.paymentservice.domain.valueobject.PaymentProvider;
 import com.project.young.paymentservice.domain.valueobject.PaymentStatus;
 import com.project.young.paymentservice.domain.valueobject.UserId;
 import org.springframework.stereotype.Component;
@@ -26,6 +27,9 @@ public class PaymentAggregateMapper {
                 entity.getCurrency(),
                 toDomainStatus(entity.getStatus()),
                 entity.getFailureReason(),
+                entity.getProvider() == null ? null : PaymentProvider.from(entity.getProvider()),
+                entity.getProviderPaymentId(),
+                entity.getClientSecret(),
                 entity.getCreatedAt(),
                 entity.getUpdatedAt()
         );

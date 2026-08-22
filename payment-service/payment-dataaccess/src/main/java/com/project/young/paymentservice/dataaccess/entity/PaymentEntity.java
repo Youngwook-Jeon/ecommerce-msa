@@ -54,6 +54,15 @@ public class PaymentEntity {
     @Column(name = "failure_reason", length = 500)
     private String failureReason;
 
+    @Column(name = "provider", length = 32)
+    private String provider;
+
+    @Column(name = "provider_payment_id", length = 255)
+    private String providerPaymentId;
+
+    @Column(name = "client_secret", length = 512)
+    private String clientSecret;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

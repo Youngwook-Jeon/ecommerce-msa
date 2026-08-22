@@ -70,6 +70,31 @@ public class PaymentRepositoryImpl implements PaymentRepository {
     }
 
     @Override
+    @Transactional
+    public void updateProviderSession(Payment payment) {
+        if (payment == null || payment.getId() == null) {
+            throw new IllegalArgumentException("payment and payment id must not be null");
+        }
+        if (payment.getProvider() == null
+                || payment.getProviderPaymentId() == null
+                || payment.getClientSecret() == null) {
+            throw new IllegalArgumentException("provider session fields must not be null");
+        }
+
+        int updated = paymentJpaRepository.updateProviderSession(
+                payment.getId().getValue(),
+                payment.getProvider().name(),
+                payment.getProviderPaymentId(),
+                payment.getClientSecret(),
+                Instant.now()
+        );
+        if (updated != 1) {
+            throw new IllegalStateException(
+                    "Failed to update provider session for payment " + payment.getId().getValue());
+        }
+    }
+
+    @Override
     public Optional<Payment> findById(PaymentId paymentId) {
         if (paymentId == null) {
             throw new IllegalArgumentException("paymentId must not be null");
@@ -83,5 +108,17 @@ public class PaymentRepositoryImpl implements PaymentRepository {
             throw new IllegalArgumentException("orderId must not be null");
         }
         return paymentJpaRepository.findByOrderId(orderId.getValue()).map(paymentAggregateMapper::toPayment);
+    }
+
+    @Override
+    public Optional<Payment> findByProviderPaymentId(String provider, String providerPaymentId) {
+        if (provider == null || provider.isBlank()) {
+            throw new IllegalArgumentException("provider must not be blank");
+        }
+        if (providerPaymentId == null || providerPaymentId.isBlank()) {
+            throw new IllegalArgumentException("providerPaymentId must not be blank");
+        }
+        return paymentJpaRepository.findByProviderAndProviderPaymentId(provider, providerPaymentId)
+                .map(paymentAggregateMapper::toPayment);
     }
 }
