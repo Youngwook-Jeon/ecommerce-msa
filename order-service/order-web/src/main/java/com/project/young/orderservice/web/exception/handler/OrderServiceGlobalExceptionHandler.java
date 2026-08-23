@@ -11,6 +11,7 @@ import com.project.young.orderservice.domain.exception.CartItemNotFoundException
 import com.project.young.orderservice.domain.exception.CartNotFoundException;
 import com.project.young.orderservice.domain.exception.OrderCheckoutValidationException;
 import com.project.young.orderservice.domain.exception.OrderDomainException;
+import com.project.young.orderservice.domain.exception.OrderIllegalTransitionException;
 import com.project.young.orderservice.domain.exception.OrderNotFoundException;
 import com.project.young.orderservice.domain.exception.OrderStateConflictException;
 import lombok.extern.slf4j.Slf4j;
@@ -75,6 +76,17 @@ public class OrderServiceGlobalExceptionHandler extends GlobalExceptionHandler {
     @ExceptionHandler(OrderCheckoutValidationException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorDTO handleOrderCheckoutValidationException(OrderCheckoutValidationException exception) {
+        log.warn(exception.getMessage(), exception);
+        return ErrorDTO.builder()
+                .code(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(OrderIllegalTransitionException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDTO handleOrderIllegalTransitionException(OrderIllegalTransitionException exception) {
         log.warn(exception.getMessage(), exception);
         return ErrorDTO.builder()
                 .code(HttpStatus.CONFLICT.getReasonPhrase())

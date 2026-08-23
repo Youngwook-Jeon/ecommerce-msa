@@ -3,7 +3,7 @@ package com.project.young.orderservice.domain.entity;
 import com.project.young.common.domain.entity.AggregateRoot;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.orderservice.domain.exception.OrderDomainException;
-import com.project.young.orderservice.domain.exception.OrderStateConflictException;
+import com.project.young.orderservice.domain.exception.OrderIllegalTransitionException;
 import com.project.young.orderservice.domain.valueobject.OrderId;
 import com.project.young.orderservice.domain.valueobject.OrderStatus;
 import com.project.young.orderservice.domain.valueobject.ShippingAddress;
@@ -109,7 +109,7 @@ public class Order extends AggregateRoot<OrderId> {
             return;
         }
         if (status != OrderStatus.PENDING_PAYMENT) {
-            throw new OrderStateConflictException(
+            throw new OrderIllegalTransitionException(
                     "Cannot confirm payment for order in status " + status + ".");
         }
         status = OrderStatus.CONFIRMED;
@@ -120,7 +120,7 @@ public class Order extends AggregateRoot<OrderId> {
             return;
         }
         if (status != OrderStatus.PENDING_PAYMENT) {
-            throw new OrderStateConflictException(
+            throw new OrderIllegalTransitionException(
                     "Cannot cancel order in status " + status + ".");
         }
         status = OrderStatus.CANCELLED;

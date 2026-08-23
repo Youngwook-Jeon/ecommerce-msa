@@ -21,6 +21,7 @@ import com.project.young.orderservice.domain.entity.Order;
 import com.project.young.orderservice.domain.exception.OrderCheckoutValidationException;
 import com.project.young.orderservice.domain.exception.OrderDomainException;
 import com.project.young.orderservice.domain.exception.OrderNotFoundException;
+import com.project.young.orderservice.domain.exception.OrderIllegalTransitionException;
 import com.project.young.orderservice.domain.exception.OrderStateConflictException;
 import com.project.young.orderservice.domain.repository.OrderRepository;
 import com.project.young.orderservice.domain.sync.CartSyncChange;
@@ -378,7 +379,7 @@ class OrderApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("confirmPayment: 이미 CONFIRMED면 inventory를 재확정하지 않고 카트 정리만 재시도한다")
+    @DisplayName("confirmPayment: 이미 CONFIRMED면 inventory를 재확정하지 않고 카트 정리만 best-effort로 시도한다")
     void confirmPayment_alreadyConfirmed_isIdempotent() {
         Order order = storedOrder(OrderStatus.CONFIRMED);
         when(orderRepository.findByIdAndUserId(new OrderId(GENERATED_ORDER_ID), USER_ID))
@@ -392,6 +393,43 @@ class OrderApplicationServiceTest {
         assertThat(result).isSameAs(order);
         verify(inventoryReservationPort, never()).confirm(any());
         verify(orderPlacementTxExecutor, never()).executeInNewTransaction(any());
+        verify(cartCheckoutPort).clearAfterPayment(order);
+    }
+
+    @Test
+    @DisplayName("confirmPayment: cart clear 실패해도 CONFIRMED 결과는 유지한다")
+    void confirmPayment_whenCartClearFails_stillReturnsConfirmed() {
+        Order order = storedOrder(OrderStatus.PENDING_PAYMENT);
+        when(orderRepository.findByIdAndUserId(new OrderId(GENERATED_ORDER_ID), USER_ID))
+                .thenReturn(Optional.of(order));
+        when(orderRepository.updateStatus(order, OrderStatus.PENDING_PAYMENT)).thenReturn(true);
+        doThrow(new IllegalStateException("cart store unavailable"))
+                .when(cartCheckoutPort).clearAfterPayment(order);
+
+        Order result = orderApplicationService.confirmPayment(
+                USER_ID,
+                new OrderId(GENERATED_ORDER_ID)
+        );
+
+        assertThat(result.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        verify(cartCheckoutPort).clearAfterPayment(order);
+    }
+
+    @Test
+    @DisplayName("confirmPayment: 이미 CONFIRMED인데 cart clear 실패해도 예외를 전파하지 않는다")
+    void confirmPayment_alreadyConfirmed_whenCartClearFails_doesNotPropagate() {
+        Order order = storedOrder(OrderStatus.CONFIRMED);
+        when(orderRepository.findByIdAndUserId(new OrderId(GENERATED_ORDER_ID), USER_ID))
+                .thenReturn(Optional.of(order));
+        doThrow(new IllegalStateException("cart store unavailable"))
+                .when(cartCheckoutPort).clearAfterPayment(order);
+
+        Order result = orderApplicationService.confirmPayment(
+                USER_ID,
+                new OrderId(GENERATED_ORDER_ID)
+        );
+
+        assertThat(result).isSameAs(order);
         verify(cartCheckoutPort).clearAfterPayment(order);
     }
 
@@ -434,7 +472,7 @@ class OrderApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("confirmPayment: CANCELLED 주문은 OrderStateConflictException")
+    @DisplayName("confirmPayment: CANCELLED 주문은 OrderIllegalTransitionException")
     void confirmPayment_cancelledOrder_throwsStateConflict() {
         Order order = storedOrder(OrderStatus.CANCELLED);
         when(orderRepository.findByIdAndUserId(new OrderId(GENERATED_ORDER_ID), USER_ID))
@@ -444,7 +482,7 @@ class OrderApplicationServiceTest {
                 USER_ID,
                 new OrderId(GENERATED_ORDER_ID)
         ))
-                .isInstanceOf(OrderStateConflictException.class)
+                .isInstanceOf(OrderIllegalTransitionException.class)
                 .hasMessageContaining("CANCELLED");
 
         verify(inventoryReservationPort, never()).confirm(any());

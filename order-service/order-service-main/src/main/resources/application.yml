@@ -29,6 +29,26 @@ order-service:
     payment-failed-topic: payment.failed
     payment-completed-consumer-group: order-service-payment-completed
     payment-failed-consumer-group: order-service-payment-failed
+    payment-completed-dlt-topic: payment.completed.DLT
+    payment-completed-dlt-consumer-group: order-service-payment-completed-dlt
+    consumer:
+      # Pluggable: retry-then-dlt (default). Add a new KafkaListenerFailureStrategy bean to switch.
+      failure-strategy: ${ORDER_SAGA_FAILURE_STRATEGY:retry-then-dlt}
+      retry:
+        # FixedBackOff maxAttempts: retries after the first failure (3 → retry up to 3 times, then DLT).
+        max-attempts: ${ORDER_SAGA_RETRY_MAX_ATTEMPTS:3}
+        backoff-interval-ms: ${ORDER_SAGA_RETRY_BACKOFF_MS:1000}
+      dlt:
+        topic-suffix: ${ORDER_SAGA_DLT_SUFFIX:.DLT}
+    compensation:
+      # Policies (encoded in classifier; MANUAL persist only in this slice):
+      # - inventory expiry / reject → recommended REFUND only (no re-reserve)
+      # - refund SLA → IMMEDIATE (auto-refund on DLT when refund automation is enabled)
+      observation:
+        # Pluggable: file (default). Add an ELK CompensationObservationStrategy bean later.
+        strategy: ${ORDER_COMPENSATION_OBSERVATION_STRATEGY:file}
+        file:
+          path: ${ORDER_COMPENSATION_OBSERVATION_FILE:./logs/saga-compensation.jsonl}
 
 kafka-config:
   bootstrap-servers: localhost:19092, localhost:29092, localhost:39092

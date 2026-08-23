@@ -9,10 +9,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 /**
  * Consumes Debezium JSON from {@code payment.completed} and confirms the order saga.
+ * <p>
+ * Uses manual ack ({@link Acknowledgment}); failures are retried then routed to DLT by
+ * {@link com.project.young.orderservice.messaging.error.KafkaListenerFailureStrategy}.
  */
 @Component
 @ConditionalOnProperty(
@@ -36,13 +40,15 @@ public class PaymentCompletedListener {
             groupId = "${order-service.saga-events.payment-completed-consumer-group}",
             containerFactory = "paymentCompletedKafkaListenerContainerFactory"
     )
-    public void onPaymentCompleted(PaymentCompletedMessage message) {
+    public void onPaymentCompleted(PaymentCompletedMessage message, Acknowledgment acknowledgment) {
         if (message == null || message.orderId() == null) {
             log.warn("Skipping payment.completed message with missing orderId");
+            acknowledgment.acknowledge();
             return;
         }
         if (message.userId() == null || message.userId().isBlank()) {
             log.warn("Skipping payment.completed message with missing userId for order {}", message.orderId());
+            acknowledgment.acknowledge();
             return;
         }
 
@@ -57,6 +63,8 @@ public class PaymentCompletedListener {
                 new UserId(message.userId()),
                 new OrderId(message.orderId())
         );
+
+        acknowledgment.acknowledge();
 
         log.info(
                 "Order {} confirmed after payment {} (status={})",

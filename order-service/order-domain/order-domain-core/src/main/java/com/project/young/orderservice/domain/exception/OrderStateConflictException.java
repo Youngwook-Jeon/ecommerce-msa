@@ -1,7 +1,8 @@
 package com.project.young.orderservice.domain.exception;
 
 /**
- * Thrown when an order status transition is illegal or lost a concurrent compare-and-set.
+ * Thrown when an optimistic status update lost a concurrent compare-and-set.
+ * Often recoverable by retrying the saga step.
  */
 public class OrderStateConflictException extends OrderDomainException {
 

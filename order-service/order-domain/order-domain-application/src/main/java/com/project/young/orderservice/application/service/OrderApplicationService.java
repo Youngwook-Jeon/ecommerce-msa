@@ -154,9 +154,14 @@ public class OrderApplicationService {
     }
 
     /**
-     * Stub payment-success flow. Inventory confirmation is idempotent; after it succeeds,
+     * Payment-success saga step. Inventory confirmation is idempotent; after it succeeds,
      * the local status transition commits in a separate transaction. A retry can complete
-     * a prior partial attempt. Cart clearing is last and preserves a cart changed meanwhile.
+     * a prior partial attempt.
+     * <p>
+     * Cart clearing is best-effort after the order is CONFIRMED: failures are logged and do
+     * not fail the saga step (avoids Kafka redelivery of an already-confirmed payment).
+     * Permanent failures ({@code OrderIllegalTransitionException}, inventory 4xx, etc.) are
+     * classified as non-retryable by the payment.completed Kafka error handler and go to DLT.
      */
     public Order confirmPayment(UserId userId, OrderId orderId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -164,7 +169,7 @@ public class OrderApplicationService {
 
         Order current = requireOrder(userId, orderId);
         if (current.getStatus() == OrderStatus.CONFIRMED) {
-            cartCheckoutPort.clearAfterPayment(current);
+            clearCartAfterPaymentBestEffort(current);
             return current;
         }
         if (current.getStatus() != OrderStatus.PENDING_PAYMENT) {
@@ -186,7 +191,7 @@ public class OrderApplicationService {
             return order;
         });
 
-        cartCheckoutPort.clearAfterPayment(confirmed);
+        clearCartAfterPaymentBestEffort(confirmed);
         return confirmed;
     }
 
@@ -223,6 +228,24 @@ public class OrderApplicationService {
         log.debug("Fetching order {} for user {}", orderId.getValue(), userId.value());
 
         return requireOrder(userId, orderId);
+    }
+
+    /**
+     * Best-effort cart cleanup after payment is already durable as CONFIRMED.
+     * Failures must not fail the saga step / Kafka ack.
+     */
+    private void clearCartAfterPaymentBestEffort(Order order) {
+        try {
+            cartCheckoutPort.clearAfterPayment(order);
+        } catch (RuntimeException ex) {
+            log.warn(
+                    "Best-effort cart clear failed after payment for order {} (user={}): {}",
+                    order.getId().getValue(),
+                    order.getUserId().value(),
+                    ex.getMessage(),
+                    ex
+            );
+        }
     }
 
     private Order requireOrder(UserId userId, OrderId orderId) {

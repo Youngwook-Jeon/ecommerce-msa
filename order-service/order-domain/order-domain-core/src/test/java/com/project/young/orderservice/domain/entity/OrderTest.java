@@ -4,7 +4,7 @@ import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.orderservice.domain.exception.OrderDomainException;
-import com.project.young.orderservice.domain.exception.OrderStateConflictException;
+import com.project.young.orderservice.domain.exception.OrderIllegalTransitionException;
 import com.project.young.orderservice.domain.valueobject.CartItemOptionLine;
 import com.project.young.orderservice.domain.valueobject.CartItemSnapshot;
 import com.project.young.orderservice.domain.valueobject.OrderId;
@@ -85,7 +85,7 @@ class OrderTest {
         order.cancel();
 
         assertThatThrownBy(order::confirmPayment)
-                .isInstanceOf(OrderStateConflictException.class)
+                .isInstanceOf(OrderIllegalTransitionException.class)
                 .hasMessageContaining("CANCELLED");
     }
 
@@ -116,7 +116,7 @@ class OrderTest {
         );
 
         assertThatThrownBy(order::cancel)
-                .isInstanceOf(OrderStateConflictException.class)
+                .isInstanceOf(OrderIllegalTransitionException.class)
                 .hasMessageContaining("CONFIRMED");
     }
 

@@ -20,6 +20,7 @@ public interface CartCheckoutPort {
     /**
      * Clears the user's cart after payment only if it still exactly matches the order.
      * A changed cart is preserved to avoid deleting post-checkout edits.
+     * Callers may treat failures as best-effort after the order is already CONFIRMED.
      */
     void clearAfterPayment(Order order);
 }

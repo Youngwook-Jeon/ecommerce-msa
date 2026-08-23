@@ -12,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.kafka.support.Acknowledgment;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -28,11 +29,14 @@ class PaymentCompletedListenerTest {
     @Mock
     private OrderApplicationService orderApplicationService;
 
+    @Mock
+    private Acknowledgment acknowledgment;
+
     @InjectMocks
     private PaymentCompletedListener listener;
 
     @Test
-    @DisplayName("payment.completed 메시지를 confirmPayment로 위임한다")
+    @DisplayName("payment.completed 메시지를 confirmPayment로 위임하고 ack한다")
     void onPaymentCompleted_confirmsPayment() {
         UUID orderId = UUID.randomUUID();
         UUID paymentId = UUID.randomUUID();
@@ -54,13 +58,14 @@ class PaymentCompletedListenerTest {
         when(orderApplicationService.confirmPayment(new UserId("user-1"), new OrderId(orderId)))
                 .thenReturn(order);
 
-        listener.onPaymentCompleted(message);
+        listener.onPaymentCompleted(message, acknowledgment);
 
         verify(orderApplicationService).confirmPayment(new UserId("user-1"), new OrderId(orderId));
+        verify(acknowledgment).acknowledge();
     }
 
     @Test
-    @DisplayName("orderId가 null이면 confirmPayment를 호출하지 않는다")
+    @DisplayName("orderId가 null이면 confirmPayment를 호출하지 않고 ack한다")
     void onPaymentCompleted_whenOrderIdNull_skips() {
         PaymentCompletedMessage message = new PaymentCompletedMessage(
                 UUID.randomUUID(),
@@ -75,13 +80,14 @@ class PaymentCompletedListenerTest {
                 Instant.now()
         );
 
-        listener.onPaymentCompleted(message);
+        listener.onPaymentCompleted(message, acknowledgment);
 
         verify(orderApplicationService, never()).confirmPayment(any(), any());
+        verify(acknowledgment).acknowledge();
     }
 
     @Test
-    @DisplayName("userId가 blank이면 confirmPayment를 호출하지 않는다")
+    @DisplayName("userId가 blank이면 confirmPayment를 호출하지 않고 ack한다")
     void onPaymentCompleted_whenUserIdBlank_skips() {
         PaymentCompletedMessage message = new PaymentCompletedMessage(
                 UUID.randomUUID(),
@@ -96,8 +102,37 @@ class PaymentCompletedListenerTest {
                 Instant.now()
         );
 
-        listener.onPaymentCompleted(message);
+        listener.onPaymentCompleted(message, acknowledgment);
 
         verify(orderApplicationService, never()).confirmPayment(any(), any());
+        verify(acknowledgment).acknowledge();
+    }
+
+    @Test
+    @DisplayName("confirmPayment 실패 시 ack하지 않는다 (재시도/DLT용)")
+    void onPaymentCompleted_whenConfirmFails_doesNotAck() {
+        UUID orderId = UUID.randomUUID();
+        PaymentCompletedMessage message = new PaymentCompletedMessage(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                orderId,
+                "user-1",
+                "10.00",
+                "USD",
+                Instant.now(),
+                null,
+                Instant.now()
+        );
+        when(orderApplicationService.confirmPayment(new UserId("user-1"), new OrderId(orderId)))
+                .thenThrow(new IllegalStateException("inventory unavailable"));
+
+        try {
+            listener.onPaymentCompleted(message, acknowledgment);
+        } catch (IllegalStateException ignored) {
+            // expected — container error handler retries / DLT
+        }
+
+        verify(acknowledgment, never()).acknowledge();
     }
 }
