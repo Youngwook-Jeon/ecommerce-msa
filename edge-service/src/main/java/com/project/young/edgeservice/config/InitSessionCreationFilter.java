@@ -36,6 +36,11 @@ public class InitSessionCreationFilter implements WebFilter {
         String path = exchange.getRequest().getPath().value();
         HttpMethod method = exchange.getRequest().getMethod();
 
+        // Machine-to-machine (Stripe) — no browser cookie / Redis session.
+        if (PublicApiPaths.isPaymentStripeWebhook(path)) {
+            return false;
+        }
+
         if (path.startsWith("/oauth2")
                 || "/logout".equals(path)
                 || "/authentication".equals(path)) {

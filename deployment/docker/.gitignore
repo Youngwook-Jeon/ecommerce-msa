@@ -4,3 +4,6 @@ volumes/kafka/data/
 volumes/zookeeper/
 volumes/redis/data/
 volumes/postgresql/data/
+
+# Downloaded by scripts/prepare-connect-scripting-libs.sh
+connect-libs/

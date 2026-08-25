@@ -156,6 +156,31 @@ GRANT CONNECT ON DATABASE ecodb_product
 - **Key:** `order_id`
 - **Value:** JSON (`ExtractNewRecordState`, snake_case)
 
+Payment connectors use Debezium **Filter SMT + Groovy** (`event_type`). The stock Connect image
+keeps scripting disabled; local compose sets `ENABLE_DEBEZIUM_SCRIPTING=true` and mounts JARs from
+`./scripts/prepare-connect-scripting-libs.sh` (`startup.sh` runs this automatically).
+
+**Important:** `connect-libs/debezium-scripting` must contain the JARs before Connect starts.
+An empty mount hides the image’s built-in scripting folder. After clone / clean shutdown:
+
+```bash
+./scripts/prepare-connect-scripting-libs.sh   # downloads ~7MB Groovy + scripting JARs
+```
+
+Filter must **not** run on Debezium heartbeat records (no `event_type`). Connectors set
+`transforms.filter*.topic.regex=.*payment_outbox` and a null-safe Groovy condition.
+
+If `payment-completed-outbox-connector` fails to register with
+`Class io.debezium.transforms.Filter could not be found`, or task is `FAILED` on heartbeats,
+recreate Connect and re-register:
+
+```bash
+./scripts/prepare-connect-scripting-libs.sh
+docker compose -f common.yml -f kafka_cluster.yml -f kafka_connect.yml up -d --force-recreate kafka-connect
+./scripts/setup-debezium.sh
+curl -s http://localhost:8083/connectors/payment-completed-outbox-connector/status | jq .
+```
+
 로컬 기동 시 product-service와 함께 payment-service Flyway를 먼저 실행한 뒤 `./scripts/setup-debezium.sh`를 실행합니다.
 
 ## order-service outbox CDC

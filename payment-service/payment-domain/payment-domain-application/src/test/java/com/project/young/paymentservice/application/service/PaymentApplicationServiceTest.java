@@ -13,6 +13,7 @@ import com.project.young.paymentservice.application.port.output.PaymentProviderP
 import com.project.young.paymentservice.application.port.output.ProviderEventIdempotencyPort;
 import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.exception.PaymentDomainException;
+import com.project.young.paymentservice.domain.exception.PaymentNotFoundException;
 import com.project.young.paymentservice.domain.exception.PaymentStateConflictException;
 import com.project.young.paymentservice.domain.repository.PaymentRepository;
 import com.project.young.paymentservice.domain.valueobject.OrderId;
@@ -196,12 +197,12 @@ class PaymentApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("getClientSecretByOrderId: 결제 없으면 PaymentDomainException")
+    @DisplayName("getClientSecretByOrderId: 결제 없으면 PaymentNotFoundException")
     void getClientSecretByOrderId_whenMissing_throws() {
         when(paymentRepository.findByOrderId(new OrderId(ORDER_ID))).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> paymentApplicationService.getClientSecretByOrderId(ORDER_ID))
-                .isInstanceOf(PaymentDomainException.class)
+                .isInstanceOf(PaymentNotFoundException.class)
                 .hasMessageContaining("not found");
     }
 

@@ -50,6 +50,11 @@ echo "Kafka topics are created"
 # start backing services
 docker compose -f common.yml -f backing_services.yml up -d
 
+echo "Preparing Kafka Connect scripting libs (Debezium Filter SMT / Groovy)"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bash "${SCRIPT_DIR}/scripts/prepare-connect-scripting-libs.sh"
+
 echo "Starting Kafka Connect (Debezium)"
 
 docker compose -f common.yml -f kafka_cluster.yml -f kafka_connect.yml up -d

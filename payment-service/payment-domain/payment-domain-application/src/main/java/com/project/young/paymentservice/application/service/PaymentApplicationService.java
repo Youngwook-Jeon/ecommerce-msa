@@ -11,7 +11,9 @@ import com.project.young.paymentservice.application.port.output.PaymentProviderP
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort.ProviderPaymentSession;
 import com.project.young.paymentservice.application.port.output.ProviderEventIdempotencyPort;
 import com.project.young.paymentservice.domain.entity.Payment;
+import com.project.young.paymentservice.domain.exception.PaymentClientSecretNotReadyException;
 import com.project.young.paymentservice.domain.exception.PaymentDomainException;
+import com.project.young.paymentservice.domain.exception.PaymentNotFoundException;
 import com.project.young.paymentservice.domain.exception.PaymentStateConflictException;
 import com.project.young.paymentservice.domain.repository.PaymentRepository;
 import com.project.young.paymentservice.domain.valueobject.OrderId;
@@ -182,10 +184,10 @@ public class PaymentApplicationService {
     public ClientSecretView getClientSecretByOrderId(UUID orderIdValue) {
         Objects.requireNonNull(orderIdValue, "orderId must not be null");
         Payment payment = paymentRepository.findByOrderId(new OrderId(orderIdValue))
-                .orElseThrow(() -> new PaymentDomainException("Payment not found for order " + orderIdValue));
+                .orElseThrow(() -> new PaymentNotFoundException("Payment not found for order " + orderIdValue));
 
         if (payment.getClientSecret() == null || payment.getClientSecret().isBlank()) {
-            throw new PaymentDomainException(
+            throw new PaymentClientSecretNotReadyException(
                     "Client secret is not available yet for order " + orderIdValue
                             + " (payment status=" + payment.getStatus() + ").");
         }

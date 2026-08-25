@@ -25,5 +25,10 @@ services:
       KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
       VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
       VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+      # Required for payment outbox Filter SMT (event_type → payment.completed|failed).
+      # JARs from ./scripts/prepare-connect-scripting-libs.sh are mounted below.
+      ENABLE_DEBEZIUM_SCRIPTING: "true"
+    volumes:
+      - ./connect-libs/debezium-scripting:/kafka/external_libs/debezium-scripting:ro
     networks:
       - ${GLOBAL_NETWORK:-ecomart}
