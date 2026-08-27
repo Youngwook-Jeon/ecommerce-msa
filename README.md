@@ -86,6 +86,8 @@ flowchart TB
   subgraph Apps["다운스트림 (Gateway 라우팅)"]
     SPA["ecommerce-frontend :3000\nNext.js SPA"]
     Product["product-service :9002"]
+    Order["order-service :9003"]
+    Payment["payment-service :9004"]
     Customer["customer-service :9001\n(스켈레톤)"]
   end
 
@@ -94,17 +96,25 @@ flowchart TB
     Redis["Redis :6379"]
     PG["PostgreSQL :5432"]
     Kafka["Kafka x3 + Schema Registry"]
+    Connect["Kafka Connect Debezium :8083"]
   end
 
   Browser --> Edge
   Edge -->|"Path=/**"| SPA
   Edge -->|"/api/v1/product_service/**"| Product
+  Edge -->|"/api/v1/order_service/**"| Order
+  Edge -->|"/api/v1/payment_service/**"| Payment
   Edge -->|"/api/v1/customer_service/**"| Customer
   Edge --> Redis
   Edge --> KC
   Product --> PG
+  Order --> PG
+  Payment --> PG
   Product --> KC
   Product --> Kafka
+  Order --> Kafka
+  Payment --> Kafka
+  Connect --> Kafka
   Product --> R2["Cloudflare R2"]
 ```
 
@@ -113,10 +123,13 @@ flowchart TB
 | 서비스 | 포트 | 역할 |
 |--------|------|------|
 | `edge-service` | 9000 | API Gateway, OAuth2 로그인, Redis 세션, SPA 프록시 |
-| `customer-service` | 9001 | 고객 서비스 (스켈레톤, Gateway 라우트·도메인 구현 예정) |
-| `product-service` | 9002 | 상품·카테고리·옵션·이미지 API |
+| `product-service` | 9002 | 상품·카테고리·옵션·이미지·재고 API |
+| `order-service` | 9003 | 카트·주문·payment saga 소비 |
+| `payment-service` | 9004 | 결제·Stripe webhook·payment outbox |
+| `customer-service` | 9001 | 스켈레톤 (Gateway 라우트·도메인 구현 예정) |
+| Kafka Connect | 8083 | Debezium outbox CDC |
 | Keycloak | 8080 | Realm `Ecomart`, Client `edge-service` |
-| PostgreSQL | 5432 | DB `ecodb_product`, `ecodb_order`(주문) |
+| PostgreSQL | 5432 | DB `ecodb_product`, `ecodb_order`, `ecodb_payment` |
 | Redis | 6379 | Gateway 세션 저장소 |
 | Kafka brokers | 19092 / 29092 / 39092 | 로컬 리스너 |
 | Schema Registry | 8081 | Avro 스키마 |
@@ -205,29 +218,73 @@ ecommerce-msa/
 
 ## 로컬 실행
 
-### 1. 인프라 기동
+워크스페이스 루트(`msa-ecomm-project/`)에서 **Makefile**로 인프라 → 앱(Flyway) → Debezium까지 한 번에 올릴 수 있습니다.  
+(이 README는 `ecommerce-msa` 기준이며, Make 명령은 **상위 워크스페이스 루트**에서 실행합니다.)
+
+### 권장: `make up`
 
 ```bash
-cd deployment/docker
-./startup.sh
+# 워크스페이스 루트
+cd ..   # ecommerce-msa → msa-ecomm-project (이미 루트면 생략)
+
+cp ecommerce-msa/.env.example ecommerce-msa/.env   # 최초 1회
+make up
 ```
 
-`startup.sh` 는 Zookeeper → Kafka 3-broker → 토픽 생성 → PostgreSQL / Redis / Keycloak → **Kafka Connect (Debezium)** 순으로 기동합니다.
+기본 `.env`는 `PAYMENT_PROVIDER=stub`, `R2_ENABLED=false` 이라 Cloudflare/Stripe 시크릿 없이 기동됩니다.
 
-Outbox CDC(Debezium) 설정은 [deployment/docker/DEBEZIUM.md](deployment/docker/DEBEZIUM.md) 참고 — product-service Flyway 이후 `./scripts/setup-debezium.sh` 실행.
+| 포함 서비스 | 포트 |
+|-------------|------|
+| edge-service (Gateway) | 9000 |
+| product-service | 9002 |
+| order-service | 9003 |
+| payment-service | 9004 |
 
-중지:
+중지(앱 PID + 인프라 컨테이너 stop, 볼륨 유지):
 
 ```bash
-./shutdown.sh   # 또는 ./stop.sh
+make down
 ```
 
-### 2. 애플리케이션 빌드
+유용한 타깃: `make infra-up|infra-stop|infra-reset`, `make apps`, `make apps-restart-payment`, `make debezium`, `make package`, `make run-jar SERVICE=payment`, `make frontend`, `make stripe-listen`.
 
-저장소 루트에서:
+로그/PID: 워크스페이스 `.run/logs`, `.run/pids`.
+
+### Stripe 실결제 (선택)
+
+1. `ecommerce-msa/.env`에만 설정:
+   ```bash
+   PAYMENT_PROVIDER=stripe
+   STRIPE_API_KEY=sk_test_...
+   ```
+   (`STRIPE_WEBHOOK_SECRET`은 `.env`에 넣을 필요 없음)
+2. `make up` 또는 `make apps`  
+   - `stripe listen --print-secret`으로 CLI `whsec_`를 받아 **프로세스 환경에 주입**  
+   - `stripe listen --forward-to ...`를 **백그라운드**로 기동  
+   - 그다음 payment-service 기동  
+3. FE: `ecommerce-frontend/.env.local`에 `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`  
+4. `make down` 시 백그라운드 listen도 함께 종료  
+
+이벤트 로그를 직접 보고 싶으면 `make stripe-listen`(포그라운드, 디버그용).
+
+### Debezium
+
+Outbox CDC 상세는 [deployment/docker/DEBEZIUM.md](deployment/docker/DEBEZIUM.md).  
+`make up`이 Flyway 이후 `setup-debezium.sh`까지 실행합니다. 커넥터만 다시 등록하려면 `make debezium`.
+
+### 수동 실행 (Makefile 없이)
 
 ```bash
+cd deployment/docker && ./startup.sh
+
+cd ../..   # ecommerce-msa
 ./mvnw clean install -DskipTests
+./mvnw -pl product-service/product-service-main spring-boot:run
+./mvnw -pl order-service/order-service-main spring-boot:run
+./mvnw -pl payment-service/payment-service-main spring-boot:run
+./mvnw -pl edge-service spring-boot:run
+
+cd deployment/docker && ./scripts/setup-debezium.sh
 ```
 
 테스트 포함 전체 검증:
@@ -236,47 +293,41 @@ Outbox CDC(Debezium) 설정은 [deployment/docker/DEBEZIUM.md](deployment/docker
 ./mvnw clean verify
 ```
 
-### 3. 서비스 실행
+### 프론트엔드 (선택)
 
-각 서비스는 별도 터미널에서 실행합니다.
-
-```bash
-# API Gateway
-./mvnw -pl edge-service spring-boot:run
-
-# Product Service
-./mvnw -pl product-service/product-service-main spring-boot:run
-
-# Customer Service (선택)
-./mvnw -pl customer-service spring-boot:run
-```
-
-### 4. 프론트엔드 (선택)
+워크스페이스에 `ecommerce-frontend`가 있으면:
 
 ```bash
-git clone https://github.com/Youngwook-Jeon/ecommerce-frontend.git
-cd ecommerce-frontend
-bun install
-bun run dev
+make frontend
+# 또는
+cd ../ecommerce-frontend && bun install && bun run dev
 ```
 
 브라우저: `http://localhost:9000` (Gateway가 `:3000` SPA로 프록시)
 
 어드민 패널 등 관리자 기능은 Gateway 로그인 후 사용합니다. 테스트 계정은 [관리자 로그인](#관리자-로그인) 참고.
 
-### 5. 환경 변수 — Cloudflare R2 (이미지 API)
+### 환경 변수 — Cloudflare R2 (이미지 API)
 
-`product-service` 의 이미지 presign/commit 기능을 쓰려면 실행 전에 설정합니다.
+기본은 `R2_ENABLED=false`(로컬 stub 스토리지). 실제 R2를 쓰려면 `.env`에:
 
 ```bash
-export R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
-export R2_ACCESS_KEY_ID=...
-export R2_SECRET_ACCESS_KEY=...
-export R2_BUCKET=...
-export R2_PUBLIC_BASE_URL=https://...
+R2_ENABLED=true
+R2_ENDPOINT=https://<account_id>.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET=...
+R2_PUBLIC_BASE_URL=https://...
 ```
 
-`r2.enabled=false` 이면 스토리지 어댑터가 비활성화됩니다(`application.yml` 참고).
+### 배포 대비 (JAR)
+
+```bash
+make package
+make run-jar SERVICE=payment   # edge|product|order|payment|customer
+```
+
+앱 Docker 이미지/K8s는 별도 작업입니다.
 
 ---
 
