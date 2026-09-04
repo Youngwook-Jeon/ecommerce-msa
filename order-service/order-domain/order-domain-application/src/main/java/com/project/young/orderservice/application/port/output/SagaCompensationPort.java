@@ -6,6 +6,7 @@ import com.project.young.orderservice.application.dto.compensation.RecordManualC
 import com.project.young.orderservice.application.dto.compensation.SagaCompensationView;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 public interface SagaCompensationPort {
@@ -20,4 +21,8 @@ public interface SagaCompensationPort {
             CompensationDecision decision,
             CompensationHandlingStatus handlingStatus
     );
+
+    List<SagaCompensationView> findByHandlingStatus(CompensationHandlingStatus status, int limit);
+
+    void updateHandlingStatus(UUID eventId, CompensationHandlingStatus status);
 }

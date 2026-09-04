@@ -12,10 +12,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.kafka.support.Acknowledgment;
 
 import java.time.Instant;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -30,6 +32,9 @@ class PaymentFailedListenerTest {
 
     @InjectMocks
     private PaymentFailedListener listener;
+
+    @Mock
+    private Acknowledgment acknowledgment;
 
     @Test
     @DisplayName("payment.failed 메시지를 cancelOrder로 위임한다")
@@ -54,9 +59,10 @@ class PaymentFailedListenerTest {
         when(orderApplicationService.cancelOrder(new UserId("user-1"), new OrderId(orderId)))
                 .thenReturn(order);
 
-        listener.onPaymentFailed(message);
+        listener.onPaymentFailed(message, acknowledgment);
 
         verify(orderApplicationService).cancelOrder(new UserId("user-1"), new OrderId(orderId));
+        verify(acknowledgment).acknowledge();
     }
 
     @Test
@@ -75,8 +81,27 @@ class PaymentFailedListenerTest {
                 Instant.now()
         );
 
-        listener.onPaymentFailed(message);
+        listener.onPaymentFailed(message, acknowledgment);
 
         verify(orderApplicationService, never()).cancelOrder(any(), any());
+        verify(acknowledgment).acknowledge();
+    }
+
+    @Test
+    @DisplayName("취소 또는 재고 해제 실패 시 ack하지 않아 error handler가 재시도한다")
+    void onPaymentFailed_whenCancellationFails_doesNotAck() {
+        UUID orderId = UUID.randomUUID();
+        PaymentFailedMessage message = new PaymentFailedMessage(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), orderId, "user-1", "10.00",
+                "declined", Instant.now(), null, Instant.now()
+        );
+        when(orderApplicationService.cancelOrder(new UserId("user-1"), new OrderId(orderId)))
+                .thenThrow(new IllegalStateException("product service unavailable"));
+
+        assertThatThrownBy(() -> listener.onPaymentFailed(message, acknowledgment))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("product service unavailable");
+
+        verify(acknowledgment, never()).acknowledge();
     }
 }

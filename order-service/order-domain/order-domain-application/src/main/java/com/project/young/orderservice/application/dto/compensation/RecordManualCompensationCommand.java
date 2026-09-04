@@ -3,7 +3,7 @@ package com.project.young.orderservice.application.dto.compensation;
 import java.util.UUID;
 
 /**
- * Ingest command for a {@code payment.completed.DLT} record.
+ * Ingest command for a payment saga DLT record.
  */
 public record RecordManualCompensationCommand(
         UUID eventId,

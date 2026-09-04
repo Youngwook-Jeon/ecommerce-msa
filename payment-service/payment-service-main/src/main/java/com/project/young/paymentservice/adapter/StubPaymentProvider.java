@@ -6,6 +6,8 @@ import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.valueobject.PaymentProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 
@@ -15,6 +17,8 @@ import java.math.BigDecimal;
 @Component
 @ConditionalOnProperty(prefix = "payment-service", name = "provider", havingValue = "stub", matchIfMissing = true)
 public class StubPaymentProvider implements PaymentProviderPort {
+
+    private static final Logger log = LoggerFactory.getLogger(StubPaymentProvider.class);
 
     private final StubPaymentProperties properties;
 
@@ -50,6 +54,12 @@ public class StubPaymentProvider implements PaymentProviderPort {
                 providerPaymentId,
                 clientSecret
         );
+    }
+
+    @Override
+    public void refund(Payment payment, String idempotencyKey) {
+        // Local provider has no external balance; accepting the stable key models a successful refund.
+        log.info("Accepted stub refund for payment {} with idempotency key {}", payment.getId().getValue(), idempotencyKey);
     }
 
     private static boolean matchesFractionalPart(Payment payment, String fractionalPart) {

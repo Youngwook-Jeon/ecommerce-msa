@@ -76,14 +76,36 @@ public class PaymentSagaKafkaConsumerConfig {
 
     @Bean
     public ConsumerFactory<String, PaymentFailedMessage> paymentFailedConsumerFactory() {
-        // Keep auto-commit for payment.failed until the same strategy is opted in.
-        return jsonConsumerFactory(PaymentFailedMessage.class, true);
+        return jsonConsumerFactory(PaymentFailedMessage.class, false);
     }
 
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, PaymentFailedMessage>
     paymentFailedKafkaListenerContainerFactory() {
-        return listenerFactory(paymentFailedConsumerFactory());
+        ConcurrentKafkaListenerContainerFactory<String, PaymentFailedMessage> factory =
+                listenerFactory(paymentFailedConsumerFactory());
+        // A release failure must not be auto-committed: retry it, then preserve it in the DLT.
+        kafkaListenerFailureStrategy.configure(factory);
+        return factory;
+    }
+
+    @Bean
+    public ConsumerFactory<String, PaymentFailedMessage> paymentFailedDltConsumerFactory() {
+        return jsonConsumerFactory(PaymentFailedMessage.class, false);
+    }
+
+    /**
+     * DLT consumer: manual ack, bounded retries on MANUAL compensation persistence failure
+     * (no DLT-of-DLT).
+     */
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, PaymentFailedMessage>
+    paymentFailedDltKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, PaymentFailedMessage> factory =
+                listenerFactory(paymentFailedDltConsumerFactory());
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(1000L, 3L)));
+        return factory;
     }
 
     private <T> ConsumerFactory<String, T> jsonConsumerFactory(Class<T> valueType, boolean enableAutoCommit) {

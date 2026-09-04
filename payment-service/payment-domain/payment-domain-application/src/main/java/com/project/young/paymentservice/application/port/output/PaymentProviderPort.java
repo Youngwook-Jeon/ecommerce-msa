@@ -15,6 +15,8 @@ public interface PaymentProviderPort {
 
     ProviderPaymentSession createPayment(Payment payment);
 
+    void refund(Payment payment, String idempotencyKey);
+
     record ProviderPaymentSession(
             PaymentProvider provider,
             String providerPaymentId,

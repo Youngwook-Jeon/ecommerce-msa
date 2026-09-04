@@ -23,6 +23,8 @@ order-service:
     base-url: ${PRODUCT_SERVICE_URL:http://localhost:9002}
     connect-timeout-ms: 2000
     read-timeout-ms: 3000
+  payment-refund:
+    base-url: ${PAYMENT_SERVICE_URL:http://localhost:9004}
   saga-events:
     enabled: true
     payment-completed-topic: payment.completed
@@ -31,6 +33,8 @@ order-service:
     payment-failed-consumer-group: order-service-payment-failed
     payment-completed-dlt-topic: payment.completed.DLT
     payment-completed-dlt-consumer-group: order-service-payment-completed-dlt
+    payment-failed-dlt-topic: payment.failed.DLT
+    payment-failed-dlt-consumer-group: order-service-payment-failed-dlt
     consumer:
       # Pluggable: retry-then-dlt (default). Add a new KafkaListenerFailureStrategy bean to switch.
       failure-strategy: ${ORDER_SAGA_FAILURE_STRATEGY:retry-then-dlt}

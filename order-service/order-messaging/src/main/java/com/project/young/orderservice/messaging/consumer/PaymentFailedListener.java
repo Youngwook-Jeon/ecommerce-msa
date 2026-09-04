@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 /**
@@ -36,13 +37,15 @@ public class PaymentFailedListener {
             groupId = "${order-service.saga-events.payment-failed-consumer-group}",
             containerFactory = "paymentFailedKafkaListenerContainerFactory"
     )
-    public void onPaymentFailed(PaymentFailedMessage message) {
+    public void onPaymentFailed(PaymentFailedMessage message, Acknowledgment acknowledgment) {
         if (message == null || message.orderId() == null) {
             log.warn("Skipping payment.failed message with missing orderId");
+            acknowledgment.acknowledge();
             return;
         }
         if (message.userId() == null || message.userId().isBlank()) {
             log.warn("Skipping payment.failed message with missing userId for order {}", message.orderId());
+            acknowledgment.acknowledge();
             return;
         }
 
@@ -58,6 +61,8 @@ public class PaymentFailedListener {
                 new UserId(message.userId()),
                 new OrderId(message.orderId())
         );
+
+        acknowledgment.acknowledge();
 
         log.info(
                 "Order {} cancelled after payment {} failed (status={})",

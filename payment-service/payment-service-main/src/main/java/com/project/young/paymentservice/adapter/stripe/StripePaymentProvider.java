@@ -6,6 +6,9 @@ import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.exception.PaymentDomainException;
 import com.project.young.paymentservice.domain.valueobject.PaymentProvider;
 import com.stripe.model.PaymentIntent;
+import com.stripe.model.Refund;
+import com.stripe.net.RequestOptions;
+import com.stripe.param.RefundCreateParams;
 import com.stripe.param.PaymentIntentCreateParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +66,21 @@ public class StripePaymentProvider implements PaymentProviderPort {
             throw ex;
         } catch (Exception ex) {
             throw new PaymentDomainException("Failed to create Stripe PaymentIntent: " + ex.getMessage(), ex);
+        }
+    }
+
+    @Override
+    public void refund(Payment payment, String idempotencyKey) {
+        try {
+            log.info("Creating Stripe refund for payment {} with idempotency key {}", payment.getId().getValue(), idempotencyKey);
+            Refund.create(
+                    RefundCreateParams.builder().setPaymentIntent(payment.getProviderPaymentId()).build(),
+                    RequestOptions.builder().setIdempotencyKey(idempotencyKey).build()
+            );
+            log.info("Stripe refund completed for payment {}", payment.getId().getValue());
+        } catch (Exception ex) {
+            log.warn("Stripe refund failed for payment {}", payment.getId().getValue(), ex);
+            throw new PaymentDomainException("Failed to refund Stripe payment: " + ex.getMessage(), ex);
         }
     }
 

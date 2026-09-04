@@ -201,6 +201,19 @@ public class PaymentApplicationService {
         );
     }
 
+    @Transactional
+    public void refundPayment(UUID paymentIdValue, UUID compensationEventId) {
+        log.info("Refunding completed payment {} for compensation event {}", paymentIdValue, compensationEventId);
+        Payment payment = paymentRepository.findById(new PaymentId(paymentIdValue))
+                .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + paymentIdValue));
+        if (payment.getStatus() != PaymentStatus.COMPLETED) {
+            log.warn("Rejecting refund for payment {} in status {}", paymentIdValue, payment.getStatus());
+            throw new PaymentDomainException("Only completed payments can be refunded: " + paymentIdValue);
+        }
+        paymentProviderPort.refund(payment, compensationEventId.toString());
+        log.info("Refund provider call completed for payment {} compensation event {}", paymentIdValue, compensationEventId);
+    }
+
     private Payment ensureProviderSessionAndMaybeSettle(Payment payment, boolean isNew) {
         if (payment.hasProviderSession()) {
             log.info(

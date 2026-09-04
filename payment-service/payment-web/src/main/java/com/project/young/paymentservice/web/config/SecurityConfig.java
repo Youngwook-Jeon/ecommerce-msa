@@ -37,6 +37,7 @@ public class SecurityConfig {
         http.authorizeHttpRequests(requests -> requests
                 .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
                 .requestMatchers(HttpMethod.POST, "/webhooks/stripe").permitAll()
+                .requestMatchers(HttpMethod.POST, "/internal/payments/*/refund").permitAll()
                 .requestMatchers(HttpMethod.GET, "/payments/orders/*/client-secret").authenticated()
                 .anyRequest().authenticated());
 
