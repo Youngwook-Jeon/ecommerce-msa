@@ -1,15 +1,21 @@
 package com.project.young.orderservice.dataaccess.config;
 
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+import java.time.Duration;
+
 @Configuration
-@EnableConfigurationProperties(PaymentRefundClientProperties.class)
+@Profile("!test")
 public class PaymentRefundClientConfig {
     @Bean
     RestClient paymentRefundRestClient(PaymentRefundClientProperties properties) {
-        return RestClient.builder().baseUrl(properties.baseUrl()).build();
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()));
+        requestFactory.setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMs()));
+        return RestClient.builder().baseUrl(properties.getBaseUrl()).requestFactory(requestFactory).build();
     }
 }

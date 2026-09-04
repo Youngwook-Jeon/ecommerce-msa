@@ -7,6 +7,9 @@ import com.project.young.orderservice.application.dto.compensation.RecordManualC
 import com.project.young.orderservice.application.dto.compensation.SagaCompensationView;
 import com.project.young.orderservice.application.port.output.CompensationObservationPort;
 import com.project.young.orderservice.application.port.output.SagaCompensationPort;
+import com.project.young.orderservice.application.port.output.RefundRequestedOutboxPort;
+import com.project.young.orderservice.application.compensation.CompensationRecommendedAction;
+import com.project.young.orderservice.application.dto.event.RefundRequestedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -14,10 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
 import java.util.Optional;
+import java.time.Instant;
 
 /**
- * First-slice DLT handling: classify → persist MANUAL → emit observation.
- * Does not execute refund/replay yet; policies are stored for later automation.
+ * DLT handling: classify → persist MANUAL → enqueue refund request when needed → emit observation.
+ * The refund is not executed here; the transactional outbox is relayed asynchronously.
  */
 @Service
 public class SagaCompensationApplicationService {
@@ -26,13 +30,16 @@ public class SagaCompensationApplicationService {
 
     private final SagaCompensationPort sagaCompensationPort;
     private final CompensationObservationPort compensationObservationPort;
+    private final RefundRequestedOutboxPort refundRequestedOutboxPort;
 
     public SagaCompensationApplicationService(
             SagaCompensationPort sagaCompensationPort,
-            CompensationObservationPort compensationObservationPort
+            CompensationObservationPort compensationObservationPort,
+            RefundRequestedOutboxPort refundRequestedOutboxPort
     ) {
         this.sagaCompensationPort = sagaCompensationPort;
         this.compensationObservationPort = compensationObservationPort;
+        this.refundRequestedOutboxPort = refundRequestedOutboxPort;
     }
 
     @Transactional
@@ -73,6 +80,12 @@ public class SagaCompensationApplicationService {
                 saved.refundSla(),
                 saved.classificationReason()
         );
+
+        if (saved.recommendedAction() == CompensationRecommendedAction.REFUND && saved.paymentId() != null) {
+            refundRequestedOutboxPort.enqueue(new RefundRequestedEvent(saved.eventId(), saved.paymentId(), saved.orderId(),
+                    saved.userId(), saved.classificationReason(), Instant.now()));
+            log.info("Enqueued refund.requested outbox event compensationEventId={} paymentId={}", saved.eventId(), saved.paymentId());
+        }
 
         compensationObservationPort.recordManualCompensation(saved);
         return saved;

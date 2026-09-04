@@ -6,8 +6,10 @@ import com.project.young.orderservice.application.compensation.CompensationRecom
 import com.project.young.orderservice.application.compensation.CompensationRefundSla;
 import com.project.young.orderservice.application.dto.compensation.RecordManualCompensationCommand;
 import com.project.young.orderservice.application.dto.compensation.SagaCompensationView;
+import com.project.young.orderservice.application.dto.event.RefundRequestedEvent;
 import com.project.young.orderservice.application.port.output.CompensationObservationPort;
 import com.project.young.orderservice.application.port.output.InventoryReservationConflictException;
+import com.project.young.orderservice.application.port.output.RefundRequestedOutboxPort;
 import com.project.young.orderservice.application.port.output.SagaCompensationPort;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -36,6 +38,9 @@ class SagaCompensationApplicationServiceTest {
 
     @Mock
     private CompensationObservationPort compensationObservationPort;
+
+    @Mock
+    private RefundRequestedOutboxPort refundRequestedOutboxPort;
 
     @InjectMocks
     private SagaCompensationApplicationService service;
@@ -67,6 +72,23 @@ class SagaCompensationApplicationServiceTest {
         );
         assertThat(decisionCaptor.getValue().recommendedAction()).isEqualTo(CompensationRecommendedAction.REFUND);
         assertThat(decisionCaptor.getValue().refundSla()).isEqualTo(CompensationRefundSla.IMMEDIATE);
+        ArgumentCaptor<RefundRequestedEvent> refundEventCaptor = ArgumentCaptor.forClass(RefundRequestedEvent.class);
+        verify(refundRequestedOutboxPort).enqueue(refundEventCaptor.capture());
+        assertThat(refundEventCaptor.getValue())
+                .extracting(
+                        RefundRequestedEvent::compensationEventId,
+                        RefundRequestedEvent::paymentId,
+                        RefundRequestedEvent::orderId,
+                        RefundRequestedEvent::userId,
+                        RefundRequestedEvent::reason
+                )
+                .containsExactly(
+                        saved.eventId(),
+                        saved.paymentId(),
+                        saved.orderId(),
+                        saved.userId(),
+                        saved.classificationReason()
+                );
         verify(compensationObservationPort).recordManualCompensation(saved);
     }
 
@@ -81,6 +103,7 @@ class SagaCompensationApplicationServiceTest {
 
         assertThat(result).isSameAs(existing);
         verify(sagaCompensationPort, never()).insertManual(any(), any(), any());
+        verify(refundRequestedOutboxPort, never()).enqueue(any());
         verify(compensationObservationPort, never()).recordManualCompensation(any());
     }
 

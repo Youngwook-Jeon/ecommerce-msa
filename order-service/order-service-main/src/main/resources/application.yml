@@ -25,6 +25,8 @@ order-service:
     read-timeout-ms: 3000
   payment-refund:
     base-url: ${PAYMENT_SERVICE_URL:http://localhost:9004}
+    connect-timeout-ms: 2000
+    read-timeout-ms: 3000
   saga-events:
     enabled: true
     payment-completed-topic: payment.completed
@@ -90,6 +92,18 @@ resilience4j:
         ignore-exceptions:
           - com.project.young.orderservice.application.port.output.InventoryReservationClientException
           - com.project.young.orderservice.application.port.output.InventoryReservationConflictException
+      paymentRefund:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+        ignore-exceptions:
+          - com.project.young.orderservice.application.port.output.PaymentRefundClientException
   timelimiter:
     instances:
       productCatalog:
