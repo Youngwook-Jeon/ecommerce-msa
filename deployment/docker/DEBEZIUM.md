@@ -185,16 +185,26 @@ curl -s http://localhost:8083/connectors/payment-completed-outbox-connector/stat
 
 ## order-service outbox CDC
 
-`orders.order_outbox` INSERT를 Debezium이 캡처해 `order.created`로 relay합니다.
+Order Service의 outbox INSERT를 Debezium이 캡처합니다.
 
-| Connector | Slot | Topic |
-|-----------|------|-------|
-| `order-created-outbox-connector` | `order_created_outbox_slot` | `order.created` |
+| Connector | Source table | Slot | Topic | Key |
+|-----------|--------------|------|-------|-----|
+| `order-created-outbox-connector` | `orders.order_outbox` | `order_created_outbox_slot` | `order.created` | `order_id` |
+| `payment-refund-requested-outbox-connector` | `orders.refund_requested_outbox` | `payment_refund_requested_outbox_slot` | `payment.refund.requested` | `payment_id` |
 
 - **DB:** `ecodb_order`, schema `orders`
-- **Publication:** `dbz_order_outbox_pub` (`grant-debezium-order-outbox.sh`)
-- **Key:** `order_id`
-- **Value:** JSON (`ExtractNewRecordState`, snake_case) matching `OrderCreatedMessage`
+- **Publication:** `dbz_order_outbox_pub` (`grant-debezium-order-outbox.sh`) — 두 outbox 테이블을 포함합니다.
+- **Value:** JSON (`ExtractNewRecordState`, snake_case)
+
+`payment.refund.requested`의 value에는 `compensation_event_id`, `payment_id`, `order_id`,
+`user_id`, `reason`, `occurred_at`가 포함됩니다. Payment Service consumer는
+`compensation_event_id`를 `payment_refund_compensations`에 처리 이력으로 저장해 멱등하게
+환불하며, `payment_id` key로 같은 결제의 환불 요청 순서를 보장합니다.
+
+Order Service의 스케줄러는 환불 HTTP를 호출하지 않습니다. `MANUAL` REFUND 레코드의
+outbox 존재 여부와 이 Payment-side 처리 이력을 조회해, 처리 확인 시 `REFUNDED`로 갱신합니다.
+grace period 이후에도 이력이 없으면 CDC relay 또는 consumer 누락으로 `WARN`을 남겨 운영자가
+connector, Kafka consumer group, DLT를 점검할 수 있게 합니다.
 
 ## 로컬 기동 순서
 

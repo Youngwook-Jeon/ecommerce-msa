@@ -7,6 +7,8 @@ import com.project.young.orderservice.dataaccess.repository.RefundRequestedOutbo
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Repository
 @Transactional
 public class RefundRequestedOutboxAdapter implements RefundRequestedOutboxPort {
@@ -27,5 +29,11 @@ public class RefundRequestedOutboxAdapter implements RefundRequestedOutboxPort {
                 .reason(event.reason())
                 .occurredAt(event.occurredAt())
                 .build());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByCompensationEventId(UUID compensationEventId) {
+        return repository.existsByCompensationEventId(compensationEventId);
     }
 }

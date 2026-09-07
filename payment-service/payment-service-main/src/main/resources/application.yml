@@ -19,6 +19,8 @@ payment-service:
     enabled: true
     order-created-topic: order.created
     order-created-consumer-group: payment-service-order-created
+    refund-requested-topic: payment.refund.requested
+    refund-requested-consumer-group: payment-service-refund-requested
 
 kafka-config:
   bootstrap-servers: localhost:19092, localhost:29092, localhost:39092

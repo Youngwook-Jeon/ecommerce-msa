@@ -3,6 +3,7 @@ package com.project.young.paymentservice.application.service;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.paymentservice.application.dto.command.ApplyProviderPaymentResultCommand;
 import com.project.young.paymentservice.application.dto.command.ProcessPaymentCommand;
+import com.project.young.paymentservice.application.dto.command.RefundPaymentCommand;
 import com.project.young.paymentservice.application.dto.event.PaymentCompletedEvent;
 import com.project.young.paymentservice.application.dto.event.PaymentFailedEvent;
 import com.project.young.paymentservice.application.dto.query.ClientSecretView;
@@ -11,6 +12,7 @@ import com.project.young.paymentservice.application.port.output.PaymentOutboxPor
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort.ProviderPaymentSession;
 import com.project.young.paymentservice.application.port.output.ProviderEventIdempotencyPort;
+import com.project.young.paymentservice.application.port.output.RefundCompensationPort;
 import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.exception.PaymentDomainException;
 import com.project.young.paymentservice.domain.exception.PaymentNotFoundException;
@@ -69,6 +71,9 @@ class PaymentApplicationServiceTest {
     private ProviderEventIdempotencyPort providerEventIdempotencyPort;
 
     @Mock
+    private RefundCompensationPort refundCompensationPort;
+
+    @Mock
     private IdGenerator idGenerator;
 
     private PaymentApplicationService paymentApplicationService;
@@ -80,6 +85,7 @@ class PaymentApplicationServiceTest {
                 paymentOutboxPort,
                 paymentProviderPort,
                 providerEventIdempotencyPort,
+                refundCompensationPort,
                 idGenerator,
                 Clock.fixed(FIXED_NOW, ZoneOffset.UTC)
         );
@@ -327,6 +333,55 @@ class PaymentApplicationServiceTest {
         verify(providerEventIdempotencyPort, never()).tryMarkProcessed(any(), any(), any(), any());
     }
 
+    @Test
+    @DisplayName("refundPayment: 새 보상 이벤트면 PSP 환불 후 처리 이력을 저장한다")
+    void refundPayment_whenNewCompensation_refundsAndRecords() {
+        UUID compensationEventId = UUID.randomUUID();
+        Payment completed = completedPayment();
+        when(refundCompensationPort.isProcessed(compensationEventId)).thenReturn(false);
+        when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completed));
+        when(refundCompensationPort.recordProcessed(compensationEventId, PAYMENT_ID, ORDER_ID)).thenReturn(true);
+
+        boolean applied = paymentApplicationService.refundPayment(
+                new RefundPaymentCommand(compensationEventId, PAYMENT_ID, ORDER_ID)
+        );
+
+        assertThat(applied).isTrue();
+        verify(paymentProviderPort).refund(completed, compensationEventId.toString());
+        verify(refundCompensationPort).recordProcessed(compensationEventId, PAYMENT_ID, ORDER_ID);
+    }
+
+    @Test
+    @DisplayName("refundPayment: 이미 처리한 보상 이벤트면 PSP 호출을 건너뛴다")
+    void refundPayment_whenDuplicateCompensation_skipsProviderCall() {
+        UUID compensationEventId = UUID.randomUUID();
+        when(refundCompensationPort.isProcessed(compensationEventId)).thenReturn(true);
+
+        boolean applied = paymentApplicationService.refundPayment(
+                new RefundPaymentCommand(compensationEventId, PAYMENT_ID, ORDER_ID)
+        );
+
+        assertThat(applied).isFalse();
+        verify(paymentRepository, never()).findById(any());
+        verify(paymentProviderPort, never()).refund(any(), any());
+        verify(refundCompensationPort, never()).recordProcessed(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("refundPayment: 이벤트 orderId가 payment orderId와 다르면 환불하지 않는다")
+    void refundPayment_whenOrderDoesNotMatch_throws() {
+        UUID compensationEventId = UUID.randomUUID();
+        when(refundCompensationPort.isProcessed(compensationEventId)).thenReturn(false);
+        when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completedPayment()));
+
+        assertThatThrownBy(() -> paymentApplicationService.refundPayment(
+                new RefundPaymentCommand(compensationEventId, PAYMENT_ID, UUID.randomUUID())
+        )).isInstanceOf(PaymentDomainException.class);
+
+        verify(paymentProviderPort, never()).refund(any(), any());
+        verify(refundCompensationPort, never()).recordProcessed(any(), any(), any());
+    }
+
     private static Payment pendingStripePayment() {
         return Payment.reconstitute(
                 new PaymentId(PAYMENT_ID),
@@ -339,6 +394,23 @@ class PaymentApplicationServiceTest {
                 PaymentProvider.STRIPE,
                 PROVIDER_PAYMENT_ID,
                 "pi_123_secret_abc",
+                FIXED_NOW,
+                FIXED_NOW
+        );
+    }
+
+    private static Payment completedPayment() {
+        return Payment.reconstitute(
+                new PaymentId(PAYMENT_ID),
+                new OrderId(ORDER_ID),
+                new UserId(USER_ID),
+                AMOUNT,
+                "USD",
+                PaymentStatus.COMPLETED,
+                null,
+                PaymentProvider.STUB,
+                "stub_pi_123",
+                "stub_secret_123",
                 FIXED_NOW,
                 FIXED_NOW
         );

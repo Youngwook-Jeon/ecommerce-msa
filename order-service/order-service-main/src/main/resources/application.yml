@@ -23,7 +23,7 @@ order-service:
     base-url: ${PRODUCT_SERVICE_URL:http://localhost:9002}
     connect-timeout-ms: 2000
     read-timeout-ms: 3000
-  payment-refund:
+  payment-reconciliation:
     base-url: ${PAYMENT_SERVICE_URL:http://localhost:9004}
     connect-timeout-ms: 2000
     read-timeout-ms: 3000
@@ -47,9 +47,10 @@ order-service:
       dlt:
         topic-suffix: ${ORDER_SAGA_DLT_SUFFIX:.DLT}
     compensation:
-      # Policies (encoded in classifier; MANUAL persist only in this slice):
-      # - inventory expiry / reject → recommended REFUND only (no re-reserve)
-      # - refund SLA → IMMEDIATE (auto-refund on DLT when refund automation is enabled)
+      # CDC executes refunds. The scheduler only reconciles a durable Payment-side processing record.
+      reconciliation:
+        fixed-delay-ms: ${ORDER_COMPENSATION_RECONCILIATION_DELAY_MS:30000}
+        grace-period-ms: ${ORDER_COMPENSATION_RECONCILIATION_GRACE_MS:300000}
       observation:
         # Pluggable: file (default). Add an ELK CompensationObservationStrategy bean later.
         strategy: ${ORDER_COMPENSATION_OBSERVATION_STRATEGY:file}
@@ -92,7 +93,7 @@ resilience4j:
         ignore-exceptions:
           - com.project.young.orderservice.application.port.output.InventoryReservationClientException
           - com.project.young.orderservice.application.port.output.InventoryReservationConflictException
-      paymentRefund:
+      paymentRefundReconciliation:
         sliding-window-type: COUNT_BASED
         sliding-window-size: 20
         minimum-number-of-calls: 10
@@ -103,7 +104,7 @@ resilience4j:
         permitted-number-of-calls-in-half-open-state: 5
         automatic-transition-from-open-to-half-open-enabled: true
         ignore-exceptions:
-          - com.project.young.orderservice.application.port.output.PaymentRefundClientException
+          - com.project.young.orderservice.application.port.output.PaymentReconciliationClientException
   timelimiter:
     instances:
       productCatalog:

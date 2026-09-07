@@ -54,15 +54,18 @@ BEGIN
   IF to_regclass('orders.order_outbox') IS NULL THEN
     RAISE EXCEPTION 'Table orders.order_outbox does not exist. Run order-service Flyway migrations first.';
   END IF;
+  IF to_regclass('orders.refund_requested_outbox') IS NULL THEN
+    RAISE EXCEPTION 'Table orders.refund_requested_outbox does not exist. Run order-service Flyway migrations first.';
+  END IF;
 END $$;
 
 GRANT USAGE ON SCHEMA orders TO debezium;
-GRANT SELECT ON TABLE orders.order_outbox TO debezium;
+GRANT SELECT ON TABLE orders.order_outbox, orders.refund_requested_outbox TO debezium;
 
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'dbz_order_outbox_pub') THEN
-    CREATE PUBLICATION dbz_order_outbox_pub FOR TABLE orders.order_outbox;
+    CREATE PUBLICATION dbz_order_outbox_pub FOR TABLE orders.order_outbox, orders.refund_requested_outbox;
   ELSIF NOT EXISTS (
     SELECT 1
     FROM pg_publication_tables
@@ -72,7 +75,16 @@ BEGIN
   ) THEN
     ALTER PUBLICATION dbz_order_outbox_pub ADD TABLE orders.order_outbox;
   END IF;
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_publication_tables
+    WHERE pubname = 'dbz_order_outbox_pub'
+      AND schemaname = 'orders'
+      AND tablename = 'refund_requested_outbox'
+  ) THEN
+    ALTER PUBLICATION dbz_order_outbox_pub ADD TABLE orders.refund_requested_outbox;
+  END IF;
 END $$;
 SQL
 
-echo "Debezium grants and publication dbz_order_outbox_pub are ready on ecodb_order"
+echo "Debezium grants and publication dbz_order_outbox_pub are ready for Order outbox tables on ecodb_order"

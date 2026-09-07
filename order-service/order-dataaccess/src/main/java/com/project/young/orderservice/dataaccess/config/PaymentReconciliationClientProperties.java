@@ -8,8 +8,9 @@ import org.springframework.context.annotation.Configuration;
 @Getter
 @Setter
 @Configuration
-@ConfigurationProperties(prefix = "order-service.payment-refund")
-public class PaymentRefundClientProperties {
+@ConfigurationProperties(prefix = "order-service.payment-reconciliation")
+public class PaymentReconciliationClientProperties {
+
     private String baseUrl = "http://localhost:9004";
     private int connectTimeoutMs = 2000;
     private int readTimeoutMs = 3000;

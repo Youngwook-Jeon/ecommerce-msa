@@ -10,9 +10,10 @@ import java.time.Duration;
 
 @Configuration
 @Profile("!test")
-public class PaymentRefundClientConfig {
+public class PaymentReconciliationClientConfig {
+
     @Bean
-    RestClient paymentRefundRestClient(PaymentRefundClientProperties properties) {
+    RestClient paymentReconciliationRestClient(PaymentReconciliationClientProperties properties) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Duration.ofMillis(properties.getConnectTimeoutMs()));
         requestFactory.setReadTimeout(Duration.ofMillis(properties.getReadTimeoutMs()));

@@ -63,6 +63,8 @@ class PaymentOrderCreatedKafkaIntegrationTest {
         registry.add("payment-service.saga-events.enabled", () -> "true");
         registry.add("payment-service.saga-events.order-created-topic", () -> "order.created");
         registry.add("payment-service.saga-events.order-created-consumer-group", () -> "payment-it-order-created");
+        registry.add("payment-service.saga-events.refund-requested-topic", () -> "payment.refund.requested");
+        registry.add("payment-service.saga-events.refund-requested-consumer-group", () -> "payment-it-refund-requested");
         registry.add("payment-service.stub-payment.always-succeed", () -> "false");
         registry.add("payment-service.stub-payment.decline-when-fractional-part", () -> "0.99");
     }
@@ -76,7 +78,10 @@ class PaymentOrderCreatedKafkaIntegrationTest {
     @BeforeEach
     void setUp() {
         transactionTemplate.executeWithoutResult(status -> {
-            entityManager.createNativeQuery("TRUNCATE TABLE payments.payment_provider_events, payments.payment_outbox, payments.payments RESTART IDENTITY CASCADE")
+            entityManager.createNativeQuery("""
+                    TRUNCATE TABLE payments.payment_refund_compensations, payments.payment_provider_events,
+                    payments.payment_outbox, payments.payments RESTART IDENTITY CASCADE
+                    """)
                     .executeUpdate();
             entityManager.flush();
             entityManager.clear();
@@ -149,6 +154,37 @@ class PaymentOrderCreatedKafkaIntegrationTest {
         });
     }
 
+    @Test
+    @DisplayName("payment.refund.requested JSON을 소비하면 보상 이벤트를 멱등하게 기록한다")
+    void paymentRefundRequested_refundsAndRecordsCompensationOnce() {
+        UUID orderId = UUID.randomUUID();
+        sendOrderCreated(orderId, "50.00");
+
+        UUID paymentId = await().atMost(20, TimeUnit.SECONDS).until(() -> transactionTemplate.execute(status -> {
+            @SuppressWarnings("unchecked")
+            var paymentIds = entityManager.createNativeQuery(
+                            "SELECT id FROM payments WHERE order_id = CAST(:orderId AS uuid)")
+                    .setParameter("orderId", orderId)
+                    .getResultList();
+            return paymentIds.isEmpty() ? null : UUID.fromString(paymentIds.getFirst().toString());
+        }), java.util.Objects::nonNull);
+        UUID compensationEventId = UUID.randomUUID();
+
+        sendPaymentRefundRequested(compensationEventId, paymentId, orderId);
+        sendPaymentRefundRequested(compensationEventId, paymentId, orderId);
+
+        await().atMost(20, TimeUnit.SECONDS).untilAsserted(() -> {
+            Number count = transactionTemplate.execute(status -> (Number) entityManager.createNativeQuery("""
+                            SELECT COUNT(*) FROM payment_refund_compensations
+                            WHERE compensation_event_id = CAST(:compensationEventId AS uuid)
+                            """)
+                    .setParameter("compensationEventId", compensationEventId)
+                    .getSingleResult());
+            assertThat(count).isNotNull();
+            assertThat(count.longValue()).isEqualTo(1L);
+        });
+    }
+
     private static void sendOrderCreated(UUID orderId, String totalAmount) {
         UUID eventId = UUID.randomUUID();
         String json = """
@@ -175,6 +211,33 @@ class PaymentOrderCreatedKafkaIntegrationTest {
                     .get(10, TimeUnit.SECONDS);
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to publish order.created", ex);
+        }
+    }
+
+    private static void sendPaymentRefundRequested(UUID compensationEventId, UUID paymentId, UUID orderId) {
+        String json = """
+                {
+                  "id": "%s",
+                  "compensation_event_id": "%s",
+                  "payment_id": "%s",
+                  "order_id": "%s",
+                  "user_id": "%s",
+                  "reason": "inventory_unavailable",
+                  "occurred_at": "2026-09-07T00:00:00Z",
+                  "created_at": "2026-09-07T00:00:00Z"
+                }
+                """.formatted(UUID.randomUUID(), compensationEventId, paymentId, orderId, USER_ID);
+
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        props.put(ProducerConfig.ACKS_CONFIG, "all");
+        try (KafkaProducer<String, String> producer = new KafkaProducer<>(props)) {
+            producer.send(new ProducerRecord<>("payment.refund.requested", paymentId.toString(), json))
+                    .get(10, TimeUnit.SECONDS);
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to publish payment.refund.requested", ex);
         }
     }
 }

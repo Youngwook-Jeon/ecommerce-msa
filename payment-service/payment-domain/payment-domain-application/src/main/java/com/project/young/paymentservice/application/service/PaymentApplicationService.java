@@ -2,6 +2,7 @@ package com.project.young.paymentservice.application.service;
 
 import com.project.young.paymentservice.application.dto.command.ApplyProviderPaymentResultCommand;
 import com.project.young.paymentservice.application.dto.command.ProcessPaymentCommand;
+import com.project.young.paymentservice.application.dto.command.RefundPaymentCommand;
 import com.project.young.paymentservice.application.dto.event.PaymentCompletedEvent;
 import com.project.young.paymentservice.application.dto.event.PaymentFailedEvent;
 import com.project.young.paymentservice.application.dto.query.ClientSecretView;
@@ -10,6 +11,7 @@ import com.project.young.paymentservice.application.port.output.PaymentOutboxPor
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort.ProviderPaymentSession;
 import com.project.young.paymentservice.application.port.output.ProviderEventIdempotencyPort;
+import com.project.young.paymentservice.application.port.output.RefundCompensationPort;
 import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.exception.PaymentClientSecretNotReadyException;
 import com.project.young.paymentservice.domain.exception.PaymentDomainException;
@@ -43,6 +45,7 @@ public class PaymentApplicationService {
     private final PaymentOutboxPort paymentOutboxPort;
     private final PaymentProviderPort paymentProviderPort;
     private final ProviderEventIdempotencyPort providerEventIdempotencyPort;
+    private final RefundCompensationPort refundCompensationPort;
     private final IdGenerator idGenerator;
     private final Clock clock;
 
@@ -51,6 +54,7 @@ public class PaymentApplicationService {
             PaymentOutboxPort paymentOutboxPort,
             PaymentProviderPort paymentProviderPort,
             ProviderEventIdempotencyPort providerEventIdempotencyPort,
+            RefundCompensationPort refundCompensationPort,
             IdGenerator idGenerator,
             Clock clock
     ) {
@@ -58,6 +62,7 @@ public class PaymentApplicationService {
         this.paymentOutboxPort = paymentOutboxPort;
         this.paymentProviderPort = paymentProviderPort;
         this.providerEventIdempotencyPort = providerEventIdempotencyPort;
+        this.refundCompensationPort = refundCompensationPort;
         this.idGenerator = idGenerator;
         this.clock = clock;
     }
@@ -202,16 +207,71 @@ public class PaymentApplicationService {
     }
 
     @Transactional
-    public void refundPayment(UUID paymentIdValue, UUID compensationEventId) {
-        log.info("Refunding completed payment {} for compensation event {}", paymentIdValue, compensationEventId);
-        Payment payment = paymentRepository.findById(new PaymentId(paymentIdValue))
-                .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + paymentIdValue));
-        if (payment.getStatus() != PaymentStatus.COMPLETED) {
-            log.warn("Rejecting refund for payment {} in status {}", paymentIdValue, payment.getStatus());
-            throw new PaymentDomainException("Only completed payments can be refunded: " + paymentIdValue);
+    public boolean refundPayment(UUID paymentIdValue, UUID compensationEventId) {
+        return refundPayment(new RefundPaymentCommand(compensationEventId, paymentIdValue, null));
+    }
+
+    /**
+     * Applies a saga refund once per compensation event. Provider calls use the same event id as
+     * their idempotency key, so a retry after an uncertain provider response is also safe.
+     *
+     * @return {@code true} when the compensation was newly applied; {@code false} when already processed
+     */
+    @Transactional
+    public boolean refundPayment(RefundPaymentCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
+        Objects.requireNonNull(command.compensationEventId(), "compensationEventId must not be null");
+        Objects.requireNonNull(command.paymentId(), "paymentId must not be null");
+
+        if (refundCompensationPort.isProcessed(command.compensationEventId())) {
+            log.info(
+                    "Skipping already processed refund compensation eventId={} paymentId={}",
+                    command.compensationEventId(),
+                    command.paymentId()
+            );
+            return false;
         }
-        paymentProviderPort.refund(payment, compensationEventId.toString());
-        log.info("Refund provider call completed for payment {} compensation event {}", paymentIdValue, compensationEventId);
+
+        log.info(
+                "Refunding completed payment {} for compensation event {}",
+                command.paymentId(),
+                command.compensationEventId()
+        );
+        Payment payment = paymentRepository.findById(new PaymentId(command.paymentId()))
+                .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + command.paymentId()));
+        if (command.orderId() != null && !payment.getOrderId().getValue().equals(command.orderId())) {
+            log.warn(
+                    "Rejecting refund compensation eventId={} because paymentId={} belongs to orderId={} not orderId={}",
+                    command.compensationEventId(),
+                    command.paymentId(),
+                    payment.getOrderId().getValue(),
+                    command.orderId()
+            );
+            throw new PaymentDomainException("Payment order does not match refund compensation: " + command.paymentId());
+        }
+        if (payment.getStatus() != PaymentStatus.COMPLETED) {
+            log.warn("Rejecting refund for payment {} in status {}", command.paymentId(), payment.getStatus());
+            throw new PaymentDomainException("Only completed payments can be refunded: " + command.paymentId());
+        }
+        paymentProviderPort.refund(payment, command.compensationEventId().toString());
+        boolean newlyRecorded = refundCompensationPort.recordProcessed(
+                command.compensationEventId(),
+                command.paymentId(),
+                payment.getOrderId().getValue()
+        );
+        log.info(
+                "Refund provider call completed paymentId={} compensationEventId={} newlyRecorded={}",
+                command.paymentId(),
+                command.compensationEventId(),
+                newlyRecorded
+        );
+        return newlyRecorded;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isRefundCompensationProcessed(UUID compensationEventId) {
+        Objects.requireNonNull(compensationEventId, "compensationEventId must not be null");
+        return refundCompensationPort.isProcessed(compensationEventId);
     }
 
     private Payment ensureProviderSessionAndMaybeSettle(Payment payment, boolean isNew) {

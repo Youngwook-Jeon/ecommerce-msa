@@ -3,61 +3,115 @@ package com.project.young.orderservice.application.service;
 import com.project.young.orderservice.application.compensation.CompensationHandlingStatus;
 import com.project.young.orderservice.application.compensation.CompensationRecommendedAction;
 import com.project.young.orderservice.application.dto.compensation.SagaCompensationView;
-import com.project.young.orderservice.application.port.output.PaymentRefundPort;
+import com.project.young.orderservice.application.port.output.PaymentRefundCompensationStatusPort;
+import com.project.young.orderservice.application.port.output.RefundRequestedOutboxPort;
 import com.project.young.orderservice.application.port.output.SagaCompensationPort;
-import com.project.young.orderservice.domain.valueobject.OrderId;
-import com.project.young.orderservice.domain.valueobject.UserId;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Redrives durable DLT compensation records. Effects are idempotent by event id. */
+import java.time.Clock;
+import java.time.Duration;
+
+/**
+ * Reconciles durable refund compensations; execution belongs to the CDC consumer in Payment Service.
+ */
 @Component
 public class SagaCompensationExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(SagaCompensationExecutor.class);
 
     private final SagaCompensationPort sagaCompensationPort;
-    private final OrderApplicationService orderApplicationService;
-    private final PaymentRefundPort paymentRefundPort;
+    private final RefundRequestedOutboxPort refundRequestedOutboxPort;
+    private final PaymentRefundCompensationStatusPort paymentRefundCompensationStatusPort;
+    private final Clock clock;
+    private final long reconciliationGracePeriodMs;
 
     public SagaCompensationExecutor(
             SagaCompensationPort sagaCompensationPort,
-            OrderApplicationService orderApplicationService,
-            PaymentRefundPort paymentRefundPort
+            RefundRequestedOutboxPort refundRequestedOutboxPort,
+            PaymentRefundCompensationStatusPort paymentRefundCompensationStatusPort,
+            Clock clock,
+            @Value("${order-service.saga-events.compensation.reconciliation.grace-period-ms:300000}")
+            long reconciliationGracePeriodMs
     ) {
         this.sagaCompensationPort = sagaCompensationPort;
-        this.orderApplicationService = orderApplicationService;
-        this.paymentRefundPort = paymentRefundPort;
+        this.refundRequestedOutboxPort = refundRequestedOutboxPort;
+        this.paymentRefundCompensationStatusPort = paymentRefundCompensationStatusPort;
+        this.clock = clock;
+        this.reconciliationGracePeriodMs = reconciliationGracePeriodMs;
     }
 
-    @Scheduled(fixedDelayString = "${order-service.saga-events.compensation.executor.fixed-delay-ms:5000}")
-    public void executePendingCompensations() {
+    @Scheduled(fixedDelayString = "${order-service.saga-events.compensation.reconciliation.fixed-delay-ms:30000}")
+    public void reconcilePendingCompensations() {
         var items = sagaCompensationPort.findByHandlingStatus(CompensationHandlingStatus.MANUAL, 100);
         if (!items.isEmpty()) {
-            log.info("Executing {} pending saga compensation(s)", items.size());
+            log.debug("Reconciling {} pending saga compensation(s)", items.size());
         }
         for (SagaCompensationView item : items) {
             try {
-                if (item.recommendedAction() == CompensationRecommendedAction.REPLAY) {
-                    log.info("Replaying payment confirmation for compensationEventId={} orderId={}", item.eventId(), item.orderId());
-                    orderApplicationService.confirmPayment(new UserId(item.userId()), new OrderId(item.orderId()));
-                    sagaCompensationPort.updateHandlingStatus(item.eventId(), CompensationHandlingStatus.REPLAYED);
-                    log.info("Replayed compensationEventId={} orderId={}", item.eventId(), item.orderId());
-                } else if (item.recommendedAction() == CompensationRecommendedAction.REFUND && item.paymentId() != null) {
-                    log.info("Refunding compensationEventId={} paymentId={} orderId={}", item.eventId(), item.paymentId(), item.orderId());
-                    paymentRefundPort.refund(item.paymentId(), item.eventId());
-                    sagaCompensationPort.updateHandlingStatus(item.eventId(), CompensationHandlingStatus.REFUNDED);
-                    log.info("Refunded compensationEventId={} paymentId={}", item.eventId(), item.paymentId());
-                } else {
-                    log.warn("Cannot automate compensationEventId={} action={} paymentId={}; leaving MANUAL", item.eventId(), item.recommendedAction(), item.paymentId());
-                }
+                reconcile(item);
             } catch (RuntimeException ex) {
-                // Keep MANUAL for the next scheduled, idempotent attempt.
-                log.warn("Compensation execution failed; will retry compensationEventId={} action={} orderId={}",
-                        item.eventId(), item.recommendedAction(), item.orderId(), ex);
+                log.warn(
+                        "Saga compensation reconciliation lookup failed; will retry compensationEventId={} action={} orderId={}",
+                        item.eventId(),
+                        item.recommendedAction(),
+                        item.orderId(),
+                        ex
+                );
             }
+        }
+    }
+
+    private void reconcile(SagaCompensationView item) {
+        if (item.recommendedAction() != CompensationRecommendedAction.REFUND) {
+            log.debug(
+                    "Leaving non-refund compensation for manual handling eventId={} action={}",
+                    item.eventId(),
+                    item.recommendedAction()
+            );
+            return;
+        }
+        if (item.paymentId() == null) {
+            log.warn("Refund compensation has no paymentId; leaving MANUAL eventId={}", item.eventId());
+            return;
+        }
+        if (!refundRequestedOutboxPort.existsByCompensationEventId(item.eventId())) {
+            log.error(
+                    "Refund reconciliation found missing transactional outbox eventId={} paymentId={} orderId={}",
+                    item.eventId(),
+                    item.paymentId(),
+                    item.orderId()
+            );
+            return;
+        }
+        if (paymentRefundCompensationStatusPort.isProcessed(item.eventId())) {
+            sagaCompensationPort.updateHandlingStatus(item.eventId(), CompensationHandlingStatus.REFUNDED);
+            log.info(
+                    "Refund reconciliation confirmed Payment Service processing eventId={} paymentId={}",
+                    item.eventId(),
+                    item.paymentId()
+            );
+            return;
+        }
+
+        long ageMs = Math.max(0, Duration.between(item.createdAt(), clock.instant()).toMillis());
+        if (ageMs >= reconciliationGracePeriodMs) {
+            log.warn(
+                    "Refund CDC processing is still missing after grace period eventId={} paymentId={} ageMs={}",
+                    item.eventId(),
+                    item.paymentId(),
+                    ageMs
+            );
+        } else {
+            log.debug(
+                    "Refund CDC processing is pending eventId={} paymentId={} ageMs={}",
+                    item.eventId(),
+                    item.paymentId(),
+                    ageMs
+            );
         }
     }
 }
