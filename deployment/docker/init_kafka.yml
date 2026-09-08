@@ -13,11 +13,13 @@ services:
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic product --delete --if-exists
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic product.catalog.changed --delete --if-exists
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic order.created --delete --if-exists
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --topic order.created.DLT --delete --if-exists
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic payment.completed --delete --if-exists
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic payment.completed.DLT --delete --if-exists
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic payment.failed --delete --if-exists
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic payment.failed.DLT --delete --if-exists
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic payment.refund.requested --delete --if-exists
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --topic payment.refund.requested.DLT --delete --if-exists
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic inventory.release.requested --delete --if-exists
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic inventory.release.requested.DLT --delete --if-exists
       kafka-topics --bootstrap-server kafka-broker-1:9092 --topic _connect_configs --delete --if-exists
@@ -28,11 +30,13 @@ services:
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic product --replication-factor 3 --partitions 3
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic product.catalog.changed --replication-factor 3 --partitions 3
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic order.created --replication-factor 3 --partitions 3
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic order.created.DLT --replication-factor 3 --partitions 3
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic payment.completed --replication-factor 3 --partitions 3
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic payment.completed.DLT --replication-factor 3 --partitions 3
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic payment.failed --replication-factor 3 --partitions 3
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic payment.failed.DLT --replication-factor 3 --partitions 3
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic payment.refund.requested --replication-factor 3 --partitions 3
+      kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic payment.refund.requested.DLT --replication-factor 3 --partitions 3
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic inventory.release.requested --replication-factor 3 --partitions 3
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic inventory.release.requested.DLT --replication-factor 3 --partitions 3
       kafka-topics --bootstrap-server kafka-broker-1:9092 --create --if-not-exists --topic _connect_configs --replication-factor 3 --partitions 1 --config cleanup.policy=compact

@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 /**
@@ -29,18 +30,20 @@ public class PaymentRefundRequestedListener {
         this.paymentApplicationService = paymentApplicationService;
     }
 
+    public void onPaymentRefundRequested(PaymentRefundRequestedMessage message) { onPaymentRefundRequested(message, null); }
+
     @KafkaListener(
             topics = "${payment-service.saga-events.refund-requested-topic}",
             groupId = "${payment-service.saga-events.refund-requested-consumer-group}",
             containerFactory = "paymentRefundRequestedKafkaListenerContainerFactory"
     )
-    public void onPaymentRefundRequested(PaymentRefundRequestedMessage message) {
+    public void onPaymentRefundRequested(PaymentRefundRequestedMessage message, Acknowledgment acknowledgment) {
         if (message == null
                 || message.compensationEventId() == null
                 || message.paymentId() == null
                 || message.orderId() == null) {
             log.warn("Skipping payment.refund.requested message with missing compensationEventId, paymentId, or orderId");
-            return;
+            acknowledge(acknowledgment); return;
         }
 
         log.info(
@@ -60,5 +63,8 @@ public class PaymentRefundRequestedListener {
                 message.paymentId(),
                 applied
         );
+        acknowledge(acknowledgment);
     }
+
+    private static void acknowledge(Acknowledgment acknowledgment) { if (acknowledgment != null) acknowledgment.acknowledge(); }
 }

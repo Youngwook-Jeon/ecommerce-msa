@@ -21,6 +21,18 @@ payment-service:
     order-created-consumer-group: payment-service-order-created
     refund-requested-topic: payment.refund.requested
     refund-requested-consumer-group: payment-service-refund-requested
+    refund-requested-dlt-topic: payment.refund.requested.DLT
+    refund-requested-dlt-consumer-group: payment-service-refund-requested-dlt
+    consumer:
+      retry:
+        max-attempts: ${PAYMENT_SAGA_RETRY_MAX_ATTEMPTS:3}
+        backoff-interval-ms: ${PAYMENT_SAGA_RETRY_BACKOFF_MS:1000}
+      dlt:
+        topic-suffix: ${PAYMENT_SAGA_DLT_SUFFIX:.DLT}
+    refund-dlt-replay:
+      fixed-delay-ms: ${PAYMENT_REFUND_DLT_REPLAY_DELAY_MS:30000}
+      lease-ms: ${PAYMENT_REFUND_DLT_REPLAY_LEASE_MS:300000}
+      max-attempts: ${PAYMENT_REFUND_DLT_REPLAY_MAX_ATTEMPTS:5}
 
 kafka-config:
   bootstrap-servers: localhost:19092, localhost:29092, localhost:39092

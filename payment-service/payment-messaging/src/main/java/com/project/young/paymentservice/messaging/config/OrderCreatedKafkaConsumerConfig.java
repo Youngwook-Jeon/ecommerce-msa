@@ -2,6 +2,7 @@ package com.project.young.paymentservice.messaging.config;
 
 import com.project.young.kafka.config.KafkaConfigData;
 import com.project.young.kafka.saga.dto.OrderCreatedMessage;
+import com.project.young.paymentservice.messaging.error.PaymentSagaKafkaFailureStrategy;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -26,9 +27,11 @@ import java.util.Map;
 public class OrderCreatedKafkaConsumerConfig {
 
     private final KafkaConfigData kafkaConfigData;
+    private final PaymentSagaKafkaFailureStrategy failureStrategy;
 
-    public OrderCreatedKafkaConsumerConfig(KafkaConfigData kafkaConfigData) {
+    public OrderCreatedKafkaConsumerConfig(KafkaConfigData kafkaConfigData, PaymentSagaKafkaFailureStrategy failureStrategy) {
         this.kafkaConfigData = kafkaConfigData;
+        this.failureStrategy = failureStrategy;
     }
 
     @Bean
@@ -43,7 +46,7 @@ public class OrderCreatedKafkaConsumerConfig {
         props.put(JsonDeserializer.TRUSTED_PACKAGES, OrderCreatedMessage.class.getPackageName());
         props.put(JsonDeserializer.USE_TYPE_INFO_HEADERS, false);
         props.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, true);
+        props.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false);
         return new DefaultKafkaConsumerFactory<>(props);
     }
 
@@ -54,6 +57,7 @@ public class OrderCreatedKafkaConsumerConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(orderCreatedConsumerFactory());
         factory.setConcurrency(1);
+        failureStrategy.configure(factory);
         return factory;
     }
 }

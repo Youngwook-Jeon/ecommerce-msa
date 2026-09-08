@@ -2,6 +2,7 @@ package com.project.young.paymentservice.messaging.config;
 
 import com.project.young.kafka.config.KafkaConfigData;
 import com.project.young.kafka.saga.dto.PaymentRefundRequestedMessage;
+import com.project.young.paymentservice.messaging.error.PaymentSagaKafkaFailureStrategy;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -11,6 +12,8 @@ import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.ContainerProperties;
+import org.springframework.kafka.listener.DefaultErrorHandler;
+import org.springframework.util.backoff.FixedBackOff;
 import org.springframework.kafka.support.serializer.ErrorHandlingDeserializer;
 import org.springframework.kafka.support.serializer.JsonDeserializer;
 
@@ -27,9 +30,11 @@ import java.util.Map;
 public class PaymentRefundRequestedKafkaConsumerConfig {
 
     private final KafkaConfigData kafkaConfigData;
+    private final PaymentSagaKafkaFailureStrategy failureStrategy;
 
-    public PaymentRefundRequestedKafkaConsumerConfig(KafkaConfigData kafkaConfigData) {
+    public PaymentRefundRequestedKafkaConsumerConfig(KafkaConfigData kafkaConfigData, PaymentSagaKafkaFailureStrategy failureStrategy) {
         this.kafkaConfigData = kafkaConfigData;
+        this.failureStrategy = failureStrategy;
     }
 
     @Bean
@@ -55,7 +60,19 @@ public class PaymentRefundRequestedKafkaConsumerConfig {
                 new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(paymentRefundRequestedConsumerFactory());
         factory.setConcurrency(1);
-        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+        failureStrategy.configure(factory);
+        return factory;
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, PaymentRefundRequestedMessage>
+    paymentRefundRequestedDltKafkaListenerContainerFactory() {
+        ConcurrentKafkaListenerContainerFactory<String, PaymentRefundRequestedMessage> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(paymentRefundRequestedConsumerFactory());
+        factory.setConcurrency(1);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
+        factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(1000L, 3L)));
         return factory;
     }
 }

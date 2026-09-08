@@ -202,6 +202,11 @@ Order Service의 outbox INSERT를 Debezium이 캡처합니다.
 `compensation_event_id`를 `payment_refund_compensations`에 처리 이력으로 저장해 멱등하게
 환불하며, `payment_id` key로 같은 결제의 환불 요청 순서를 보장합니다.
 
+Payment Service는 `order.created`와 `payment.refund.requested` consumer에 공통 retry/DLT 정책을
+적용합니다. `payment.refund.requested`가 재시도 소진 후 `payment.refund.requested.DLT`에 도달하면,
+DLT consumer가 원본 Kafka 위치와 예외 정보를 `payment_refund_compensation_dlts` 운영 보상 큐에
+멱등 저장한 뒤 ack합니다.
+
 Order Service의 스케줄러는 환불 HTTP를 호출하지 않습니다. `MANUAL` REFUND 레코드의
 outbox 존재 여부와 이 Payment-side 처리 이력을 조회해, 처리 확인 시 `REFUNDED`로 갱신합니다.
 grace period 이후에도 이력이 없으면 CDC relay 또는 consumer 누락으로 `WARN`을 남겨 운영자가

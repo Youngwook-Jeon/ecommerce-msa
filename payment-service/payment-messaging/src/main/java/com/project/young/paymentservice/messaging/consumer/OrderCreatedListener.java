@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 /**
@@ -30,23 +31,25 @@ public class OrderCreatedListener {
         this.paymentApplicationService = paymentApplicationService;
     }
 
+    public void onOrderCreated(OrderCreatedMessage message) { onOrderCreated(message, null); }
+
     @KafkaListener(
             topics = "${payment-service.saga-events.order-created-topic}",
             groupId = "${payment-service.saga-events.order-created-consumer-group}",
             containerFactory = "orderCreatedKafkaListenerContainerFactory"
     )
-    public void onOrderCreated(OrderCreatedMessage message) {
+    public void onOrderCreated(OrderCreatedMessage message, Acknowledgment acknowledgment) {
         if (message == null || message.orderId() == null) {
             log.warn("Skipping order.created message with missing orderId");
-            return;
+            acknowledge(acknowledgment); return;
         }
         if (message.userId() == null || message.userId().isBlank()) {
             log.warn("Skipping order.created message with missing userId for order {}", message.orderId());
-            return;
+            acknowledge(acknowledgment); return;
         }
         if (message.totalAmount() == null || message.totalAmount().isBlank()) {
             log.warn("Skipping order.created message with missing totalAmount for order {}", message.orderId());
-            return;
+            acknowledge(acknowledgment); return;
         }
 
         log.info(
@@ -72,5 +75,8 @@ public class OrderCreatedListener {
                 message.orderId(),
                 payment.getStatus()
         );
+        acknowledge(acknowledgment);
     }
+
+    private static void acknowledge(Acknowledgment acknowledgment) { if (acknowledgment != null) acknowledgment.acknowledge(); }
 }
