@@ -12,6 +12,8 @@ public enum CompensationRecommendedAction {
      * Policy: refund only — do not re-reserve / re-confirm.
      */
     REFUND,
+    /** Payment failed, but the checkout soft-hold still needs to be released. */
+    RELEASE_INVENTORY,
     /** Needs human judgment. */
     MANUAL
 }

@@ -7,6 +7,7 @@ import com.project.young.productservice.application.dto.command.ReserveInventory
 import com.project.young.productservice.application.dto.result.ReserveInventoryResult;
 import com.project.young.productservice.application.port.output.IdGenerator;
 import com.project.young.productservice.application.port.output.InventoryVariantStockPort;
+import com.project.young.productservice.application.port.output.InventoryReleaseCompensationPort;
 import com.project.young.productservice.application.port.output.InventoryVariantStockPort.VariantStockSnapshot;
 import com.project.young.productservice.application.support.InventoryReservationTxExecutor;
 import com.project.young.productservice.domain.entity.InventoryReservation;
@@ -55,19 +56,22 @@ public class InventoryReservationApplicationService {
     private final IdGenerator idGenerator;
     private final InventoryReservationProperties properties;
     private final InventoryReservationTxExecutor txExecutor;
+    private final InventoryReleaseCompensationPort inventoryReleaseCompensationPort;
 
     public InventoryReservationApplicationService(
             InventoryReservationRepository inventoryReservationRepository,
             InventoryVariantStockPort inventoryVariantStockPort,
             IdGenerator idGenerator,
             InventoryReservationProperties properties,
-            InventoryReservationTxExecutor txExecutor
+            InventoryReservationTxExecutor txExecutor,
+            InventoryReleaseCompensationPort inventoryReleaseCompensationPort
     ) {
         this.inventoryReservationRepository = inventoryReservationRepository;
         this.inventoryVariantStockPort = inventoryVariantStockPort;
         this.idGenerator = idGenerator;
         this.properties = properties;
         this.txExecutor = txExecutor;
+        this.inventoryReleaseCompensationPort = inventoryReleaseCompensationPort;
     }
 
     public ReserveInventoryResult reserve(ReserveInventoryCommand command) {
@@ -241,6 +245,37 @@ public class InventoryReservationApplicationService {
 
         releaseActive(active, now);
         log.debug("Released inventory for checkout {} (lines={})", checkoutIdValue, active.size());
+    }
+
+    @Transactional
+    public boolean releaseForCompensation(UUID compensationEventId, UUID checkoutIdValue) {
+        Objects.requireNonNull(compensationEventId, "compensationEventId must not be null");
+        Objects.requireNonNull(checkoutIdValue, "checkoutId must not be null");
+
+        if (inventoryReleaseCompensationPort.isProcessed(compensationEventId)) {
+            log.debug("Inventory release compensation is already processed eventId={} orderId={}",
+                    compensationEventId, checkoutIdValue);
+            return false;
+        }
+
+        try {
+            release(checkoutIdValue);
+        } catch (InventoryReservationNotFoundException ignored) {
+            // A missing reservation means its soft hold was already removed or expired; compensation converged.
+            log.info("Inventory release compensation found no reservation; treating as released eventId={} orderId={}",
+                    compensationEventId, checkoutIdValue);
+        }
+
+        boolean recorded = inventoryReleaseCompensationPort.recordProcessed(compensationEventId, checkoutIdValue);
+        log.info("Inventory release compensation processed eventId={} orderId={} newlyRecorded={}",
+                compensationEventId, checkoutIdValue, recorded);
+        return recorded;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isReleaseCompensationProcessed(UUID compensationEventId) {
+        Objects.requireNonNull(compensationEventId, "compensationEventId must not be null");
+        return inventoryReleaseCompensationPort.isProcessed(compensationEventId);
     }
 
     @Transactional

@@ -8,10 +8,13 @@ import com.project.young.orderservice.application.dto.compensation.SagaCompensat
 import com.project.young.orderservice.application.port.output.CompensationObservationPort;
 import com.project.young.orderservice.application.port.output.SagaCompensationPort;
 import com.project.young.orderservice.application.port.output.RefundRequestedOutboxPort;
+import com.project.young.orderservice.application.port.output.InventoryReleaseRequestedOutboxPort;
 import com.project.young.orderservice.application.compensation.CompensationRecommendedAction;
 import com.project.young.orderservice.application.dto.event.RefundRequestedEvent;
+import com.project.young.orderservice.application.dto.event.InventoryReleaseRequestedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,15 +34,21 @@ public class SagaCompensationApplicationService {
     private final SagaCompensationPort sagaCompensationPort;
     private final CompensationObservationPort compensationObservationPort;
     private final RefundRequestedOutboxPort refundRequestedOutboxPort;
+    private final InventoryReleaseRequestedOutboxPort inventoryReleaseRequestedOutboxPort;
+    private final String paymentFailedTopic;
 
     public SagaCompensationApplicationService(
             SagaCompensationPort sagaCompensationPort,
             CompensationObservationPort compensationObservationPort,
-            RefundRequestedOutboxPort refundRequestedOutboxPort
+            RefundRequestedOutboxPort refundRequestedOutboxPort,
+            InventoryReleaseRequestedOutboxPort inventoryReleaseRequestedOutboxPort,
+            @Value("${order-service.saga-events.payment-failed-topic}") String paymentFailedTopic
     ) {
         this.sagaCompensationPort = sagaCompensationPort;
         this.compensationObservationPort = compensationObservationPort;
         this.refundRequestedOutboxPort = refundRequestedOutboxPort;
+        this.inventoryReleaseRequestedOutboxPort = inventoryReleaseRequestedOutboxPort;
+        this.paymentFailedTopic = Objects.requireNonNull(paymentFailedTopic, "paymentFailedTopic must not be null");
     }
 
     @Transactional
@@ -60,10 +69,9 @@ public class SagaCompensationApplicationService {
             return duplicate;
         }
 
-        CompensationDecision decision = CompensationDecisionClassifier.classify(
-                command.failureExceptionClass(),
-                command.failureMessage()
-        );
+        CompensationDecision decision = paymentFailedTopic.equals(command.sourceTopic())
+                ? CompensationDecisionClassifier.classifyPaymentFailed()
+                : CompensationDecisionClassifier.classify(command.failureExceptionClass(), command.failureMessage());
 
         SagaCompensationView saved = sagaCompensationPort.insertManual(
                 command,
@@ -85,6 +93,12 @@ public class SagaCompensationApplicationService {
             refundRequestedOutboxPort.enqueue(new RefundRequestedEvent(saved.eventId(), saved.paymentId(), saved.orderId(),
                     saved.userId(), saved.classificationReason(), Instant.now()));
             log.info("Enqueued refund.requested outbox event compensationEventId={} paymentId={}", saved.eventId(), saved.paymentId());
+        }
+        if (saved.recommendedAction() == CompensationRecommendedAction.RELEASE_INVENTORY) {
+            inventoryReleaseRequestedOutboxPort.enqueue(new InventoryReleaseRequestedEvent(
+                    saved.eventId(), saved.orderId(), saved.classificationReason(), Instant.now()));
+            log.info("Enqueued inventory.release.requested outbox event compensationEventId={} orderId={}",
+                    saved.eventId(), saved.orderId());
         }
 
         compensationObservationPort.recordManualCompensation(saved);

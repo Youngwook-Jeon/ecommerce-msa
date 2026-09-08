@@ -7,6 +7,7 @@ import com.project.young.productservice.application.dto.command.ReserveInventory
 import com.project.young.productservice.application.dto.result.ReserveInventoryResult;
 import com.project.young.productservice.application.port.output.IdGenerator;
 import com.project.young.productservice.application.port.output.InventoryVariantStockPort;
+import com.project.young.productservice.application.port.output.InventoryReleaseCompensationPort;
 import com.project.young.productservice.application.port.output.InventoryVariantStockPort.VariantStockSnapshot;
 import com.project.young.productservice.application.support.InventoryReservationTxExecutor;
 import com.project.young.productservice.domain.entity.InventoryReservation;
@@ -38,7 +39,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -65,6 +65,9 @@ class InventoryReservationApplicationServiceTest {
     @Mock
     private InventoryReservationTxExecutor txExecutor;
 
+    @Mock
+    private InventoryReleaseCompensationPort inventoryReleaseCompensationPort;
+
     private InventoryReservationProperties properties;
     private InventoryReservationApplicationService service;
 
@@ -79,7 +82,8 @@ class InventoryReservationApplicationServiceTest {
                 inventoryVariantStockPort,
                 idGenerator,
                 properties,
-                txExecutor
+                txExecutor,
+                inventoryReleaseCompensationPort
         );
 
         // Shared tx wiring: reserve uses execute*, confirm uses run*; other tests use neither.
@@ -115,6 +119,20 @@ class InventoryReservationApplicationServiceTest {
         inOrder.verify(inventoryVariantStockPort).touchVersions(any());
         inOrder.verify(inventoryVariantStockPort).findOrderedByIds(any());
         inOrder.verify(inventoryReservationRepository).insertAll(any());
+    }
+
+    @Test
+    @DisplayName("release compensation: 이미 사라진 soft-hold도 성공 이력으로 종결한다")
+    void releaseForCompensation_recordsProcessedWhenReservationIsAlreadyAbsent() {
+        UUID compensationEventId = UUID.randomUUID();
+        when(inventoryReleaseCompensationPort.isProcessed(compensationEventId)).thenReturn(false);
+        when(inventoryReservationRepository.findByCheckoutId(new CheckoutId(CHECKOUT_ID))).thenReturn(List.of());
+        when(inventoryReleaseCompensationPort.recordProcessed(compensationEventId, CHECKOUT_ID)).thenReturn(true);
+
+        boolean newlyProcessed = service.releaseForCompensation(compensationEventId, CHECKOUT_ID);
+
+        assertThat(newlyProcessed).isTrue();
+        verify(inventoryReleaseCompensationPort).recordProcessed(compensationEventId, CHECKOUT_ID);
     }
 
     @Test

@@ -5,6 +5,8 @@ import com.project.young.orderservice.application.compensation.CompensationRecom
 import com.project.young.orderservice.application.compensation.CompensationRefundSla;
 import com.project.young.orderservice.application.dto.compensation.SagaCompensationView;
 import com.project.young.orderservice.application.port.output.PaymentRefundCompensationStatusPort;
+import com.project.young.orderservice.application.port.output.InventoryReleaseCompensationStatusPort;
+import com.project.young.orderservice.application.port.output.InventoryReleaseRequestedOutboxPort;
 import com.project.young.orderservice.application.port.output.RefundRequestedOutboxPort;
 import com.project.young.orderservice.application.port.output.SagaCompensationPort;
 import org.junit.jupiter.api.Test;
@@ -72,15 +74,53 @@ class SagaCompensationExecutorTest {
         verify(compensations, never()).updateHandlingStatus(eventId, CompensationHandlingStatus.REFUNDED);
     }
 
+    @Test
+    void closesInventoryReleaseAfterProductServiceProcessesCdcEvent() {
+        SagaCompensationPort compensations = mock(SagaCompensationPort.class);
+        RefundRequestedOutboxPort refundOutbox = mock(RefundRequestedOutboxPort.class);
+        PaymentRefundCompensationStatusPort paymentStatus = mock(PaymentRefundCompensationStatusPort.class);
+        InventoryReleaseRequestedOutboxPort releaseOutbox = mock(InventoryReleaseRequestedOutboxPort.class);
+        InventoryReleaseCompensationStatusPort inventoryStatus = mock(InventoryReleaseCompensationStatusPort.class);
+        UUID eventId = UUID.randomUUID();
+        when(compensations.findByHandlingStatus(CompensationHandlingStatus.MANUAL, 100))
+                .thenReturn(List.of(view(eventId, null, CompensationRecommendedAction.RELEASE_INVENTORY)));
+        when(releaseOutbox.existsByCompensationEventId(eventId)).thenReturn(true);
+        when(inventoryStatus.isProcessed(eventId)).thenReturn(true);
+
+        reconciler(compensations, refundOutbox, paymentStatus, releaseOutbox, inventoryStatus)
+                .reconcilePendingCompensations();
+
+        verify(compensations).updateHandlingStatus(eventId, CompensationHandlingStatus.CLOSED);
+        verify(paymentStatus, never()).isProcessed(eventId);
+    }
+
     private static SagaCompensationExecutor reconciler(
             SagaCompensationPort compensations,
             RefundRequestedOutboxPort outbox,
             PaymentRefundCompensationStatusPort paymentStatus
     ) {
+        return reconciler(
+                compensations,
+                outbox,
+                paymentStatus,
+                mock(InventoryReleaseRequestedOutboxPort.class),
+                mock(InventoryReleaseCompensationStatusPort.class)
+        );
+    }
+
+    private static SagaCompensationExecutor reconciler(
+            SagaCompensationPort compensations,
+            RefundRequestedOutboxPort outbox,
+            PaymentRefundCompensationStatusPort paymentStatus,
+            InventoryReleaseRequestedOutboxPort releaseOutbox,
+            InventoryReleaseCompensationStatusPort inventoryStatus
+    ) {
         return new SagaCompensationExecutor(
                 compensations,
                 outbox,
                 paymentStatus,
+                releaseOutbox,
+                inventoryStatus,
                 Clock.fixed(Instant.parse("2026-09-07T00:10:00Z"), ZoneOffset.UTC),
                 1_000L
         );

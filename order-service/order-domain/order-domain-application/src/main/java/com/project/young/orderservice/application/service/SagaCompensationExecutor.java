@@ -4,6 +4,8 @@ import com.project.young.orderservice.application.compensation.CompensationHandl
 import com.project.young.orderservice.application.compensation.CompensationRecommendedAction;
 import com.project.young.orderservice.application.dto.compensation.SagaCompensationView;
 import com.project.young.orderservice.application.port.output.PaymentRefundCompensationStatusPort;
+import com.project.young.orderservice.application.port.output.InventoryReleaseCompensationStatusPort;
+import com.project.young.orderservice.application.port.output.InventoryReleaseRequestedOutboxPort;
 import com.project.young.orderservice.application.port.output.RefundRequestedOutboxPort;
 import com.project.young.orderservice.application.port.output.SagaCompensationPort;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,7 +18,7 @@ import java.time.Clock;
 import java.time.Duration;
 
 /**
- * Reconciles durable refund compensations; execution belongs to the CDC consumer in Payment Service.
+ * Reconciles durable saga compensations; execution belongs to the corresponding CDC consumer service.
  */
 @Component
 public class SagaCompensationExecutor {
@@ -26,6 +28,8 @@ public class SagaCompensationExecutor {
     private final SagaCompensationPort sagaCompensationPort;
     private final RefundRequestedOutboxPort refundRequestedOutboxPort;
     private final PaymentRefundCompensationStatusPort paymentRefundCompensationStatusPort;
+    private final InventoryReleaseRequestedOutboxPort inventoryReleaseRequestedOutboxPort;
+    private final InventoryReleaseCompensationStatusPort inventoryReleaseCompensationStatusPort;
     private final Clock clock;
     private final long reconciliationGracePeriodMs;
 
@@ -33,6 +37,8 @@ public class SagaCompensationExecutor {
             SagaCompensationPort sagaCompensationPort,
             RefundRequestedOutboxPort refundRequestedOutboxPort,
             PaymentRefundCompensationStatusPort paymentRefundCompensationStatusPort,
+            InventoryReleaseRequestedOutboxPort inventoryReleaseRequestedOutboxPort,
+            InventoryReleaseCompensationStatusPort inventoryReleaseCompensationStatusPort,
             Clock clock,
             @Value("${order-service.saga-events.compensation.reconciliation.grace-period-ms:300000}")
             long reconciliationGracePeriodMs
@@ -40,6 +46,8 @@ public class SagaCompensationExecutor {
         this.sagaCompensationPort = sagaCompensationPort;
         this.refundRequestedOutboxPort = refundRequestedOutboxPort;
         this.paymentRefundCompensationStatusPort = paymentRefundCompensationStatusPort;
+        this.inventoryReleaseRequestedOutboxPort = inventoryReleaseRequestedOutboxPort;
+        this.inventoryReleaseCompensationStatusPort = inventoryReleaseCompensationStatusPort;
         this.clock = clock;
         this.reconciliationGracePeriodMs = reconciliationGracePeriodMs;
     }
@@ -66,6 +74,10 @@ public class SagaCompensationExecutor {
     }
 
     private void reconcile(SagaCompensationView item) {
+        if (item.recommendedAction() == CompensationRecommendedAction.RELEASE_INVENTORY) {
+            reconcileInventoryRelease(item);
+            return;
+        }
         if (item.recommendedAction() != CompensationRecommendedAction.REFUND) {
             log.debug(
                     "Leaving non-refund compensation for manual handling eventId={} action={}",
@@ -112,6 +124,37 @@ public class SagaCompensationExecutor {
                     item.paymentId(),
                     ageMs
             );
+        }
+    }
+
+    private void reconcileInventoryRelease(SagaCompensationView item) {
+        if (!inventoryReleaseRequestedOutboxPort.existsByCompensationEventId(item.eventId())) {
+            log.error(
+                    "Inventory-release reconciliation found missing transactional outbox eventId={} orderId={}",
+                    item.eventId(), item.orderId());
+            return;
+        }
+        if (inventoryReleaseCompensationStatusPort.isProcessed(item.eventId())) {
+            sagaCompensationPort.updateHandlingStatus(item.eventId(), CompensationHandlingStatus.CLOSED);
+            log.info(
+                    "Inventory-release reconciliation confirmed Product Service processing eventId={} orderId={}",
+                    item.eventId(), item.orderId());
+            return;
+        }
+
+        logPendingCdcProcessing("Inventory release", item);
+    }
+
+    private void logPendingCdcProcessing(String compensationType, SagaCompensationView item) {
+        long ageMs = Math.max(0, Duration.between(item.createdAt(), clock.instant()).toMillis());
+        if (ageMs >= reconciliationGracePeriodMs) {
+            log.warn(
+                    "{} CDC processing is still missing after grace period eventId={} orderId={} ageMs={}",
+                    compensationType, item.eventId(), item.orderId(), ageMs);
+        } else {
+            log.debug(
+                    "{} CDC processing is pending eventId={} orderId={} ageMs={}",
+                    compensationType, item.eventId(), item.orderId(), ageMs);
         }
     }
 }

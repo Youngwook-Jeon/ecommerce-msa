@@ -1,0 +1,33 @@
+{
+  "name": "inventory-release-requested-outbox-connector",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "eco-postgres",
+    "database.port": "5432",
+    "database.user": "debezium",
+    "database.password": "debezium",
+    "database.dbname": "ecodb_order",
+    "topic.prefix": "cdc.ecodb_order",
+    "schema.include.list": "orders",
+    "table.include.list": "orders.inventory_release_requested_outbox",
+    "plugin.name": "pgoutput",
+    "slot.name": "inventory_release_requested_outbox_slot",
+    "publication.name": "dbz_order_outbox_pub",
+    "publication.autocreate.mode": "disabled",
+    "snapshot.mode": "no_data",
+    "skipped.operations": "u,d,t",
+    "heartbeat.interval.ms": "10000",
+    "time.precision.mode": "adaptive_time_microseconds",
+    "message.key.columns": "orders.inventory_release_requested_outbox:order_id",
+    "transforms": "route,unwrap",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": ".*inventory_release_requested_outbox",
+    "transforms.route.replacement": "inventory.release.requested",
+    "transforms.unwrap.type": "io.debezium.transforms.ExtractNewRecordState",
+    "transforms.unwrap.drop.tombstones": "true",
+    "key.converter": "org.apache.kafka.connect.storage.StringConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable": "false"
+  }
+}

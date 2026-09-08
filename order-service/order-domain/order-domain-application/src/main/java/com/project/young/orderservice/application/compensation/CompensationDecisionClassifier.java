@@ -71,6 +71,15 @@ public final class CompensationDecisionClassifier {
         );
     }
 
+    /** A payment.failed DLT represents a failed order-cancellation/release step, never money capture. */
+    public static CompensationDecision classifyPaymentFailed() {
+        return new CompensationDecision(
+                CompensationRecommendedAction.RELEASE_INVENTORY,
+                CompensationRefundSla.NONE,
+                "payment_failed_inventory_release_required"
+        );
+    }
+
     private static boolean looksLikeInventoryExpiry(String lowerMessage) {
         return lowerMessage.contains("expir")
                 || (lowerMessage.contains("reservation") && lowerMessage.contains("not found"))

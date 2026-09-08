@@ -10,6 +10,19 @@ product-service:
     expire-batch-size: 100
     expire-fixed-delay-ms: 30000
     max-optimistic-attempts: 3
+  saga-events:
+    enabled: true
+    inventory-release-requested-topic: inventory.release.requested
+    inventory-release-requested-consumer-group: product-service-inventory-release-requested
+    inventory-release-requested-dlt-topic: inventory.release.requested.DLT
+    inventory-release-requested-dlt-consumer-group: product-service-inventory-release-requested-dlt
+    inventory-release:
+      consumer:
+        retry:
+          max-attempts: ${PRODUCT_INVENTORY_RELEASE_RETRY_MAX_ATTEMPTS:3}
+          backoff-interval-ms: ${PRODUCT_INVENTORY_RELEASE_RETRY_BACKOFF_MS:1000}
+        dlt:
+          topic-suffix: ${PRODUCT_INVENTORY_RELEASE_DLT_SUFFIX:.DLT}
   storefront-cache:
     enabled: true
     key-prefix: "ecomart:product:storefront:"

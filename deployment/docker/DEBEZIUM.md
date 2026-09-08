@@ -191,6 +191,7 @@ Order Service의 outbox INSERT를 Debezium이 캡처합니다.
 |-----------|--------------|------|-------|-----|
 | `order-created-outbox-connector` | `orders.order_outbox` | `order_created_outbox_slot` | `order.created` | `order_id` |
 | `payment-refund-requested-outbox-connector` | `orders.refund_requested_outbox` | `payment_refund_requested_outbox_slot` | `payment.refund.requested` | `payment_id` |
+| `inventory-release-requested-outbox-connector` | `orders.inventory_release_requested_outbox` | `inventory_release_requested_outbox_slot` | `inventory.release.requested` | `order_id` |
 
 - **DB:** `ecodb_order`, schema `orders`
 - **Publication:** `dbz_order_outbox_pub` (`grant-debezium-order-outbox.sh`) — 두 outbox 테이블을 포함합니다.
@@ -205,6 +206,17 @@ Order Service의 스케줄러는 환불 HTTP를 호출하지 않습니다. `MANU
 outbox 존재 여부와 이 Payment-side 처리 이력을 조회해, 처리 확인 시 `REFUNDED`로 갱신합니다.
 grace period 이후에도 이력이 없으면 CDC relay 또는 consumer 누락으로 `WARN`을 남겨 운영자가
 connector, Kafka consumer group, DLT를 점검할 수 있게 합니다.
+
+`payment.failed.DLT`는 이미 결제 실패 후 재고 release가 남은 경우이므로 환불로 분류하지 않습니다.
+Order Service는 `inventory.release.requested` outbox를 적재하고, Product Service consumer가 `order_id`
+기준으로 idempotent한 soft-hold release를 수행합니다. Product Service는 성공 결과를
+`inventory_release_compensations`에 `compensation_event_id`로 저장하고, Order Service reconciliation은
+그 이력을 확인한 뒤 해당 `RELEASE_INVENTORY` 보상을 `CLOSED`로 종결합니다.
+
+Product Service의 `inventory.release.requested` consumer는 일시 실패를 설정된 횟수만큼 재시도한 뒤
+`inventory.release.requested.DLT`로 보냅니다. DLT consumer는 원본 topic/partition/offset과 예외 정보를
+`inventory_release_compensation_dlts`에 멱등 저장하고 ack하므로, 운영자는 해당 레코드를 기준으로
+수동 조사 및 replay를 수행할 수 있습니다.
 
 ## 로컬 기동 순서
 
