@@ -11,6 +11,7 @@ import com.project.young.paymentservice.application.port.output.PaymentOutboxPor
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort.ProviderPaymentSession;
 import com.project.young.paymentservice.application.port.output.ProviderEventIdempotencyPort;
+import com.project.young.paymentservice.application.port.output.ProviderSessionRequestPort;
 import com.project.young.paymentservice.application.port.output.RefundCompensationPort;
 import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.exception.PaymentClientSecretNotReadyException;
@@ -46,6 +47,7 @@ public class PaymentApplicationService {
     private final PaymentProviderPort paymentProviderPort;
     private final ProviderEventIdempotencyPort providerEventIdempotencyPort;
     private final RefundCompensationPort refundCompensationPort;
+    private final ProviderSessionRequestPort providerSessionRequestPort;
     private final IdGenerator idGenerator;
     private final Clock clock;
 
@@ -55,6 +57,7 @@ public class PaymentApplicationService {
             PaymentProviderPort paymentProviderPort,
             ProviderEventIdempotencyPort providerEventIdempotencyPort,
             RefundCompensationPort refundCompensationPort,
+            ProviderSessionRequestPort providerSessionRequestPort,
             IdGenerator idGenerator,
             Clock clock
     ) {
@@ -63,6 +66,7 @@ public class PaymentApplicationService {
         this.paymentProviderPort = paymentProviderPort;
         this.providerEventIdempotencyPort = providerEventIdempotencyPort;
         this.refundCompensationPort = refundCompensationPort;
+        this.providerSessionRequestPort = providerSessionRequestPort;
         this.idGenerator = idGenerator;
         this.clock = clock;
     }
@@ -83,8 +87,8 @@ public class PaymentApplicationService {
                 );
                 return payment;
             }
-            log.info("Resuming pending payment {} for order {}", payment.getId().getValue(), orderId.getValue());
-            return ensureProviderSessionAndMaybeSettle(payment, false);
+            providerSessionRequestPort.enqueue(payment.getId().getValue());
+            return payment;
         }
 
         PaymentId paymentId = new PaymentId(idGenerator.generateId());
@@ -95,7 +99,18 @@ public class PaymentApplicationService {
                 command.amount(),
                 command.currency()
         );
-        return ensureProviderSessionAndMaybeSettle(payment, true);
+        paymentRepository.insert(payment);
+        providerSessionRequestPort.enqueue(payment.getId().getValue());
+        log.info("Created pending payment {} and provider-session request for order {}", paymentId.getValue(), orderId.getValue());
+        return payment;
+    }
+
+    @Transactional
+    public Payment createProviderSession(UUID paymentIdValue) {
+        Payment payment = paymentRepository.findById(new PaymentId(paymentIdValue))
+                .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + paymentIdValue));
+        if (payment.getStatus().isTerminal() || payment.hasProviderSession()) return payment;
+        return ensureProviderSessionAndMaybeSettle(payment);
     }
 
     /**
@@ -274,7 +289,7 @@ public class PaymentApplicationService {
         return refundCompensationPort.isProcessed(compensationEventId);
     }
 
-    private Payment ensureProviderSessionAndMaybeSettle(Payment payment, boolean isNew) {
+    private Payment ensureProviderSessionAndMaybeSettle(Payment payment) {
         if (payment.hasProviderSession()) {
             log.info(
                     "Payment {} already has provider session (provider={}, providerPaymentId={}); awaiting confirmation",
@@ -291,17 +306,7 @@ public class PaymentApplicationService {
                 session.providerPaymentId(),
                 session.clientSecret()
         );
-        if (isNew) {
-            paymentRepository.insert(payment);
-            log.info(
-                    "Created pending payment {} for order {} with provider {}",
-                    payment.getId().getValue(),
-                    payment.getOrderId().getValue(),
-                    session.provider()
-            );
-        } else {
-            paymentRepository.updateProviderSession(payment);
-        }
+        paymentRepository.updateProviderSession(payment);
         return maybeSettle(payment, session);
     }
 

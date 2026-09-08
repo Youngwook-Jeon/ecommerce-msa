@@ -46,7 +46,11 @@ public class StripePaymentProvider implements PaymentProviderPort {
                     )
                     .build();
 
-            PaymentIntent intent = PaymentIntent.create(params);
+            String idempotencyKey = "payment-intent:" + payment.getId().getValue();
+            PaymentIntent intent = PaymentIntent.create(
+                    params,
+                    RequestOptions.builder().setIdempotencyKey(idempotencyKey).build()
+            );
             if (intent.getClientSecret() == null || intent.getClientSecret().isBlank()) {
                 throw new PaymentDomainException("Stripe PaymentIntent returned empty client_secret");
             }

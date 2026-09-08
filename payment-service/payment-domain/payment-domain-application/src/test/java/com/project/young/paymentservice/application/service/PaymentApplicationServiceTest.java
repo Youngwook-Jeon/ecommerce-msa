@@ -12,6 +12,7 @@ import com.project.young.paymentservice.application.port.output.PaymentOutboxPor
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort.ProviderPaymentSession;
 import com.project.young.paymentservice.application.port.output.ProviderEventIdempotencyPort;
+import com.project.young.paymentservice.application.port.output.ProviderSessionRequestPort;
 import com.project.young.paymentservice.application.port.output.RefundCompensationPort;
 import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.exception.PaymentDomainException;
@@ -74,6 +75,9 @@ class PaymentApplicationServiceTest {
     private RefundCompensationPort refundCompensationPort;
 
     @Mock
+    private ProviderSessionRequestPort providerSessionRequestPort;
+
+    @Mock
     private IdGenerator idGenerator;
 
     private PaymentApplicationService paymentApplicationService;
@@ -86,6 +90,7 @@ class PaymentApplicationServiceTest {
                 paymentProviderPort,
                 providerEventIdempotencyPort,
                 refundCompensationPort,
+                providerSessionRequestPort,
                 idGenerator,
                 Clock.fixed(FIXED_NOW, ZoneOffset.UTC)
         );
@@ -110,10 +115,16 @@ class PaymentApplicationServiceTest {
                 new ProcessPaymentCommand(ORDER_ID, USER_ID, AMOUNT, "USD")
         );
 
-        assertThat(result.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
-        assertThat(result.getClientSecret()).startsWith("stub_secret_");
-        assertThat(result.getProvider()).isEqualTo(PaymentProvider.STUB);
+        assertThat(result.getStatus()).isEqualTo(PaymentStatus.PENDING);
         verify(paymentRepository).insert(any(Payment.class));
+        verify(providerSessionRequestPort).enqueue(PAYMENT_ID);
+        when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(result));
+
+        Payment settled = paymentApplicationService.createProviderSession(PAYMENT_ID);
+
+        assertThat(settled.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+        assertThat(settled.getClientSecret()).startsWith("stub_secret_");
+        assertThat(settled.getProvider()).isEqualTo(PaymentProvider.STUB);
 
         ArgumentCaptor<PaymentCompletedEvent> captor = ArgumentCaptor.forClass(PaymentCompletedEvent.class);
         verify(paymentOutboxPort).enqueueCompleted(captor.capture());
@@ -141,8 +152,11 @@ class PaymentApplicationServiceTest {
                 new ProcessPaymentCommand(ORDER_ID, USER_ID, AMOUNT, "USD")
         );
 
-        assertThat(result.getStatus()).isEqualTo(PaymentStatus.FAILED);
-        assertThat(result.getFailureReason()).isEqualTo("card declined");
+        assertThat(result.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(result));
+        Payment settled = paymentApplicationService.createProviderSession(PAYMENT_ID);
+        assertThat(settled.getStatus()).isEqualTo(PaymentStatus.FAILED);
+        assertThat(settled.getFailureReason()).isEqualTo("card declined");
 
         ArgumentCaptor<PaymentFailedEvent> captor = ArgumentCaptor.forClass(PaymentFailedEvent.class);
         verify(paymentOutboxPort).enqueueFailed(captor.capture());
@@ -167,9 +181,13 @@ class PaymentApplicationServiceTest {
         );
 
         assertThat(result.getStatus()).isEqualTo(PaymentStatus.PENDING);
-        assertThat(result.getClientSecret()).isEqualTo("pi_123_secret_abc");
-        assertThat(result.getProviderPaymentId()).isEqualTo("pi_123");
+        assertThat(result.getClientSecret()).isNull();
         verify(paymentRepository).insert(any(Payment.class));
+        verify(providerSessionRequestPort).enqueue(PAYMENT_ID);
+        when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(result));
+        Payment withSession = paymentApplicationService.createProviderSession(PAYMENT_ID);
+        assertThat(withSession.getClientSecret()).isEqualTo("pi_123_secret_abc");
+        assertThat(withSession.getProviderPaymentId()).isEqualTo("pi_123");
         verify(paymentRepository, never()).updateStatus(any(), any());
         verify(paymentOutboxPort, never()).enqueueCompleted(any());
         verify(paymentOutboxPort, never()).enqueueFailed(any());
@@ -247,9 +265,9 @@ class PaymentApplicationServiceTest {
         );
         when(paymentRepository.updateStatus(any(Payment.class), eq(PaymentStatus.PENDING))).thenReturn(false);
 
-        assertThatThrownBy(() -> paymentApplicationService.processPayment(
-                new ProcessPaymentCommand(ORDER_ID, USER_ID, AMOUNT, "USD")
-        ))
+        Payment pending = paymentApplicationService.processPayment(new ProcessPaymentCommand(ORDER_ID, USER_ID, AMOUNT, "USD"));
+        when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(pending));
+        assertThatThrownBy(() -> paymentApplicationService.createProviderSession(PAYMENT_ID))
                 .isInstanceOf(PaymentStateConflictException.class);
     }
 

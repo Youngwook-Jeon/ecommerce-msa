@@ -33,6 +33,10 @@ payment-service:
       fixed-delay-ms: ${PAYMENT_REFUND_DLT_REPLAY_DELAY_MS:30000}
       lease-ms: ${PAYMENT_REFUND_DLT_REPLAY_LEASE_MS:300000}
       max-attempts: ${PAYMENT_REFUND_DLT_REPLAY_MAX_ATTEMPTS:5}
+  provider-session-request:
+    fixed-delay-ms: ${PAYMENT_PROVIDER_SESSION_REQUEST_DELAY_MS:1000}
+    lease-ms: ${PAYMENT_PROVIDER_SESSION_REQUEST_LEASE_MS:300000}
+    max-attempts: ${PAYMENT_PROVIDER_SESSION_REQUEST_MAX_ATTEMPTS:5}
 
 kafka-config:
   bootstrap-servers: localhost:19092, localhost:29092, localhost:39092
