@@ -6,8 +6,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,6 +18,21 @@ public interface PaymentJpaRepository extends JpaRepository<PaymentEntity, UUID>
     Optional<PaymentEntity> findByOrderId(UUID orderId);
 
     Optional<PaymentEntity> findByProviderAndProviderPaymentId(String provider, String providerPaymentId);
+
+    @Query("""
+            select p from PaymentEntity p
+             where p.status = :status
+               and p.provider is not null
+               and p.providerPaymentId is not null
+               and p.clientSecret is not null
+               and p.updatedAt < :threshold
+             order by p.updatedAt asc
+            """)
+    List<PaymentEntity> findPendingWithProviderSessionUpdatedBefore(
+            @Param("status") PaymentStatusEntity status,
+            @Param("threshold") Instant threshold,
+            Pageable pageable
+    );
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""

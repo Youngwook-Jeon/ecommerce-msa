@@ -1,6 +1,8 @@
 package com.project.young.paymentservice.adapter.stripe;
 
 import com.project.young.common.domain.valueobject.Money;
+import com.project.young.paymentservice.application.provider.ProviderPaymentResultOutcome;
+import com.stripe.model.PaymentIntent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -8,6 +10,8 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class StripePaymentProviderTest {
 
@@ -33,5 +37,24 @@ class StripePaymentProviderTest {
         assertThatThrownBy(() ->
                 StripePaymentProvider.toMinorUnits(new Money(new BigDecimal("10")), "ZZZ")
         ).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("toTerminalResult: succeeded와 canceled만 최종 결과로 반환한다")
+    void toTerminalResult_mapsOnlyTerminalStripeStatuses() {
+        PaymentIntent succeeded = mock(PaymentIntent.class);
+        PaymentIntent canceled = mock(PaymentIntent.class);
+        PaymentIntent pending = mock(PaymentIntent.class);
+        when(succeeded.getStatus()).thenReturn("succeeded");
+        when(canceled.getStatus()).thenReturn("canceled");
+        when(pending.getStatus()).thenReturn("requires_action");
+
+        assertThat(StripePaymentProvider.toTerminalResult(succeeded))
+                .hasValueSatisfying(result -> assertThat(result.outcome())
+                        .isEqualTo(ProviderPaymentResultOutcome.SUCCEEDED));
+        assertThat(StripePaymentProvider.toTerminalResult(canceled))
+                .hasValueSatisfying(result -> assertThat(result.outcome())
+                        .isEqualTo(ProviderPaymentResultOutcome.FINAL_FAILED));
+        assertThat(StripePaymentProvider.toTerminalResult(pending)).isEmpty();
     }
 }

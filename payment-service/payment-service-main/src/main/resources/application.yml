@@ -43,6 +43,9 @@ payment-service:
     max-attempts: ${PAYMENT_PROVIDER_WEBHOOK_INBOX_MAX_ATTEMPTS:20}
     initial-retry-delay-ms: ${PAYMENT_PROVIDER_WEBHOOK_INBOX_INITIAL_RETRY_DELAY_MS:5000}
     max-retry-delay-ms: ${PAYMENT_PROVIDER_WEBHOOK_INBOX_MAX_RETRY_DELAY_MS:300000}
+  provider-payment-reconciliation:
+    fixed-delay-ms: ${PAYMENT_PROVIDER_PAYMENT_RECONCILIATION_DELAY_MS:60000}
+    pending-age-ms: ${PAYMENT_PROVIDER_PAYMENT_RECONCILIATION_PENDING_AGE_MS:300000}
 
 kafka-config:
   bootstrap-servers: localhost:19092, localhost:29092, localhost:39092

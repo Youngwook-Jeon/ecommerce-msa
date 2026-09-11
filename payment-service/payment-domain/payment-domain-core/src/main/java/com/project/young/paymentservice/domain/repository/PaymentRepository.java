@@ -5,6 +5,8 @@ import com.project.young.paymentservice.domain.valueobject.OrderId;
 import com.project.young.paymentservice.domain.valueobject.PaymentId;
 import com.project.young.paymentservice.domain.valueobject.PaymentStatus;
 
+import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 public interface PaymentRepository {
@@ -27,4 +29,6 @@ public interface PaymentRepository {
     Optional<Payment> findByOrderId(OrderId orderId);
 
     Optional<Payment> findByProviderPaymentId(String provider, String providerPaymentId);
+
+    List<Payment> findPendingWithProviderSessionUpdatedBefore(Instant threshold, int limit);
 }

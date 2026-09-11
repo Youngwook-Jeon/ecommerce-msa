@@ -12,13 +12,17 @@ import com.project.young.paymentservice.domain.valueobject.PaymentStatus;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
 @Transactional(readOnly = true)
 public class PaymentRepositoryImpl implements PaymentRepository {
+
+    private static final int MAX_RECONCILIATION_BATCH_SIZE = 100;
 
     private final PaymentJpaRepository paymentJpaRepository;
     private final PaymentDataAccessMapper paymentDataAccessMapper;
@@ -120,5 +124,20 @@ public class PaymentRepositoryImpl implements PaymentRepository {
         }
         return paymentJpaRepository.findByProviderAndProviderPaymentId(provider, providerPaymentId)
                 .map(paymentAggregateMapper::toPayment);
+    }
+
+    @Override
+    public List<Payment> findPendingWithProviderSessionUpdatedBefore(Instant threshold, int limit) {
+        if (threshold == null) {
+            throw new IllegalArgumentException("threshold must not be null");
+        }
+        int pageSize = Math.clamp(limit, 1, MAX_RECONCILIATION_BATCH_SIZE);
+        return paymentJpaRepository.findPendingWithProviderSessionUpdatedBefore(
+                        paymentDataAccessMapper.toEntityStatus(PaymentStatus.PENDING),
+                        threshold,
+                        PageRequest.of(0, pageSize))
+                .stream()
+                .map(paymentAggregateMapper::toPayment)
+                .toList();
     }
 }

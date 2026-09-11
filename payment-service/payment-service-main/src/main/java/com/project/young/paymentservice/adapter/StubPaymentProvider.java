@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 /**
  * Local synchronous provider (default). Deterministic client secret for Elements/client-secret API tests.
@@ -60,6 +61,11 @@ public class StubPaymentProvider implements PaymentProviderPort {
     public void refund(Payment payment, String idempotencyKey) {
         // Local provider has no external balance; accepting the stable key models a successful refund.
         log.info("Accepted stub refund for payment {} with idempotency key {}", payment.getId().getValue(), idempotencyKey);
+    }
+
+    @Override
+    public Optional<ProviderPaymentResult> retrieveTerminalResult(Payment payment) {
+        return Optional.empty();
     }
 
     private static boolean matchesFractionalPart(Payment payment, String fractionalPart) {

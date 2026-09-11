@@ -18,6 +18,7 @@ import org.springframework.stereotype.Component;
 import java.math.RoundingMode;
 import java.util.Currency;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Creates Stripe PaymentIntents and returns an async session (client secret for Embedded Elements).
@@ -86,6 +87,41 @@ public class StripePaymentProvider implements PaymentProviderPort {
             log.warn("Stripe refund failed for payment {}", payment.getId().getValue(), ex);
             throw new PaymentDomainException("Failed to refund Stripe payment: " + ex.getMessage(), ex);
         }
+    }
+
+    @Override
+    public Optional<ProviderPaymentResult> retrieveTerminalResult(Payment payment) {
+        Objects.requireNonNull(payment, "payment must not be null");
+        if (payment.getProvider() != PaymentProvider.STRIPE || payment.getProviderPaymentId() == null) {
+            throw new PaymentDomainException("Stripe reconciliation requires a Stripe provider payment id");
+        }
+        try {
+            PaymentIntent intent = PaymentIntent.retrieve(payment.getProviderPaymentId());
+            Optional<ProviderPaymentResult> result = toTerminalResult(intent);
+            log.info(
+                    "Reconciled Stripe PaymentIntent paymentId={} providerPaymentId={} terminalOutcome={}",
+                    payment.getId().getValue(),
+                    payment.getProviderPaymentId(),
+                    result.map(value -> value.outcome().name()).orElse("PENDING")
+            );
+            return result;
+        } catch (PaymentDomainException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new PaymentDomainException(
+                    "Failed to retrieve Stripe PaymentIntent " + payment.getProviderPaymentId() + ": " + ex.getMessage(), ex);
+        }
+    }
+
+    static Optional<ProviderPaymentResult> toTerminalResult(PaymentIntent intent) {
+        if (intent == null || intent.getStatus() == null) {
+            return Optional.empty();
+        }
+        return switch (intent.getStatus()) {
+            case "succeeded" -> Optional.of(ProviderPaymentResult.succeeded());
+            case "canceled" -> Optional.of(ProviderPaymentResult.finalFailure("Stripe PaymentIntent was canceled"));
+            default -> Optional.empty();
+        };
     }
 
     static long toMinorUnits(Money money, String currencyCode) {

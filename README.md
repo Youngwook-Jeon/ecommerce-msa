@@ -273,6 +273,10 @@ Stripe 웹훅은 서명 검증 뒤 `provider_webhook_inbox`에 먼저 보관하�
 `PAYMENT_PROVIDER_WEBHOOK_INBOX_MAX_RETRY_DELAY_MS`, `PAYMENT_PROVIDER_WEBHOOK_INBOX_MAX_ATTEMPTS`로 조정한다.
 `payment_intent.payment_failed`는 재시도 가능한 결제 시도 실패로만 기록하며 주문 취소 이벤트를 만들지 않는다.
 최종 취소를 뜻하는 `payment_intent.canceled`만 `payment.failed`를 발행한다.
+웹훅이 아예 전달되지 않은 경우에도, provider session이 있는 오래된 `PENDING` Stripe PaymentIntent는 PSP 상태를
+주기적으로 조회해 같은 멱등 결제 완료·최종 실패 경로로 반영한다. 기본 조회 주기는 60초, 대상 최소 경과 시간은
+5분이며 `PAYMENT_PROVIDER_PAYMENT_RECONCILIATION_DELAY_MS`와
+`PAYMENT_PROVIDER_PAYMENT_RECONCILIATION_PENDING_AGE_MS`로 조정할 수 있다.
 
 운영자는 `ADMIN` 권한으로 `GET /admin/operations/provider-escalations?limit=100`을 호출해 자동 재시도 한도를
 초과한 provider session 요청과 webhook inbox 항목을 조회할 수 있다. 응답은 식별자, 시도 횟수, 마지막 실패 사유와
