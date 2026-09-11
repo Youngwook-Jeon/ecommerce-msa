@@ -1,8 +1,10 @@
 package com.project.young.paymentservice.application.port.output;
 
+import com.project.young.paymentservice.application.dto.query.ProviderSessionRequestEscalationView;
+
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import java.time.Instant;
 
 public interface ProviderSessionRequestPort {
 
@@ -19,4 +21,6 @@ public interface ProviderSessionRequestPort {
     int releaseExpiredProcessing(Instant threshold);
 
     boolean hasReachedAttemptLimit(UUID paymentId, int maxAttempts);
+
+    List<ProviderSessionRequestEscalationView> findEscalated(int limit);
 }

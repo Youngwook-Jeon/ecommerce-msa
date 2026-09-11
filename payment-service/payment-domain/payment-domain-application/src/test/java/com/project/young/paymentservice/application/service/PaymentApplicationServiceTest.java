@@ -293,8 +293,8 @@ class PaymentApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("applyProviderPaymentResult: 실패 웹훅이면 FAILED + outbox")
-    void applyProviderPaymentResult_whenFailure_fails() {
+    @DisplayName("applyProviderPaymentResult: 최종 실패 웹훅이면 FAILED + outbox")
+    void applyProviderPaymentResult_whenFinalFailure_fails() {
         Payment pending = pendingStripePayment();
         when(paymentRepository.findByProviderPaymentId("STRIPE", PROVIDER_PAYMENT_ID))
                 .thenReturn(Optional.of(pending));
@@ -305,7 +305,7 @@ class PaymentApplicationServiceTest {
         when(idGenerator.generateId()).thenReturn(OUTBOX_EVENT_ID);
 
         boolean applied = paymentApplicationService.applyProviderPaymentResult(
-                ApplyProviderPaymentResultCommand.failed(
+                ApplyProviderPaymentResultCommand.finalFailure(
                         EVENT_ID,
                         PaymentProvider.STRIPE,
                         PROVIDER_PAYMENT_ID,
@@ -316,6 +316,59 @@ class PaymentApplicationServiceTest {
         assertThat(applied).isTrue();
         assertThat(pending.getStatus()).isEqualTo(PaymentStatus.FAILED);
         verify(paymentOutboxPort).enqueueFailed(any(PaymentFailedEvent.class));
+    }
+
+    @Test
+    @DisplayName("applyProviderPaymentResult: 결제 시도 실패는 PENDING과 주문 실패 outbox를 유지한다")
+    void applyProviderPaymentResult_whenAttemptFailure_keepsPaymentPending() {
+        Payment pending = pendingStripePayment();
+        when(paymentRepository.findByProviderPaymentId("STRIPE", PROVIDER_PAYMENT_ID))
+                .thenReturn(Optional.of(pending));
+        when(providerEventIdempotencyPort.tryMarkProcessed(
+                EVENT_ID, PAYMENT_ID, "STRIPE", "PAYMENT_ATTEMPT_FAILED"
+        )).thenReturn(true);
+
+        boolean applied = paymentApplicationService.applyProviderPaymentResult(
+                ApplyProviderPaymentResultCommand.paymentAttemptFailed(
+                        EVENT_ID, PaymentProvider.STRIPE, PROVIDER_PAYMENT_ID, "card_declined")
+        );
+
+        assertThat(applied).isFalse();
+        assertThat(pending.getStatus()).isEqualTo(PaymentStatus.PENDING);
+        verify(paymentRepository, never()).updateStatus(any(), any());
+        verify(paymentOutboxPort, never()).enqueueFailed(any());
+    }
+
+    @Test
+    @DisplayName("applyProviderPaymentResult: 시도 실패 뒤 성공 웹훅은 결제를 완료한다")
+    void applyProviderPaymentResult_whenAttemptFailureThenSuccess_completesPayment() {
+        Payment pending = pendingStripePayment();
+        String attemptFailureEventId = "evt_attempt_failed";
+        String successEventId = "evt_succeeded";
+        when(paymentRepository.findByProviderPaymentId("STRIPE", PROVIDER_PAYMENT_ID))
+                .thenReturn(Optional.of(pending));
+        when(providerEventIdempotencyPort.tryMarkProcessed(
+                attemptFailureEventId, PAYMENT_ID, "STRIPE", "PAYMENT_ATTEMPT_FAILED"
+        )).thenReturn(true);
+        when(providerEventIdempotencyPort.tryMarkProcessed(
+                successEventId, PAYMENT_ID, "STRIPE", "PAYMENT_SUCCEEDED"
+        )).thenReturn(true);
+        when(paymentRepository.updateStatus(any(Payment.class), eq(PaymentStatus.PENDING))).thenReturn(true);
+        when(idGenerator.generateId()).thenReturn(OUTBOX_EVENT_ID);
+
+        paymentApplicationService.applyProviderPaymentResult(
+                ApplyProviderPaymentResultCommand.paymentAttemptFailed(
+                        attemptFailureEventId, PaymentProvider.STRIPE, PROVIDER_PAYMENT_ID, "card_declined")
+        );
+        boolean applied = paymentApplicationService.applyProviderPaymentResult(
+                ApplyProviderPaymentResultCommand.succeeded(
+                        successEventId, PaymentProvider.STRIPE, PROVIDER_PAYMENT_ID)
+        );
+
+        assertThat(applied).isTrue();
+        assertThat(pending.getStatus()).isEqualTo(PaymentStatus.COMPLETED);
+        verify(paymentOutboxPort).enqueueCompleted(any(PaymentCompletedEvent.class));
+        verify(paymentOutboxPort, never()).enqueueFailed(any());
     }
 
     @Test

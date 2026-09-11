@@ -267,6 +267,17 @@ make down
 
 이벤트 로그를 직접 보고 싶으면 `make stripe-listen`(포그라운드, 디버그용).
 
+Stripe 웹훅은 서명 검증 뒤 `provider_webhook_inbox`에 먼저 보관하고 2xx를 반환한다. 결제 세션이 아직
+영속되지 않은 이벤트는 지수 백오프로 재조정하며, 기본 20회 실패 후 `ESCALATED` 상태로 남는다. 필요하면
+`PAYMENT_PROVIDER_WEBHOOK_INBOX_DELAY_MS`, `PAYMENT_PROVIDER_WEBHOOK_INBOX_INITIAL_RETRY_DELAY_MS`,
+`PAYMENT_PROVIDER_WEBHOOK_INBOX_MAX_RETRY_DELAY_MS`, `PAYMENT_PROVIDER_WEBHOOK_INBOX_MAX_ATTEMPTS`로 조정한다.
+`payment_intent.payment_failed`는 재시도 가능한 결제 시도 실패로만 기록하며 주문 취소 이벤트를 만들지 않는다.
+최종 취소를 뜻하는 `payment_intent.canceled`만 `payment.failed`를 발행한다.
+
+운영자는 `ADMIN` 권한으로 `GET /admin/operations/provider-escalations?limit=100`을 호출해 자동 재시도 한도를
+초과한 provider session 요청과 webhook inbox 항목을 조회할 수 있다. 응답은 식별자, 시도 횟수, 마지막 실패 사유와
+시각만 포함하며 client secret 및 원본 웹훅 payload는 포함하지 않는다.
+
 ### Debezium
 
 Outbox CDC 상세는 [deployment/docker/DEBEZIUM.md](deployment/docker/DEBEZIUM.md).  

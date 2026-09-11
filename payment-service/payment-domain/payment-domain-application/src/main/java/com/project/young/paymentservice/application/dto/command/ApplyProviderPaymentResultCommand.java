@@ -1,6 +1,7 @@
 package com.project.young.paymentservice.application.dto.command;
 
 import com.project.young.paymentservice.domain.valueobject.PaymentProvider;
+import com.project.young.paymentservice.application.provider.ProviderPaymentResultOutcome;
 
 import java.util.Objects;
 
@@ -11,7 +12,7 @@ public record ApplyProviderPaymentResultCommand(
         String eventId,
         PaymentProvider provider,
         String providerPaymentId,
-        boolean success,
+        ProviderPaymentResultOutcome outcome,
         String failureReason
 ) {
     public ApplyProviderPaymentResultCommand {
@@ -20,15 +21,17 @@ public record ApplyProviderPaymentResultCommand(
             throw new IllegalArgumentException("eventId must not be blank");
         }
         Objects.requireNonNull(provider, "provider must not be null");
+        Objects.requireNonNull(outcome, "outcome must not be null");
         Objects.requireNonNull(providerPaymentId, "providerPaymentId must not be null");
         if (providerPaymentId.isBlank()) {
             throw new IllegalArgumentException("providerPaymentId must not be blank");
         }
-        if (!success && (failureReason == null || failureReason.isBlank())) {
-            throw new IllegalArgumentException("failureReason required when success is false");
+        if (outcome != ProviderPaymentResultOutcome.SUCCEEDED
+                && (failureReason == null || failureReason.isBlank())) {
+            throw new IllegalArgumentException("failureReason required for failed provider result");
         }
-        if (success && failureReason != null) {
-            throw new IllegalArgumentException("failureReason must be null when success is true");
+        if (outcome == ProviderPaymentResultOutcome.SUCCEEDED && failureReason != null) {
+            throw new IllegalArgumentException("failureReason must be null when provider result succeeded");
         }
     }
 
@@ -37,10 +40,11 @@ public record ApplyProviderPaymentResultCommand(
             PaymentProvider provider,
             String providerPaymentId
     ) {
-        return new ApplyProviderPaymentResultCommand(eventId, provider, providerPaymentId, true, null);
+        return new ApplyProviderPaymentResultCommand(
+                eventId, provider, providerPaymentId, ProviderPaymentResultOutcome.SUCCEEDED, null);
     }
 
-    public static ApplyProviderPaymentResultCommand failed(
+    public static ApplyProviderPaymentResultCommand paymentAttemptFailed(
             String eventId,
             PaymentProvider provider,
             String providerPaymentId,
@@ -50,8 +54,22 @@ public record ApplyProviderPaymentResultCommand(
                 eventId,
                 provider,
                 providerPaymentId,
-                false,
+                ProviderPaymentResultOutcome.ATTEMPT_FAILED,
                 failureReason
         );
+    }
+
+    public static ApplyProviderPaymentResultCommand finalFailure(
+            String eventId,
+            PaymentProvider provider,
+            String providerPaymentId,
+            String failureReason
+    ) {
+        return new ApplyProviderPaymentResultCommand(
+                eventId, provider, providerPaymentId, ProviderPaymentResultOutcome.FINAL_FAILED, failureReason);
+    }
+
+    public boolean success() {
+        return outcome == ProviderPaymentResultOutcome.SUCCEEDED;
     }
 }

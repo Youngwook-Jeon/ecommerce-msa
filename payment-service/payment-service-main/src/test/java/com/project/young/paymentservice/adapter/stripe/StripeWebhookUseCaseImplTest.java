@@ -2,7 +2,7 @@ package com.project.young.paymentservice.adapter.stripe;
 
 import com.project.young.paymentservice.application.dto.command.ApplyProviderPaymentResultCommand;
 import com.project.young.paymentservice.application.port.output.StripeWebhookPort;
-import com.project.young.paymentservice.application.service.PaymentApplicationService;
+import com.project.young.paymentservice.application.port.output.ProviderWebhookInboxPort;
 import com.project.young.paymentservice.domain.valueobject.PaymentProvider;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -25,34 +25,32 @@ class StripeWebhookUseCaseImplTest {
     private StripeWebhookPort stripeWebhookPort;
 
     @Mock
-    private PaymentApplicationService paymentApplicationService;
+    private ProviderWebhookInboxPort providerWebhookInboxPort;
 
     @InjectMocks
     private StripeWebhookUseCaseImpl useCase;
 
     @Test
-    @DisplayName("handle: 파싱 결과가 있으면 applyProviderPaymentResult 호출")
-    void handle_whenParsed_applies() {
+    @DisplayName("handle: 파싱 결과가 있으면 inbox에 영속 보관")
+    void handle_whenParsed_recordsInbox() {
         ApplyProviderPaymentResultCommand command = ApplyProviderPaymentResultCommand.succeeded(
                 "evt_1",
                 PaymentProvider.STRIPE,
                 "pi_1"
         );
         when(stripeWebhookPort.verifyAndParse("payload", "sig")).thenReturn(Optional.of(command));
-        when(paymentApplicationService.applyProviderPaymentResult(command)).thenReturn(true);
-
         useCase.handle("payload", "sig");
 
-        verify(paymentApplicationService).applyProviderPaymentResult(command);
+        verify(providerWebhookInboxPort).recordReceived(command);
     }
 
     @Test
-    @DisplayName("handle: 무시할 이벤트면 apply 하지 않음")
-    void handle_whenEmpty_skipsApply() {
+    @DisplayName("handle: 무시할 이벤트면 inbox에 보관하지 않음")
+    void handle_whenEmpty_skipsInbox() {
         when(stripeWebhookPort.verifyAndParse("payload", "sig")).thenReturn(Optional.empty());
 
         useCase.handle("payload", "sig");
 
-        verify(paymentApplicationService, never()).applyProviderPaymentResult(any());
+        verify(providerWebhookInboxPort, never()).recordReceived(any());
     }
 }

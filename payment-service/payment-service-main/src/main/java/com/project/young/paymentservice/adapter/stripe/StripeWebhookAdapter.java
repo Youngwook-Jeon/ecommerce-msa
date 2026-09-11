@@ -73,8 +73,16 @@ public class StripeWebhookAdapter implements StripeWebhookPort {
                             providerPaymentId
                     )
             );
-            case EVENT_PAYMENT_INTENT_PAYMENT_FAILED, EVENT_PAYMENT_INTENT_CANCELED -> Optional.of(
-                    ApplyProviderPaymentResultCommand.failed(
+            case EVENT_PAYMENT_INTENT_PAYMENT_FAILED -> Optional.of(
+                    ApplyProviderPaymentResultCommand.paymentAttemptFailed(
+                            event.getId(),
+                            PaymentProvider.STRIPE,
+                            providerPaymentId,
+                            failureReason(paymentIntent.get(), type)
+                    )
+            );
+            case EVENT_PAYMENT_INTENT_CANCELED -> Optional.of(
+                    ApplyProviderPaymentResultCommand.finalFailure(
                             event.getId(),
                             PaymentProvider.STRIPE,
                             providerPaymentId,

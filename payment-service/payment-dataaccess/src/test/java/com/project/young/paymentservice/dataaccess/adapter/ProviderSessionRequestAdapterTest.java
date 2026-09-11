@@ -1,6 +1,7 @@
 package com.project.young.paymentservice.dataaccess.adapter;
 
 import com.project.young.paymentservice.application.provider.ProviderSessionRequestStatus;
+import com.project.young.paymentservice.application.dto.query.ProviderSessionRequestEscalationView;
 import com.project.young.paymentservice.dataaccess.entity.ProviderSessionRequestEntity;
 import com.project.young.paymentservice.dataaccess.repository.ProviderSessionRequestJpaRepository;
 import org.junit.jupiter.api.Test;
@@ -44,6 +45,20 @@ class ProviderSessionRequestAdapterTest {
         adapter.enqueue(paymentId);
 
         verify(repository).enqueue(eq(paymentId), eq(ProviderSessionRequestStatus.PENDING.name()), any());
+    }
+
+    @Test
+    void findEscalated_returnsOnlyRequestedOperationalProjection() {
+        ProviderSessionRequestJpaRepository repository = mock(ProviderSessionRequestJpaRepository.class);
+        ProviderSessionRequestAdapter adapter = new ProviderSessionRequestAdapter(repository);
+        UUID paymentId = UUID.randomUUID();
+        when(repository.findTop100ByStatusOrderByUpdatedAt(ProviderSessionRequestStatus.ESCALATED))
+                .thenReturn(List.of(entity(paymentId)));
+
+        List<ProviderSessionRequestEscalationView> result = adapter.findEscalated(1);
+
+        assertThat(result).extracting(ProviderSessionRequestEscalationView::paymentId).containsExactly(paymentId);
+        verify(repository).findTop100ByStatusOrderByUpdatedAt(ProviderSessionRequestStatus.ESCALATED);
     }
 
     private static ProviderSessionRequestEntity entity(UUID paymentId) {

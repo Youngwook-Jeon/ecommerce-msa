@@ -141,7 +141,7 @@ public class PaymentApplicationService {
                 command.eventId(),
                 payment.getId().getValue(),
                 command.provider().name(),
-                command.success() ? "PAYMENT_SUCCEEDED" : "PAYMENT_FAILED"
+                command.outcome().providerEventType()
         );
         if (!firstTime) {
             log.debug("Provider event {} already processed; skipping", command.eventId());
@@ -180,6 +180,16 @@ public class PaymentApplicationService {
             return true;
         }
 
+        if (!command.outcome().isTerminal()) {
+            log.info(
+                    "Recorded non-terminal provider payment attempt failure paymentId={} eventId={} providerPaymentId={}",
+                    payment.getId().getValue(),
+                    command.eventId(),
+                    command.providerPaymentId()
+            );
+            return false;
+        }
+
         payment.fail(command.failureReason());
         assertStatusUpdated(payment, PaymentStatus.PENDING);
         paymentOutboxPort.enqueueFailed(new PaymentFailedEvent(
@@ -198,6 +208,15 @@ public class PaymentApplicationService {
                 command.failureReason()
         );
         return true;
+    }
+
+    @Transactional(readOnly = true)
+    public boolean hasProviderPayment(ApplyProviderPaymentResultCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
+        return paymentRepository.findByProviderPaymentId(
+                command.provider().name(),
+                command.providerPaymentId()
+        ).isPresent();
     }
 
     @Transactional(readOnly = true)

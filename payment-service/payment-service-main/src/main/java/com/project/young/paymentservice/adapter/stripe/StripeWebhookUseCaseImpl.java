@@ -1,8 +1,8 @@
 package com.project.young.paymentservice.adapter.stripe;
 
 import com.project.young.paymentservice.application.port.input.StripeWebhookUseCase;
+import com.project.young.paymentservice.application.port.output.ProviderWebhookInboxPort;
 import com.project.young.paymentservice.application.port.output.StripeWebhookPort;
-import com.project.young.paymentservice.application.service.PaymentApplicationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -18,14 +18,14 @@ public class StripeWebhookUseCaseImpl implements StripeWebhookUseCase {
     private static final Logger log = LoggerFactory.getLogger(StripeWebhookUseCaseImpl.class);
 
     private final StripeWebhookPort stripeWebhookPort;
-    private final PaymentApplicationService paymentApplicationService;
+    private final ProviderWebhookInboxPort providerWebhookInboxPort;
 
     public StripeWebhookUseCaseImpl(
             StripeWebhookPort stripeWebhookPort,
-            PaymentApplicationService paymentApplicationService
+            ProviderWebhookInboxPort providerWebhookInboxPort
     ) {
         this.stripeWebhookPort = stripeWebhookPort;
-        this.paymentApplicationService = paymentApplicationService;
+        this.providerWebhookInboxPort = providerWebhookInboxPort;
     }
 
     @Override
@@ -40,12 +40,11 @@ public class StripeWebhookUseCaseImpl implements StripeWebhookUseCase {
             return;
         }
 
-        boolean applied = paymentApplicationService.applyProviderPaymentResult(command.get());
+        providerWebhookInboxPort.recordReceived(command.get());
         log.info(
-                "Stripe webhook eventId={} providerPaymentId={} applied={}",
+                "Recorded verified Stripe webhook inbox eventId={} providerPaymentId={}",
                 command.get().eventId(),
-                command.get().providerPaymentId(),
-                applied
+                command.get().providerPaymentId()
         );
     }
 }

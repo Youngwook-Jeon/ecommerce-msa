@@ -2,6 +2,7 @@ package com.project.young.paymentservice.dataaccess.adapter;
 
 import com.project.young.paymentservice.application.port.output.ProviderSessionRequestPort;
 import com.project.young.paymentservice.application.provider.ProviderSessionRequestStatus;
+import com.project.young.paymentservice.application.dto.query.ProviderSessionRequestEscalationView;
 import com.project.young.paymentservice.dataaccess.entity.ProviderSessionRequestEntity;
 import com.project.young.paymentservice.dataaccess.repository.ProviderSessionRequestJpaRepository;
 import org.springframework.stereotype.Repository;
@@ -50,5 +51,20 @@ public class ProviderSessionRequestAdapter implements ProviderSessionRequestPort
 
     public boolean hasReachedAttemptLimit(UUID id, int maxAttempts) {
         return repository.findById(id).map(request -> request.getAttempts() >= maxAttempts).orElse(false);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProviderSessionRequestEscalationView> findEscalated(int limit) {
+        return repository.findTop100ByStatusOrderByUpdatedAt(ProviderSessionRequestStatus.ESCALATED).stream()
+                .limit(limit)
+                .map(request -> new ProviderSessionRequestEscalationView(
+                        request.getPaymentId(),
+                        request.getAttempts(),
+                        request.getFailureMessage(),
+                        request.getCreatedAt(),
+                        request.getUpdatedAt()
+                ))
+                .toList();
     }
 }

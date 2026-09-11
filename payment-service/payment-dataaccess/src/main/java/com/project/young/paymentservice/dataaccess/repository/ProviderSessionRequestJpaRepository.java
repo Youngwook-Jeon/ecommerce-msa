@@ -12,6 +12,8 @@ public interface ProviderSessionRequestJpaRepository extends JpaRepository<Provi
 
     List<ProviderSessionRequestEntity> findTop100ByStatusOrderByCreatedAt(ProviderSessionRequestStatus status);
 
+    List<ProviderSessionRequestEntity> findTop100ByStatusOrderByUpdatedAt(ProviderSessionRequestStatus status);
+
     @Modifying
     @Query(value = "INSERT INTO provider_session_requests (payment_id,status,created_at,updated_at) VALUES (:id,:status,:now,:now) ON CONFLICT (payment_id) DO NOTHING", nativeQuery = true)
     int enqueue(@Param("id") UUID id, @Param("status") String status, @Param("now") Instant now);

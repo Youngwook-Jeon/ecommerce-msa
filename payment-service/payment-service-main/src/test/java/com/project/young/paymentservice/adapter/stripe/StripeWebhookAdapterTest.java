@@ -2,6 +2,7 @@ package com.project.young.paymentservice.adapter.stripe;
 
 import com.project.young.paymentservice.application.dto.command.ApplyProviderPaymentResultCommand;
 import com.project.young.paymentservice.application.exception.InvalidStripeWebhookException;
+import com.project.young.paymentservice.application.provider.ProviderPaymentResultOutcome;
 import com.project.young.paymentservice.config.StripeProperties;
 import com.project.young.paymentservice.domain.valueobject.PaymentProvider;
 import com.stripe.model.Event;
@@ -51,7 +52,7 @@ class StripeWebhookAdapterTest {
     }
 
     @Test
-    @DisplayName("mapEvent: payment_intent.payment_failed → failure command")
+    @DisplayName("mapEvent: payment_intent.payment_failed → non-terminal attempt failure command")
     void mapEvent_paymentFailed() {
         StripeError error = mock(StripeError.class);
         when(error.getMessage()).thenReturn("Your card was declined.");
@@ -62,11 +63,12 @@ class StripeWebhookAdapterTest {
 
         assertThat(command).isPresent();
         assertThat(command.get().success()).isFalse();
+        assertThat(command.get().outcome()).isEqualTo(ProviderPaymentResultOutcome.ATTEMPT_FAILED);
         assertThat(command.get().failureReason()).isEqualTo("Your card was declined.");
     }
 
     @Test
-    @DisplayName("mapEvent: payment_intent.canceled → failure command")
+    @DisplayName("mapEvent: payment_intent.canceled → final failure command")
     void mapEvent_canceled() {
         when(paymentIntent.getLastPaymentError()).thenReturn(null);
         stubPaymentIntentEvent(StripeWebhookAdapter.EVENT_PAYMENT_INTENT_CANCELED, "evt_cancel", "pi_3");
@@ -75,6 +77,7 @@ class StripeWebhookAdapterTest {
 
         assertThat(command).isPresent();
         assertThat(command.get().success()).isFalse();
+        assertThat(command.get().outcome()).isEqualTo(ProviderPaymentResultOutcome.FINAL_FAILED);
         assertThat(command.get().failureReason()).contains("canceled");
     }
 
