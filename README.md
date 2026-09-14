@@ -278,6 +278,12 @@ Stripe 웹훅은 서명 검증 뒤 `provider_webhook_inbox`에 먼저 보관하�
 5분이며 `PAYMENT_PROVIDER_PAYMENT_RECONCILIATION_DELAY_MS`와
 `PAYMENT_PROVIDER_PAYMENT_RECONCILIATION_PENDING_AGE_MS`로 조정할 수 있다.
 
+`order.created` 소비가 재시도 후에도 실패해 `order.created.DLT`에 도달하면 payment-service는 이벤트 ID를
+기본 키로 `payment_order_created_dlts`에 한 번만 보관한다. 재생 작업은 `MANUAL` 항목을 선점해 같은 주문 ID로
+멱등 결제 처리를 다시 시작하고, 성공하면 `RESOLVED`, 최대 시도 횟수를 넘으면 `ESCALATED`로 종결한다. 실행 주기,
+선점 임대 시간 및 최대 시도 횟수는 각각 `PAYMENT_ORDER_CREATED_DLT_REPLAY_DELAY_MS`,
+`PAYMENT_ORDER_CREATED_DLT_REPLAY_LEASE_MS`, `PAYMENT_ORDER_CREATED_DLT_REPLAY_MAX_ATTEMPTS`로 조정한다.
+
 운영자는 `ADMIN` 권한으로 `GET /admin/operations/provider-escalations?limit=100`을 호출해 자동 재시도 한도를
 초과한 provider session 요청과 webhook inbox 항목을 조회할 수 있다. 응답은 식별자, 시도 횟수, 마지막 실패 사유와
 시각만 포함하며 client secret 및 원본 웹훅 payload는 포함하지 않는다.

@@ -19,6 +19,8 @@ payment-service:
     enabled: true
     order-created-topic: order.created
     order-created-consumer-group: payment-service-order-created
+    order-created-dlt-topic: order.created.DLT
+    order-created-dlt-consumer-group: payment-service-order-created-dlt
     refund-requested-topic: payment.refund.requested
     refund-requested-consumer-group: payment-service-refund-requested
     refund-requested-dlt-topic: payment.refund.requested.DLT
@@ -33,6 +35,10 @@ payment-service:
       fixed-delay-ms: ${PAYMENT_REFUND_DLT_REPLAY_DELAY_MS:30000}
       lease-ms: ${PAYMENT_REFUND_DLT_REPLAY_LEASE_MS:300000}
       max-attempts: ${PAYMENT_REFUND_DLT_REPLAY_MAX_ATTEMPTS:5}
+    order-created-dlt-replay:
+      fixed-delay-ms: ${PAYMENT_ORDER_CREATED_DLT_REPLAY_DELAY_MS:30000}
+      lease-ms: ${PAYMENT_ORDER_CREATED_DLT_REPLAY_LEASE_MS:300000}
+      max-attempts: ${PAYMENT_ORDER_CREATED_DLT_REPLAY_MAX_ATTEMPTS:5}
   provider-session-request:
     fixed-delay-ms: ${PAYMENT_PROVIDER_SESSION_REQUEST_DELAY_MS:1000}
     lease-ms: ${PAYMENT_PROVIDER_SESSION_REQUEST_LEASE_MS:300000}
