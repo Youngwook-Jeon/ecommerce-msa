@@ -1,11 +1,13 @@
 package com.project.young.paymentservice.application.service;
 
+import com.project.young.common.application.contract.payment.PaymentReconciliationStatus;
 import com.project.young.paymentservice.application.dto.command.ApplyProviderPaymentResultCommand;
 import com.project.young.paymentservice.application.dto.command.ProcessPaymentCommand;
 import com.project.young.paymentservice.application.dto.command.RefundPaymentCommand;
 import com.project.young.paymentservice.application.dto.event.PaymentCompletedEvent;
 import com.project.young.paymentservice.application.dto.event.PaymentFailedEvent;
 import com.project.young.paymentservice.application.dto.query.ClientSecretView;
+import com.project.young.paymentservice.application.dto.query.OrderPaymentStatusView;
 import com.project.young.paymentservice.application.port.output.IdGenerator;
 import com.project.young.paymentservice.application.port.output.PaymentOutboxPort;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort;
@@ -30,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -238,6 +241,44 @@ public class PaymentApplicationService {
                 payment.getClientSecret(),
                 payment.getStatus().name()
         );
+    }
+
+    /**
+     * Returns authoritative local payment states for order-saga reconciliation in one database query.
+     * Provider session fields and customer payment details are intentionally excluded.
+     */
+    @Transactional(readOnly = true)
+    public List<OrderPaymentStatusView> getPaymentStatusesByOrderIds(List<UUID> orderIdValues) {
+        Objects.requireNonNull(orderIdValues, "orderIds must not be null");
+        if (orderIdValues.isEmpty()) {
+            return List.of();
+        }
+        if (orderIdValues.size() > 100) {
+            throw new IllegalArgumentException("orderIds must contain at most 100 entries");
+        }
+        List<OrderId> orderIds = orderIdValues.stream()
+                .map(orderId -> new OrderId(Objects.requireNonNull(orderId, "orderIds must not contain null")))
+                .distinct()
+                .toList();
+        List<OrderPaymentStatusView> result = paymentRepository.findByOrderIds(orderIds).stream()
+                .map(payment -> new OrderPaymentStatusView(
+                        payment.getId().getValue(),
+                        payment.getOrderId().getValue(),
+                        toReconciliationStatus(payment.getStatus()),
+                        payment.getUpdatedAt()
+                ))
+                .toList();
+        log.debug("Internal batch order payment status lookup requestedOrders={} foundPayments={}",
+                orderIds.size(), result.size());
+        return result;
+    }
+
+    private static PaymentReconciliationStatus toReconciliationStatus(PaymentStatus status) {
+        return switch (status) {
+            case PENDING -> PaymentReconciliationStatus.PENDING;
+            case COMPLETED -> PaymentReconciliationStatus.COMPLETED;
+            case FAILED -> PaymentReconciliationStatus.FAILED;
+        };
     }
 
     @Transactional

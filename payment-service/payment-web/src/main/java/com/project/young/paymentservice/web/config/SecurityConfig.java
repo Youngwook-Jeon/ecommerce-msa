@@ -38,6 +38,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/info").permitAll()
                 .requestMatchers(HttpMethod.POST, "/webhooks/stripe").permitAll()
                 .requestMatchers(HttpMethod.GET, "/internal/refund-compensations/*").permitAll()
+                .requestMatchers(HttpMethod.POST, "/internal/orders/payment-statuses").permitAll()
                 .requestMatchers(HttpMethod.GET, "/payments/orders/*/client-secret").authenticated()
                 .anyRequest().authenticated());
 

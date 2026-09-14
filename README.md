@@ -292,6 +292,17 @@ Stripe 웹훅은 서명 검증 뒤 `provider_webhook_inbox`에 먼저 보관하�
 초과한 provider session 요청과 webhook inbox 항목을 조회할 수 있다. 응답은 식별자, 시도 횟수, 마지막 실패 사유와
 시각만 포함하며 client secret 및 원본 웹훅 payload는 포함하지 않는다.
 
+Order의 장기 `PENDING_PAYMENT` 수렴 작업은 내부 API `POST /internal/orders/payment-statuses`에 최대 100개의
+`orderIds`를 보내 Payment의 권위 상태를 한 번에 조회한다. 응답에는 존재하는 결제의 `paymentId`, `orderId`,
+`status`, `updatedAt`만 포함하며 provider session과 client secret, 결제 수단 정보는 포함하지 않는다.
+Order Service는 `PENDING_PAYMENT` 주문을 마지막 갱신 시각 기준으로 최대 100건씩 projection 조회하고, 이 API를
+한 번 호출한다. Payment 조회 장애에는 `paymentOrderStatusReconciliation` circuit breaker가 적용된다.
+Payment가 `COMPLETED` 또는 `FAILED`면 기존 주문 확정·취소 경로로 멱등 수렴한다. 해당 처리 자체가 반복 실패하면
+`order_payment_reconciliation_failures`에 기록되며 기본 5회 후 `ESCALATED`가 된다. 운영자는 `ADMIN` 권한으로
+`GET /admin/operations/payment-reconciliation-escalations?limit=100`에서 이를 조회할 수 있다. 실행 주기·대기
+최소 시간·한도는 `ORDER_PAYMENT_STATUS_RECONCILIATION_DELAY_MS`,
+`ORDER_PAYMENT_STATUS_RECONCILIATION_PENDING_AGE_MS`, `ORDER_PAYMENT_STATUS_RECONCILIATION_MAX_ATTEMPTS`로 조정한다.
+
 ### Debezium
 
 Outbox CDC 상세는 [deployment/docker/DEBEZIUM.md](deployment/docker/DEBEZIUM.md).  

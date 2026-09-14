@@ -1,12 +1,14 @@
 package com.project.young.paymentservice.application.service;
 
 import com.project.young.common.domain.valueobject.Money;
+import com.project.young.common.application.contract.payment.PaymentReconciliationStatus;
 import com.project.young.paymentservice.application.dto.command.ApplyProviderPaymentResultCommand;
 import com.project.young.paymentservice.application.dto.command.ProcessPaymentCommand;
 import com.project.young.paymentservice.application.dto.command.RefundPaymentCommand;
 import com.project.young.paymentservice.application.dto.event.PaymentCompletedEvent;
 import com.project.young.paymentservice.application.dto.event.PaymentFailedEvent;
 import com.project.young.paymentservice.application.dto.query.ClientSecretView;
+import com.project.young.paymentservice.application.dto.query.OrderPaymentStatusView;
 import com.project.young.paymentservice.application.port.output.IdGenerator;
 import com.project.young.paymentservice.application.port.output.PaymentOutboxPort;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort;
@@ -228,6 +230,26 @@ class PaymentApplicationServiceTest {
         assertThatThrownBy(() -> paymentApplicationService.getClientSecretByOrderId(ORDER_ID))
                 .isInstanceOf(PaymentNotFoundException.class)
                 .hasMessageContaining("not found");
+    }
+
+    @Test
+    @DisplayName("getPaymentStatusesByOrderIds: 내부 수렴용 최소 상태 projection을 일괄 반환한다")
+    void getPaymentStatusesByOrderIds_returnsMinimalStatusProjections() {
+        when(paymentRepository.findByOrderIds(java.util.List.of(new OrderId(ORDER_ID)))).thenReturn(java.util.List.of(completedPayment()));
+
+        java.util.List<OrderPaymentStatusView> result = paymentApplicationService.getPaymentStatusesByOrderIds(
+                java.util.List.of(ORDER_ID, ORDER_ID));
+
+        assertThat(result).containsExactly(new OrderPaymentStatusView(
+                PAYMENT_ID, ORDER_ID, PaymentReconciliationStatus.COMPLETED, FIXED_NOW));
+    }
+
+    @Test
+    @DisplayName("getPaymentStatusesByOrderIds: 일치하는 결제가 없으면 빈 목록을 반환한다")
+    void getPaymentStatusesByOrderIds_whenMissing_returnsEmpty() {
+        when(paymentRepository.findByOrderIds(java.util.List.of(new OrderId(ORDER_ID)))).thenReturn(java.util.List.of());
+
+        assertThat(paymentApplicationService.getPaymentStatusesByOrderIds(java.util.List.of(ORDER_ID))).isEmpty();
     }
 
     @Test

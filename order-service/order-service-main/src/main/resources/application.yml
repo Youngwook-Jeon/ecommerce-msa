@@ -56,6 +56,10 @@ order-service:
         strategy: ${ORDER_COMPENSATION_OBSERVATION_STRATEGY:file}
         file:
           path: ${ORDER_COMPENSATION_OBSERVATION_FILE:./logs/saga-compensation.jsonl}
+    payment-status-reconciliation:
+      fixed-delay-ms: ${ORDER_PAYMENT_STATUS_RECONCILIATION_DELAY_MS:30000}
+      pending-age-ms: ${ORDER_PAYMENT_STATUS_RECONCILIATION_PENDING_AGE_MS:300000}
+      max-attempts: ${ORDER_PAYMENT_STATUS_RECONCILIATION_MAX_ATTEMPTS:5}
 
 kafka-config:
   bootstrap-servers: localhost:19092, localhost:29092, localhost:39092
@@ -94,6 +98,18 @@ resilience4j:
           - com.project.young.orderservice.application.port.output.InventoryReservationClientException
           - com.project.young.orderservice.application.port.output.InventoryReservationConflictException
       paymentRefundReconciliation:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 20
+        minimum-number-of-calls: 10
+        failure-rate-threshold: 50
+        slow-call-rate-threshold: 50
+        slow-call-duration-threshold: 3s
+        wait-duration-in-open-state: 10s
+        permitted-number-of-calls-in-half-open-state: 5
+        automatic-transition-from-open-to-half-open-enabled: true
+        ignore-exceptions:
+          - com.project.young.orderservice.application.port.output.PaymentReconciliationClientException
+      paymentOrderStatusReconciliation:
         sliding-window-type: COUNT_BASED
         sliding-window-size: 20
         minimum-number-of-calls: 10

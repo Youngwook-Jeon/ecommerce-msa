@@ -17,6 +17,7 @@ import org.springframework.data.domain.PageRequest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
 @Transactional(readOnly = true)
@@ -112,6 +113,28 @@ public class PaymentRepositoryImpl implements PaymentRepository {
             throw new IllegalArgumentException("orderId must not be null");
         }
         return paymentJpaRepository.findByOrderId(orderId.getValue()).map(paymentAggregateMapper::toPayment);
+    }
+
+    @Override
+    public List<Payment> findByOrderIds(List<OrderId> orderIds) {
+        if (orderIds == null) {
+            throw new IllegalArgumentException("orderIds must not be null");
+        }
+        if (orderIds.isEmpty()) {
+            return List.of();
+        }
+        List<UUID> orderIdValues = orderIds.stream()
+                .map(orderId -> {
+                    if (orderId == null) {
+                        throw new IllegalArgumentException("orderIds must not contain null");
+                    }
+                    return orderId.getValue();
+                })
+                .distinct()
+                .toList();
+        return paymentJpaRepository.findByOrderIdIn(orderIdValues).stream()
+                .map(paymentAggregateMapper::toPayment)
+                .toList();
     }
 
     @Override

@@ -17,6 +17,8 @@ public interface PaymentJpaRepository extends JpaRepository<PaymentEntity, UUID>
 
     Optional<PaymentEntity> findByOrderId(UUID orderId);
 
+    List<PaymentEntity> findByOrderIdIn(List<UUID> orderIds);
+
     Optional<PaymentEntity> findByProviderAndProviderPaymentId(String provider, String providerPaymentId);
 
     @Query("""

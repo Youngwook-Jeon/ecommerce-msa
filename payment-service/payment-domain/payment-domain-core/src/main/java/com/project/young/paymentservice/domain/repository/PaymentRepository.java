@@ -28,6 +28,8 @@ public interface PaymentRepository {
 
     Optional<Payment> findByOrderId(OrderId orderId);
 
+    List<Payment> findByOrderIds(List<OrderId> orderIds);
+
     Optional<Payment> findByProviderPaymentId(String provider, String providerPaymentId);
 
     List<Payment> findPendingWithProviderSessionUpdatedBefore(Instant threshold, int limit);
