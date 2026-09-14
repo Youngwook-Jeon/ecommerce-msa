@@ -36,7 +36,7 @@ class OrderPaymentReconciliationExecutorTest {
         PendingPaymentOrderView order = order();
         PaymentStatusSnapshot payment = payment(order.orderId(), PaymentReconciliationStatus.COMPLETED);
         when(pendingOrders.findUpdatedBefore(any(), anyInt())).thenReturn(List.of(order));
-        when(failures.findEscalatedOrderIds(List.of(order.orderId()))).thenReturn(Set.of());
+        when(failures.findNonRetryingOrderIds(List.of(order.orderId()))).thenReturn(Set.of());
         when(paymentStatuses.findByOrderIds(List.of(order.orderId()))).thenReturn(Map.of(order.orderId(), payment));
 
         executor(pendingOrders, paymentStatuses, failures, orders).reconcileStalePendingPayments();
@@ -54,7 +54,7 @@ class OrderPaymentReconciliationExecutorTest {
         PendingPaymentOrderView order = order();
         PaymentStatusSnapshot payment = payment(order.orderId(), PaymentReconciliationStatus.FAILED);
         when(pendingOrders.findUpdatedBefore(any(), anyInt())).thenReturn(List.of(order));
-        when(failures.findEscalatedOrderIds(List.of(order.orderId()))).thenReturn(Set.of());
+        when(failures.findNonRetryingOrderIds(List.of(order.orderId()))).thenReturn(Set.of());
         when(paymentStatuses.findByOrderIds(List.of(order.orderId()))).thenReturn(Map.of(order.orderId(), payment));
         org.mockito.Mockito.doThrow(new IllegalStateException("inventory unavailable"))
                 .when(orders).cancelOrder(any(), any());
@@ -72,7 +72,7 @@ class OrderPaymentReconciliationExecutorTest {
         OrderPaymentReconciliationFailurePort failures = mock(OrderPaymentReconciliationFailurePort.class);
         PendingPaymentOrderView order = order();
         when(pendingOrders.findUpdatedBefore(any(), anyInt())).thenReturn(List.of(order));
-        when(failures.findEscalatedOrderIds(List.of(order.orderId()))).thenReturn(Set.of(order.orderId()));
+        when(failures.findNonRetryingOrderIds(List.of(order.orderId()))).thenReturn(Set.of(order.orderId()));
 
         executor(pendingOrders, paymentStatuses, failures, mock(OrderApplicationService.class)).reconcileStalePendingPayments();
 

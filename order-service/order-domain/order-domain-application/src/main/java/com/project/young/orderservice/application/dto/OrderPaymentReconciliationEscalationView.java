@@ -1,5 +1,7 @@
 package com.project.young.orderservice.application.dto;
 
+import com.project.young.orderservice.application.reconciliation.OrderPaymentReconciliationStatus;
+
 import java.time.Instant;
 import java.util.UUID;
 
@@ -11,6 +13,10 @@ public record OrderPaymentReconciliationEscalationView(
         int attempts,
         String lastError,
         Instant firstFailureAt,
-        Instant lastFailureAt
+        Instant lastFailureAt,
+        OrderPaymentReconciliationStatus handlingStatus,
+        UUID compensationEventId,
+        String resolutionReason,
+        Instant resolvedAt
 ) {
 }

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -26,12 +27,12 @@ public class OrderPaymentReconciliationFailureAdapter implements OrderPaymentRec
 
     @Override
     @Transactional(readOnly = true)
-    public Set<UUID> findEscalatedOrderIds(Collection<UUID> orderIds) {
+    public Set<UUID> findNonRetryingOrderIds(Collection<UUID> orderIds) {
         if (orderIds == null || orderIds.isEmpty()) {
             return Set.of();
         }
-        return Set.copyOf(repository.findOrderIdsByHandlingStatusAndOrderIdIn(
-                OrderPaymentReconciliationStatus.ESCALATED, orderIds));
+        return Set.copyOf(repository.findOrderIdsByHandlingStatusNotAndOrderIdIn(
+                OrderPaymentReconciliationStatus.RETRYING, orderIds));
     }
 
     @Override
@@ -53,10 +54,39 @@ public class OrderPaymentReconciliationFailureAdapter implements OrderPaymentRec
                         OrderPaymentReconciliationStatus.ESCALATED,
                         PageRequest.of(0, Math.clamp(limit, 1, 500)))
                 .stream()
-                .map(item -> new OrderPaymentReconciliationEscalationView(
-                        item.getOrderId(), item.getUserId(), item.getPaymentId(), item.getPaymentStatus(),
-                        item.getAttempts(), item.getLastError(), item.getFirstFailureAt(), item.getLastFailureAt()))
+                .map(this::toView)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<OrderPaymentReconciliationEscalationView> findEscalatedByOrderId(UUID orderId) {
+        return repository.findByOrderIdAndHandlingStatus(orderId, OrderPaymentReconciliationStatus.ESCALATED)
+                .map(this::toView);
+    }
+
+    @Override
+    public boolean claimForManualReplay(UUID orderId, Instant occurredAt) {
+        return repository.claimForManualReplay(orderId, occurredAt) == 1;
+    }
+
+    @Override
+    public boolean closeManually(UUID orderId, String reason, Instant occurredAt) {
+        return repository.closeManually(orderId, truncate(reason), occurredAt) == 1;
+    }
+
+    @Override
+    public boolean claimForRefund(UUID orderId, UUID compensationEventId, String reason, Instant occurredAt) {
+        return repository.claimForRefund(orderId, compensationEventId, truncate(reason), occurredAt) == 1;
+    }
+
+    private OrderPaymentReconciliationEscalationView toView(
+            com.project.young.orderservice.dataaccess.entity.OrderPaymentReconciliationFailureEntity item
+    ) {
+        return new OrderPaymentReconciliationEscalationView(
+                item.getOrderId(), item.getUserId(), item.getPaymentId(), item.getPaymentStatus(),
+                item.getAttempts(), item.getLastError(), item.getFirstFailureAt(), item.getLastFailureAt(),
+                item.getHandlingStatus(), item.getCompensationEventId(), item.getResolutionReason(), item.getResolvedAt());
     }
 
     private static String truncate(String value) {

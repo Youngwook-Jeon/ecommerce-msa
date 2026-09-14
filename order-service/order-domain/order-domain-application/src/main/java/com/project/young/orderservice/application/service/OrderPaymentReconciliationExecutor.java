@@ -62,13 +62,13 @@ public class OrderPaymentReconciliationExecutor {
             return;
         }
 
-        Set<UUID> escalatedOrderIds = failures.findEscalatedOrderIds(
+        Set<UUID> nonRetryingOrderIds = failures.findNonRetryingOrderIds(
                 candidates.stream().map(PendingPaymentOrderView::orderId).toList());
         List<PendingPaymentOrderView> actionable = candidates.stream()
-                .filter(order -> !escalatedOrderIds.contains(order.orderId()))
+                .filter(order -> !nonRetryingOrderIds.contains(order.orderId()))
                 .toList();
         if (actionable.isEmpty()) {
-            log.warn("All stale pending-payment orders are escalated count={}", candidates.size());
+            log.warn("All stale pending-payment orders are awaiting operations action count={}", candidates.size());
             return;
         }
 

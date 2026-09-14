@@ -104,4 +104,43 @@ public class SagaCompensationApplicationService {
         compensationObservationPort.recordManualCompensation(saved);
         return saved;
     }
+
+    /**
+     * Creates the same durable refund compensation used for DLT processing, but from an explicit
+     * operations decision that a completed payment can no longer be applied to its order.
+     */
+    @Transactional
+    public SagaCompensationView requestRefundForManualReconciliation(
+            java.util.UUID compensationEventId,
+            java.util.UUID paymentId,
+            java.util.UUID orderId,
+            String userId,
+            String reason
+    ) {
+        Objects.requireNonNull(compensationEventId, "compensationEventId must not be null");
+        Objects.requireNonNull(paymentId, "paymentId must not be null");
+        Objects.requireNonNull(orderId, "orderId must not be null");
+        Objects.requireNonNull(reason, "reason must not be null");
+
+        Optional<SagaCompensationView> existing = sagaCompensationPort.findByEventId(compensationEventId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        CompensationDecision decision = new CompensationDecision(
+                CompensationRecommendedAction.REFUND,
+                com.project.young.orderservice.application.compensation.CompensationRefundSla.IMMEDIATE,
+                reason
+        );
+        SagaCompensationView saved = sagaCompensationPort.insertManual(new RecordManualCompensationCommand(
+                compensationEventId, paymentId, orderId, userId, null, null,
+                "order.payment-reconciliation", "manual-refund", null, null,
+                null, reason), decision, CompensationHandlingStatus.MANUAL);
+        refundRequestedOutboxPort.enqueue(new RefundRequestedEvent(
+                saved.eventId(), saved.paymentId(), saved.orderId(), saved.userId(), reason, Instant.now()));
+        compensationObservationPort.recordManualCompensation(saved);
+        log.warn("Enqueued manual reconciliation refund compensationEventId={} orderId={} paymentId={} reason={}",
+                saved.eventId(), saved.orderId(), saved.paymentId(), reason);
+        return saved;
+    }
 }

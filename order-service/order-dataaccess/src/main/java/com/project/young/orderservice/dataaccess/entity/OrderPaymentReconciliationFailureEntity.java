@@ -40,9 +40,18 @@ public class OrderPaymentReconciliationFailureEntity {
     @Column(name = "last_error", length = 4096)
     private String lastError;
 
+    @Column(name = "compensation_event_id", columnDefinition = "UUID")
+    private UUID compensationEventId;
+
+    @Column(name = "resolution_reason", length = 512)
+    private String resolutionReason;
+
     @Column(name = "first_failure_at", nullable = false)
     private Instant firstFailureAt;
 
     @Column(name = "last_failure_at", nullable = false)
     private Instant lastFailureAt;
+
+    @Column(name = "resolved_at")
+    private Instant resolvedAt;
 }

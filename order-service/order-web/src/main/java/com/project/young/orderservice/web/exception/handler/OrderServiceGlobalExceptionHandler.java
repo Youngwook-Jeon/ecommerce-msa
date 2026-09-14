@@ -2,6 +2,7 @@ package com.project.young.orderservice.web.exception.handler;
 
 import com.project.young.common.application.web.ErrorDTO;
 import com.project.young.common.application.web.GlobalExceptionHandler;
+import com.project.young.orderservice.application.exception.OrderPaymentReconciliationOperationException;
 import com.project.young.orderservice.application.port.output.InventoryReservationClientException;
 import com.project.young.orderservice.application.port.output.InventoryReservationUnavailableException;
 import com.project.young.orderservice.application.port.output.ProductCatalogClientException;
@@ -27,6 +28,19 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @Slf4j
 @ControllerAdvice
 public class OrderServiceGlobalExceptionHandler extends GlobalExceptionHandler {
+
+    @ResponseBody
+    @ExceptionHandler(OrderPaymentReconciliationOperationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDTO handleOrderPaymentReconciliationOperationException(
+            OrderPaymentReconciliationOperationException exception
+    ) {
+        log.warn(exception.getMessage());
+        return ErrorDTO.builder()
+                .code(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
 
     @ResponseBody
     @ExceptionHandler(CartDomainException.class)

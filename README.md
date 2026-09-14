@@ -302,6 +302,11 @@ Payment가 `COMPLETED` 또는 `FAILED`면 기존 주문 확정·취소 경로로
 `GET /admin/operations/payment-reconciliation-escalations?limit=100`에서 이를 조회할 수 있다. 실행 주기·대기
 최소 시간·한도는 `ORDER_PAYMENT_STATUS_RECONCILIATION_DELAY_MS`,
 `ORDER_PAYMENT_STATUS_RECONCILIATION_PENDING_AGE_MS`, `ORDER_PAYMENT_STATUS_RECONCILIATION_MAX_ATTEMPTS`로 조정한다.
+운영자는 `POST .../{orderId}/replay`로 `ESCALATED` 건을 한 번 수동 재시도하거나,
+`POST .../{orderId}/close`에 `{"reason":"..."}`를 보내 외부에서 해결된 건을 종결할 수 있다. 결제가 이미
+`COMPLETED`인데 주문 확정이 불가능하다고 판단되면 `POST .../{orderId}/refund`를 같은 형식의 사유와 함께 호출한다.
+이 작업은 재조정 레코드를 `REFUND_REQUESTED`로 원자적으로 전환하고, 그 레코드의 `compensationEventId`를
+`refund_requested_outbox`의 멱등 키로 사용한다. 실제 환불은 기존 CDC `payment.refund.requested` 흐름에서 수행된다.
 
 ### Debezium
 

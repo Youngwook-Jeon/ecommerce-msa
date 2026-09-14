@@ -11,20 +11,26 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface OrderPaymentReconciliationFailureJpaRepository
         extends JpaRepository<OrderPaymentReconciliationFailureEntity, UUID> {
 
-    @Query("select f.orderId from OrderPaymentReconciliationFailureEntity f where f.handlingStatus = :status and f.orderId in :orderIds")
-    List<UUID> findOrderIdsByHandlingStatusAndOrderIdIn(
-            @Param("status") OrderPaymentReconciliationStatus status,
+    @Query("select f.orderId from OrderPaymentReconciliationFailureEntity f where f.handlingStatus <> :retryingStatus and f.orderId in :orderIds")
+    List<UUID> findOrderIdsByHandlingStatusNotAndOrderIdIn(
+            @Param("retryingStatus") OrderPaymentReconciliationStatus retryingStatus,
             @Param("orderIds") Collection<UUID> orderIds
     );
 
     List<OrderPaymentReconciliationFailureEntity> findByHandlingStatusOrderByLastFailureAtAsc(
             OrderPaymentReconciliationStatus status,
             Pageable pageable
+    );
+
+    Optional<OrderPaymentReconciliationFailureEntity> findByOrderIdAndHandlingStatus(
+            UUID orderId,
+            OrderPaymentReconciliationStatus status
     );
 
     @Modifying
@@ -66,4 +72,45 @@ public interface OrderPaymentReconciliationFailureJpaRepository
                and f.handlingStatus = com.project.young.orderservice.application.reconciliation.OrderPaymentReconciliationStatus.RETRYING
             """)
     int resolve(@Param("orderId") UUID orderId);
+
+    @Modifying
+    @Query("""
+            update OrderPaymentReconciliationFailureEntity f
+               set f.handlingStatus = com.project.young.orderservice.application.reconciliation.OrderPaymentReconciliationStatus.RETRYING,
+                   f.attempts = f.attempts + 1,
+                   f.lastError = 'manual_replay_requested',
+                   f.lastFailureAt = :occurredAt
+             where f.orderId = :orderId
+               and f.handlingStatus = com.project.young.orderservice.application.reconciliation.OrderPaymentReconciliationStatus.ESCALATED
+            """)
+    int claimForManualReplay(@Param("orderId") UUID orderId, @Param("occurredAt") Instant occurredAt);
+
+    @Modifying
+    @Query("""
+            update OrderPaymentReconciliationFailureEntity f
+               set f.handlingStatus = com.project.young.orderservice.application.reconciliation.OrderPaymentReconciliationStatus.RESOLVED,
+                   f.resolutionReason = :reason,
+                   f.resolvedAt = :occurredAt
+             where f.orderId = :orderId
+               and f.handlingStatus = com.project.young.orderservice.application.reconciliation.OrderPaymentReconciliationStatus.ESCALATED
+            """)
+    int closeManually(@Param("orderId") UUID orderId, @Param("reason") String reason, @Param("occurredAt") Instant occurredAt);
+
+    @Modifying
+    @Query("""
+            update OrderPaymentReconciliationFailureEntity f
+               set f.handlingStatus = com.project.young.orderservice.application.reconciliation.OrderPaymentReconciliationStatus.REFUND_REQUESTED,
+                   f.compensationEventId = :compensationEventId,
+                   f.resolutionReason = :reason,
+                   f.resolvedAt = :occurredAt
+             where f.orderId = :orderId
+               and f.handlingStatus = com.project.young.orderservice.application.reconciliation.OrderPaymentReconciliationStatus.ESCALATED
+               and f.paymentStatus = 'COMPLETED'
+            """)
+    int claimForRefund(
+            @Param("orderId") UUID orderId,
+            @Param("compensationEventId") UUID compensationEventId,
+            @Param("reason") String reason,
+            @Param("occurredAt") Instant occurredAt
+    );
 }

@@ -159,6 +159,26 @@ class SagaCompensationApplicationServiceTest {
         verify(compensationObservationPort, never()).recordManualCompensation(any());
     }
 
+    @Test
+    void requestRefundForManualReconciliation_persistsCompensationAndOutboxWithSameId() {
+        UUID compensationEventId = UUID.randomUUID();
+        UUID paymentId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        RecordManualCompensationCommand expectedCommand = new RecordManualCompensationCommand(
+                compensationEventId, paymentId, orderId, "user-1", null, null,
+                "order.payment-reconciliation", "manual-refund", null, null, null, "cannot confirm order");
+        SagaCompensationView saved = sampleView(expectedCommand, true);
+        when(sagaCompensationPort.findByEventId(compensationEventId)).thenReturn(Optional.empty());
+        when(sagaCompensationPort.insertManual(eq(expectedCommand), any(), eq(CompensationHandlingStatus.MANUAL)))
+                .thenReturn(saved);
+
+        service.requestRefundForManualReconciliation(
+                compensationEventId, paymentId, orderId, "user-1", "cannot confirm order");
+
+        verify(refundRequestedOutboxPort).enqueue(any(RefundRequestedEvent.class));
+        verify(compensationObservationPort).recordManualCompensation(saved);
+    }
+
     private static RecordManualCompensationCommand sampleCommand(String ex, String msg) {
         return new RecordManualCompensationCommand(
                 UUID.randomUUID(),

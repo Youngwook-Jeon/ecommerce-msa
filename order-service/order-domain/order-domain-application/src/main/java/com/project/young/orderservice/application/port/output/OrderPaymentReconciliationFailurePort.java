@@ -5,12 +5,13 @@ import com.project.young.orderservice.application.dto.OrderPaymentReconciliation
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
 public interface OrderPaymentReconciliationFailurePort {
 
-    Set<UUID> findEscalatedOrderIds(Collection<UUID> orderIds);
+    Set<UUID> findNonRetryingOrderIds(Collection<UUID> orderIds);
 
     void recordFailure(
             UUID orderId,
@@ -25,4 +26,12 @@ public interface OrderPaymentReconciliationFailurePort {
     void resolve(UUID orderId);
 
     List<OrderPaymentReconciliationEscalationView> findEscalated(int limit);
+
+    Optional<OrderPaymentReconciliationEscalationView> findEscalatedByOrderId(UUID orderId);
+
+    boolean claimForManualReplay(UUID orderId, Instant occurredAt);
+
+    boolean closeManually(UUID orderId, String reason, Instant occurredAt);
+
+    boolean claimForRefund(UUID orderId, UUID compensationEventId, String reason, Instant occurredAt);
 }
