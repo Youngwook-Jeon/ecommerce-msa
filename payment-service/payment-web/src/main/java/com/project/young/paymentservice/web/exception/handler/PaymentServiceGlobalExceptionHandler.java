@@ -3,6 +3,8 @@ package com.project.young.paymentservice.web.exception.handler;
 import com.project.young.common.application.web.ErrorDTO;
 import com.project.young.common.application.web.GlobalExceptionHandler;
 import com.project.young.paymentservice.application.exception.InvalidStripeWebhookException;
+import com.project.young.paymentservice.application.exception.OrderCreatedDltNotFoundException;
+import com.project.young.paymentservice.application.exception.OrderCreatedDltStateConflictException;
 import com.project.young.paymentservice.domain.exception.PaymentClientSecretNotReadyException;
 import com.project.young.paymentservice.domain.exception.PaymentDomainException;
 import com.project.young.paymentservice.domain.exception.PaymentNotFoundException;
@@ -17,6 +19,28 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @Slf4j
 @ControllerAdvice
 public class PaymentServiceGlobalExceptionHandler extends GlobalExceptionHandler {
+
+    @ResponseBody
+    @ExceptionHandler(OrderCreatedDltNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorDTO handleOrderCreatedDltNotFound(OrderCreatedDltNotFoundException exception) {
+        log.debug(exception.getMessage());
+        return ErrorDTO.builder()
+                .code(HttpStatus.NOT_FOUND.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(OrderCreatedDltStateConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDTO handleOrderCreatedDltStateConflict(OrderCreatedDltStateConflictException exception) {
+        log.warn(exception.getMessage());
+        return ErrorDTO.builder()
+                .code(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
 
     @ResponseBody
     @ExceptionHandler(PaymentNotFoundException.class)

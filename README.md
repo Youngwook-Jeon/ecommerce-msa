@@ -283,6 +283,10 @@ Stripe 웹훅은 서명 검증 뒤 `provider_webhook_inbox`에 먼저 보관하�
 멱등 결제 처리를 다시 시작하고, 성공하면 `RESOLVED`, 최대 시도 횟수를 넘으면 `ESCALATED`로 종결한다. 실행 주기,
 선점 임대 시간 및 최대 시도 횟수는 각각 `PAYMENT_ORDER_CREATED_DLT_REPLAY_DELAY_MS`,
 `PAYMENT_ORDER_CREATED_DLT_REPLAY_LEASE_MS`, `PAYMENT_ORDER_CREATED_DLT_REPLAY_MAX_ATTEMPTS`로 조정한다.
+운영자는 `ADMIN` 권한으로 `GET /admin/operations/order-created-dlts?status=ESCALATED&limit=100`에서 상태별 DLT
+항목을 조회할 수 있다. `POST /admin/operations/order-created-dlts/{eventId}/replay`는 `MANUAL` 또는 `ESCALATED`
+항목을 조건부 선점하여 즉시 멱등 재생하고, `POST .../{eventId}/resolve`는 `{"reason":"..."}` 본문과 함께
+수동 종결 사유를 남긴다.
 
 운영자는 `ADMIN` 권한으로 `GET /admin/operations/provider-escalations?limit=100`을 호출해 자동 재시도 한도를
 초과한 provider session 요청과 webhook inbox 항목을 조회할 수 있다. 응답은 식별자, 시도 횟수, 마지막 실패 사유와

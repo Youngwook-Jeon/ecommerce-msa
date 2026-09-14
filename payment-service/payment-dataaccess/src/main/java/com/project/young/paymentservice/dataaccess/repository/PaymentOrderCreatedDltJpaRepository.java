@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.util.List;
@@ -13,7 +14,12 @@ import java.util.UUID;
 
 public interface PaymentOrderCreatedDltJpaRepository extends JpaRepository<PaymentOrderCreatedDltEntity, UUID> {
 
-    List<PaymentOrderCreatedDltEntity> findTop100ByHandlingStatusOrderByCreatedAt(OrderCreatedDltStatus status);
+    List<PaymentOrderCreatedDltEntity> findByHandlingStatusOrderByCreatedAtDesc(
+            OrderCreatedDltStatus status,
+            Pageable pageable
+    );
+
+    List<PaymentOrderCreatedDltEntity> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     @Modifying
     @Query(value = """
@@ -41,8 +47,16 @@ public interface PaymentOrderCreatedDltJpaRepository extends JpaRepository<Payme
     int claim(@Param("eventId") UUID eventId, @Param("startedAt") Instant startedAt);
 
     @Modifying
+    @Query(value = "UPDATE payment_order_created_dlts SET handling_status='REPLAYING', replay_started_at=:startedAt, replay_attempts=replay_attempts+1 WHERE event_id=:eventId AND handling_status IN ('MANUAL', 'ESCALATED')", nativeQuery = true)
+    int claimForManualReplay(@Param("eventId") UUID eventId, @Param("startedAt") Instant startedAt);
+
+    @Modifying
     @Query(value = "UPDATE payment_order_created_dlts SET handling_status='RESOLVED', replay_started_at=NULL WHERE event_id=:eventId", nativeQuery = true)
     int resolve(@Param("eventId") UUID eventId);
+
+    @Modifying
+    @Query(value = "UPDATE payment_order_created_dlts SET handling_status='RESOLVED', replay_started_at=NULL, failure_message=:reason WHERE event_id=:eventId AND handling_status IN ('MANUAL', 'ESCALATED')", nativeQuery = true)
+    int resolveManually(@Param("eventId") UUID eventId, @Param("reason") String reason);
 
     @Modifying
     @Query(value = "UPDATE payment_order_created_dlts SET handling_status='MANUAL', replay_started_at=NULL, failure_message=:message WHERE event_id=:eventId", nativeQuery = true)
