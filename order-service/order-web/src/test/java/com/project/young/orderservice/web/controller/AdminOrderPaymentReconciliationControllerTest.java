@@ -1,6 +1,8 @@
 package com.project.young.orderservice.web.controller;
 
 import com.project.young.orderservice.application.dto.OrderPaymentReconciliationEscalationView;
+import com.project.young.orderservice.application.dto.ManualOrderPaymentReconciliationOperationCommand;
+import com.project.young.orderservice.application.dto.OrderPaymentReconciliationOperationAuditView;
 import com.project.young.orderservice.application.service.OrderPaymentReconciliationOperationsQueryService;
 import com.project.young.orderservice.application.service.OrderPaymentReconciliationOperationsService;
 import com.project.young.orderservice.web.config.SecurityConfig;
@@ -65,15 +67,39 @@ class AdminOrderPaymentReconciliationControllerTest {
     void requestRefund_withAdminReturnsAcceptedCompensationId() throws Exception {
         UUID orderId = UUID.randomUUID();
         UUID compensationEventId = UUID.randomUUID();
-        when(operationsService.requestRefund(orderId, "order cannot be confirmed"))
+        UUID requestId = UUID.randomUUID();
+        ManualOrderPaymentReconciliationOperationCommand command = new ManualOrderPaymentReconciliationOperationCommand(
+                orderId, "user", requestId, "order cannot be confirmed");
+        when(operationsService.requestRefund(command))
                 .thenReturn(compensationEventId);
 
         mockMvc.perform(post("/admin/operations/payment-reconciliation-escalations/{orderId}/refund", orderId)
                         .contentType("application/json")
+                        .header("X-Request-Id", requestId)
                         .content("{\"reason\":\"order cannot be confirmed\"}"))
                 .andExpect(status().isAccepted())
                 .andExpect(jsonPath("$.compensationEventId").value(compensationEventId.toString()));
 
-        verify(operationsService).requestRefund(orderId, "order cannot be confirmed");
+        verify(operationsService).requestRefund(command);
+    }
+
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void getHistory_withAdminReturnsOperatorAuditTrail() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        when(queryService.getHistory(orderId, 25)).thenReturn(List.of(new OrderPaymentReconciliationOperationAuditView(
+                UUID.randomUUID(), orderId, "admin-1", requestId,
+                com.project.young.orderservice.application.reconciliation.OrderPaymentReconciliationManualOperation.REFUND,
+                "cannot confirm order", UUID.randomUUID(), Instant.now()
+        )));
+
+        mockMvc.perform(get("/admin/operations/payment-reconciliation-escalations/{orderId}/history", orderId)
+                        .param("limit", "25"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].operatorId").value("admin-1"))
+                .andExpect(jsonPath("$[0].operation").value("REFUND"));
+
+        verify(queryService).getHistory(orderId, 25);
     }
 }

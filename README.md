@@ -307,6 +307,8 @@ Payment가 `COMPLETED` 또는 `FAILED`면 기존 주문 확정·취소 경로로
 `COMPLETED`인데 주문 확정이 불가능하다고 판단되면 `POST .../{orderId}/refund`를 같은 형식의 사유와 함께 호출한다.
 이 작업은 재조정 레코드를 `REFUND_REQUESTED`로 원자적으로 전환하고, 그 레코드의 `compensationEventId`를
 `refund_requested_outbox`의 멱등 키로 사용한다. 실제 환불은 기존 CDC `payment.refund.requested` 흐름에서 수행된다.
+수동 replay·종결·환불 요청은 인증된 운영자의 subject, `X-Request-Id`(없으면 서버 생성), 사유 및 환불 보상 ID를
+append-only 감사 이력으로 남긴다. 운영자는 `GET .../{orderId}/history?limit=100`으로 이력을 조회할 수 있다.
 
 Payment의 내부 재조정 API는 공개 Gateway 경로가 아니며, Order Service의 client-credentials 토큰만 허용한다.
 로컬 Keycloak realm은 `order-service` service account에 `INTERNAL_PAYMENT_RECONCILIATION_READ` role과
