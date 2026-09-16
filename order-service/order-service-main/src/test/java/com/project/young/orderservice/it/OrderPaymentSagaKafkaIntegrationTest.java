@@ -1,12 +1,16 @@
 package com.project.young.orderservice.it;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.young.common.application.contract.payment.PaymentReconciliationStatus;
 import com.project.young.orderservice.OrderServiceMain;
+import com.project.young.orderservice.application.dto.PaymentStatusSnapshot;
 import com.project.young.orderservice.application.dto.command.PlaceOrderCommand;
+import com.project.young.orderservice.application.service.OrderPaymentReconciliationExecutor;
 import com.project.young.orderservice.it.support.CatalogTestRestClientHolder;
 import com.project.young.orderservice.it.support.InventoryTestRestClientHolder;
 import com.project.young.orderservice.it.support.KafkaJsonProducerSupport;
 import com.project.young.orderservice.it.support.OrderIntegrationTestConfiguration;
+import com.project.young.orderservice.it.support.PaymentStatusQueryTestHolder;
 import com.project.young.orderservice.it.support.ProductCatalogTestSupport.CatalogLineStub;
 import com.project.young.orderservice.web.cart.dto.AddCartItemRequest;
 import jakarta.persistence.EntityManager;
@@ -33,6 +37,7 @@ import org.testcontainers.kafka.KafkaContainer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.UUID;
 
 import static com.project.young.orderservice.it.support.InventoryReservationTestSupport.stubConfirmSuccess;
@@ -45,6 +50,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.client.ExpectedCount.once;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 
 @SpringBootTest(
         webEnvironment = SpringBootTest.WebEnvironment.MOCK,
@@ -88,6 +96,7 @@ class OrderPaymentSagaKafkaIntegrationTest {
                 "order-service.saga-events.payment-failed-consumer-group",
                 () -> "order-it-payment-failed"
         );
+        registry.add("order-service.saga-events.payment-status-reconciliation.max-attempts", () -> "1");
     }
 
     @Autowired
@@ -108,6 +117,12 @@ class OrderPaymentSagaKafkaIntegrationTest {
     @Autowired
     private InventoryTestRestClientHolder inventoryTestRestClientHolder;
 
+    @Autowired
+    private PaymentStatusQueryTestHolder paymentStatusQuery;
+
+    @Autowired
+    private OrderPaymentReconciliationExecutor reconciliationExecutor;
+
     private MockRestServiceServer catalogServer;
     private MockRestServiceServer inventoryServer;
 
@@ -124,6 +139,7 @@ class OrderPaymentSagaKafkaIntegrationTest {
         catalogServer.reset();
         inventoryServer = inventoryTestRestClientHolder.mockServer();
         inventoryServer.reset();
+        paymentStatusQuery.clear();
     }
 
     @Test
@@ -188,6 +204,91 @@ class OrderPaymentSagaKafkaIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.itemCount").value(1));
         inventoryServer.verify();
+    }
+
+    @Test
+    @DisplayName("결제 완료 후 주문 확정이 반복 실패하면 retry/DLT 소비 결과를 MANUAL 보상으로 영속화한다")
+    void paymentCompleted_whenOrderConfirmationFails_persistsManualDltCompensation() throws Exception {
+        stubCatalogLines(catalogServer, catalogLine());
+        stubReserveSuccess(inventoryServer);
+        addItemAsUser(1);
+        UUID orderId = placePendingPaymentOrder();
+
+        inventoryServer.reset();
+        inventoryServer.expect(org.springframework.test.web.client.ExpectedCount.manyTimes(), requestTo(
+                        "http://inventory.test/internal/inventory/reservations/" + orderId + "/confirm"))
+                .andRespond(withServerError());
+        KafkaJsonProducerSupport.send(
+                kafkaContainer.getBootstrapServers(),
+                "payment.completed",
+                orderId.toString(),
+                KafkaJsonProducerSupport.paymentCompletedJson(orderId, USER_SUBJECT, "100.00")
+        );
+
+        await().atMost(KafkaJsonProducerSupport.awaitTimeout()).untilAsserted(() -> {
+            Number compensationCount = transactionTemplate.execute(status -> (Number) entityManager.createNativeQuery("""
+                            SELECT COUNT(*) FROM saga_compensation
+                            WHERE order_id = CAST(:orderId AS uuid) AND handling_status = 'MANUAL'
+                            """)
+                    .setParameter("orderId", orderId)
+                    .getSingleResult());
+            org.assertj.core.api.Assertions.assertThat(compensationCount.longValue()).isEqualTo(1L);
+        });
+    }
+
+    @Test
+    @DisplayName("오래된 PENDING_PAYMENT는 batch reconciliation으로 확정하거나 실패 시 ESCALATED로 보관한다")
+    void stalePendingPayment_batchReconciliationConvergesOrEscalates() throws Exception {
+        UUID convergedOrderId = placeStalePendingOrder();
+        paymentStatusQuery.put(new PaymentStatusSnapshot(
+                UUID.randomUUID(), convergedOrderId, PaymentReconciliationStatus.COMPLETED, Instant.now()));
+        inventoryServer.reset();
+        stubConfirmSuccess(inventoryServer, convergedOrderId);
+
+        reconciliationExecutor.reconcileStalePendingPayments();
+
+        await().untilAsserted(() -> mockMvc.perform(get("/orders/{orderId}", convergedOrderId)
+                        .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("CONFIRMED")));
+
+        catalogServer.reset();
+        inventoryServer.reset();
+        UUID escalatedOrderId = placeStalePendingOrder();
+        paymentStatusQuery.put(new PaymentStatusSnapshot(
+                UUID.randomUUID(), escalatedOrderId, PaymentReconciliationStatus.COMPLETED, Instant.now()));
+        inventoryServer.reset();
+        inventoryServer.expect(once(), requestTo(
+                        "http://inventory.test/internal/inventory/reservations/" + escalatedOrderId + "/confirm"))
+                .andRespond(withServerError());
+
+        reconciliationExecutor.reconcileStalePendingPayments();
+
+        await().untilAsserted(() -> {
+            String handlingStatus = transactionTemplate.execute(status -> (String) entityManager.createNativeQuery("""
+                            SELECT CAST(handling_status AS varchar)
+                            FROM order_payment_reconciliation_failures
+                            WHERE order_id = CAST(:orderId AS uuid)
+                            """)
+                    .setParameter("orderId", escalatedOrderId)
+                    .getSingleResult());
+            org.assertj.core.api.Assertions.assertThat(handlingStatus).isEqualTo("ESCALATED");
+        });
+        inventoryServer.verify();
+    }
+
+    private UUID placeStalePendingOrder() throws Exception {
+        stubCatalogLines(catalogServer, catalogLine());
+        stubReserveSuccess(inventoryServer);
+        addItemAsUser(1);
+        UUID orderId = placePendingPaymentOrder();
+        transactionTemplate.executeWithoutResult(status -> entityManager.createNativeQuery("""
+                        UPDATE orders SET updated_at = now() - interval '10 minutes'
+                        WHERE id = CAST(:orderId AS uuid)
+                        """)
+                .setParameter("orderId", orderId)
+                .executeUpdate());
+        return orderId;
     }
 
     private CatalogLineStub catalogLine() {

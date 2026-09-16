@@ -1,7 +1,9 @@
 package com.project.young.paymentservice.it;
 
 import com.project.young.paymentservice.PaymentServiceMain;
+import com.project.young.paymentservice.application.service.RefundCompensationDltReplayExecutor;
 import com.project.young.paymentservice.it.support.PaymentIntegrationTestConfiguration;
+import com.project.young.paymentservice.it.support.PaymentIntegrationTestConfiguration.RecordingPaymentProvider;
 import jakarta.persistence.EntityManager;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -67,6 +69,8 @@ class PaymentOrderCreatedKafkaIntegrationTest {
         registry.add("payment-service.saga-events.refund-requested-consumer-group", () -> "payment-it-refund-requested");
         registry.add("payment-service.stub-payment.always-succeed", () -> "false");
         registry.add("payment-service.stub-payment.decline-when-fractional-part", () -> "0.99");
+        registry.add("payment-service.saga-events.consumer.retry.max-attempts", () -> "1");
+        registry.add("payment-service.saga-events.consumer.retry.backoff-interval-ms", () -> "10");
     }
 
     @Autowired
@@ -75,11 +79,18 @@ class PaymentOrderCreatedKafkaIntegrationTest {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
+    @Autowired
+    private RecordingPaymentProvider paymentProvider;
+
+    @Autowired
+    private RefundCompensationDltReplayExecutor refundDltReplayExecutor;
+
     @BeforeEach
     void setUp() {
+        paymentProvider.reset();
         transactionTemplate.executeWithoutResult(status -> {
             entityManager.createNativeQuery("""
-                    TRUNCATE TABLE payments.payment_refund_compensations, payments.payment_provider_events,
+                    TRUNCATE TABLE payments.payment_refund_compensation_dlts, payments.payment_refund_compensations, payments.payment_provider_events,
                     payments.payment_outbox, payments.payments RESTART IDENTITY CASCADE
                     """)
                     .executeUpdate();
@@ -168,6 +179,7 @@ class PaymentOrderCreatedKafkaIntegrationTest {
                     .getResultList();
             return paymentIds.isEmpty() ? null : UUID.fromString(paymentIds.getFirst().toString());
         }), java.util.Objects::nonNull);
+        awaitCompletedPayment(paymentId);
         UUID compensationEventId = UUID.randomUUID();
 
         sendPaymentRefundRequested(compensationEventId, paymentId, orderId);
@@ -182,6 +194,69 @@ class PaymentOrderCreatedKafkaIntegrationTest {
                     .getSingleResult());
             assertThat(count).isNotNull();
             assertThat(count.longValue()).isEqualTo(1L);
+            assertThat(paymentProvider.refundIdempotencyKeys()).containsExactly(compensationEventId.toString());
+        });
+    }
+
+    @Test
+    @DisplayName("PSP 환불 consumer 실패는 retry/DLT 후 운영 replay에서 같은 멱등 키로 종결된다")
+    void paymentRefundRequested_whenPspFails_routesToDltAndOperationalReplayUsesSameIdempotencyKey() {
+        UUID orderId = UUID.randomUUID();
+        sendOrderCreated(orderId, "50.00");
+        UUID paymentId = awaitPaymentId(orderId);
+        awaitCompletedPayment(paymentId);
+        UUID compensationEventId = UUID.randomUUID();
+        paymentProvider.failNextRefunds(2);
+
+        sendPaymentRefundRequested(compensationEventId, paymentId, orderId);
+
+        await().atMost(20, TimeUnit.SECONDS).untilAsserted(() -> {
+            Object[] dlt = transactionTemplate.execute(status -> findRefundDlt(compensationEventId));
+            assertThat(dlt).isNotNull();
+            assertThat(dlt[0]).isEqualTo("MANUAL");
+        });
+
+        refundDltReplayExecutor.replayManualItems();
+
+        await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> {
+            Object[] replayed = transactionTemplate.execute(status -> findRefundDlt(compensationEventId));
+            assertThat(replayed).isNotNull();
+            assertThat(replayed[0]).isEqualTo("RESOLVED");
+            assertThat(((Number) replayed[1]).intValue()).isEqualTo(1);
+            assertThat(paymentProvider.refundIdempotencyKeys()).containsOnly(compensationEventId.toString());
+        });
+    }
+
+    private Object[] findRefundDlt(UUID compensationEventId) {
+        @SuppressWarnings("unchecked")
+        var rows = entityManager.createNativeQuery("""
+                        SELECT CAST(handling_status AS varchar), replay_attempts
+                        FROM payment_refund_compensation_dlts
+                        WHERE compensation_event_id = CAST(:compensationEventId AS uuid)
+                        """)
+                .setParameter("compensationEventId", compensationEventId)
+                .getResultList();
+        return rows.isEmpty() ? null : (Object[]) rows.getFirst();
+    }
+
+    private UUID awaitPaymentId(UUID orderId) {
+        return await().atMost(20, TimeUnit.SECONDS).until(() -> transactionTemplate.execute(status -> {
+            @SuppressWarnings("unchecked")
+            var paymentIds = entityManager.createNativeQuery(
+                            "SELECT id FROM payments WHERE order_id = CAST(:orderId AS uuid)")
+                    .setParameter("orderId", orderId)
+                    .getResultList();
+            return paymentIds.isEmpty() ? null : UUID.fromString(paymentIds.getFirst().toString());
+        }), java.util.Objects::nonNull);
+    }
+
+    private void awaitCompletedPayment(UUID paymentId) {
+        await().atMost(20, TimeUnit.SECONDS).untilAsserted(() -> {
+            String status = transactionTemplate.execute(transactionStatus -> (String) entityManager.createNativeQuery(
+                            "SELECT CAST(status AS varchar) FROM payments WHERE id = CAST(:paymentId AS uuid)")
+                    .setParameter("paymentId", paymentId)
+                    .getSingleResult());
+            assertThat(status).isEqualTo("COMPLETED");
         });
     }
 

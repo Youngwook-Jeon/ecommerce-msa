@@ -36,6 +36,17 @@ public class OrderIntegrationTestConfiguration {
 
     @Bean
     @Primary
+    PaymentStatusQueryTestHolder paymentStatusQueryPort() {
+        return new PaymentStatusQueryTestHolder();
+    }
+
+    @Bean
+    RestClient paymentReconciliationRestClient() {
+        return RestClient.builder().baseUrl("http://payment.test").build();
+    }
+
+    @Bean
+    @Primary
     JwtDecoder jwtDecoder() {
         return NimbusJwtDecoder.withSecretKey(
                 new SecretKeySpec("integration-test-secret-key-32b!!".getBytes(), "HmacSHA256")

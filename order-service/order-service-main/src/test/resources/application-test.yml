@@ -16,6 +16,10 @@ order-service:
     read-timeout-ms: 3000
   saga-events:
     enabled: false
+    compensation:
+      observation:
+        # Testcontainers tests assert database/Kafka state; do not create runtime JSONL files.
+        strategy: noop
 
 spring:
   main:
