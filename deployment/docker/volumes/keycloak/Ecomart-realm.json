@@ -78,6 +78,14 @@
       "containerId" : "db24d948-92e1-455f-b005-86404851d82b",
       "attributes" : { }
     }, {
+      "id" : "bc5356de-2b84-47d3-a71e-8ac03e797aa2",
+      "name" : "INTERNAL_PAYMENT_RECONCILIATION_READ",
+      "description" : "Order Service client-credentials access to Payment reconciliation APIs",
+      "composite" : false,
+      "clientRole" : false,
+      "containerId" : "db24d948-92e1-455f-b005-86404851d82b",
+      "attributes" : { }
+    }, {
       "id" : "e7e1be85-e0a9-4661-a3a0-3f2dbb5ca6a2",
       "name" : "default-roles-ecomart",
       "description" : "${role_default-roles}",
@@ -659,6 +667,48 @@
     } ],
     "defaultClientScopes" : [ "web-origins", "acr", "roles", "profile", "basic", "email" ],
     "optionalClientScopes" : [ "address", "phone", "offline_access", "microprofile-jwt" ]
+  }, {
+    "id" : "d594c153-62a1-45e8-b89f-a5971ddf47f9",
+    "clientId" : "order-service",
+    "name" : "Order Service internal API client",
+    "description" : "Client-credentials identity for Order to Payment reconciliation calls",
+    "enabled" : true,
+    "clientAuthenticatorType" : "client-secret",
+    "secret" : "order-service-local-secret",
+    "redirectUris" : [ ],
+    "webOrigins" : [ ],
+    "bearerOnly" : false,
+    "consentRequired" : false,
+    "standardFlowEnabled" : false,
+    "implicitFlowEnabled" : false,
+    "directAccessGrantsEnabled" : false,
+    "serviceAccountsEnabled" : true,
+    "publicClient" : false,
+    "frontchannelLogout" : false,
+    "protocol" : "openid-connect",
+    "fullScopeAllowed" : true,
+    "nodeReRegistrationTimeout" : -1,
+    "protocolMappers" : [ {
+      "id" : "3610333f-4971-43dc-a2e4-cbed5994f7b7",
+      "name" : "payment-service audience",
+      "protocol" : "openid-connect",
+      "protocolMapper" : "oidc-audience-mapper",
+      "consentRequired" : false,
+      "config" : {
+        "included.client.audience" : "payment-service",
+        "access.token.claim" : "true",
+        "id.token.claim" : "false"
+      }
+    } ],
+    "defaultClientScopes" : [ "web-origins", "acr", "roles", "profile", "basic", "email" ],
+    "optionalClientScopes" : [ "address", "phone", "offline_access", "microprofile-jwt" ]
+  } ],
+  "users" : [ {
+    "id" : "19c6f783-fb1b-4f97-a507-9c9b0aa10f1c",
+    "username" : "service-account-order-service",
+    "enabled" : true,
+    "serviceAccountClientId" : "order-service",
+    "realmRoles" : [ "INTERNAL_PAYMENT_RECONCILIATION_READ" ]
   } ],
   "clientScopes" : [ {
     "id" : "f37440af-ac84-41b1-ace3-8d2c64545eb0",

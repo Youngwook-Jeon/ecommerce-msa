@@ -308,6 +308,11 @@ Payment가 `COMPLETED` 또는 `FAILED`면 기존 주문 확정·취소 경로로
 이 작업은 재조정 레코드를 `REFUND_REQUESTED`로 원자적으로 전환하고, 그 레코드의 `compensationEventId`를
 `refund_requested_outbox`의 멱등 키로 사용한다. 실제 환불은 기존 CDC `payment.refund.requested` 흐름에서 수행된다.
 
+Payment의 내부 재조정 API는 공개 Gateway 경로가 아니며, Order Service의 client-credentials 토큰만 허용한다.
+로컬 Keycloak realm은 `order-service` service account에 `INTERNAL_PAYMENT_RECONCILIATION_READ` role과
+`payment-service` audience를 부여한다. 배포 환경에서는 `ORDER_SERVICE_CLIENT_SECRET`을 플랫폼 secret store에서
+주입하고, 로컬 realm의 개발용 기본 secret을 사용하지 않는다.
+
 ### Debezium
 
 Outbox CDC 상세는 [deployment/docker/DEBEZIUM.md](deployment/docker/DEBEZIUM.md).  

@@ -7,6 +7,8 @@ schema:
   name: payments
 
 payment-service:
+  internal-api:
+    audience: ${PAYMENT_INTERNAL_API_AUDIENCE:payment-service}
   # stub (default) | stripe
   provider: ${PAYMENT_PROVIDER:stub}
   stub-payment:

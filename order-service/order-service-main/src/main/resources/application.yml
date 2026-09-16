@@ -166,6 +166,16 @@ spring:
 
   security:
     oauth2:
+      client:
+        registration:
+          payment-reconciliation:
+            provider: keycloak
+            client-id: ${ORDER_SERVICE_CLIENT_ID:order-service}
+            client-secret: ${ORDER_SERVICE_CLIENT_SECRET:order-service-local-secret}
+            authorization-grant-type: client_credentials
+        provider:
+          keycloak:
+            token-uri: ${issuer-uri}/protocol/openid-connect/token
       resourceserver:
         jwt:
           issuer-uri: ${issuer-uri}
