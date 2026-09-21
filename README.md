@@ -1,6 +1,8 @@
 # Ecomart — MSA E-Commerce Backend
 
-Spring Boot 기반의 **마이크로서비스 이커머스 백엔드**입니다. API Gateway·인증·상품 도메인을 분리하고, **헥사고날 아키텍처(포트/어댑터)** 와 **DDD** 를 적용해 확장 가능한 구조를 목표로 설계·구현했습니다.
+상품 탐색부터 장바구니·주문·결제까지 구현한 Spring Boot 기반 마이크로서비스 이커머스 백엔드입니다. **헥사고날 아키텍처와 DDD**로 도메인 규칙과 외부 시스템을 분리하고, **Transactional Outbox·Debezium·Kafka 기반 SAGA**로 서비스 간 부분 실패를 처리합니다.
+
+핵심 설계 과제는 “결제는 완료됐지만 주문 확정에 실패한 경우 어떻게 복구할 것인가”입니다. 정상 처리뿐 아니라 재고 예약 만료, 이벤트 중복 전달, 웹훅 지연, 재시도 소진에 대한 보상과 운영 경로를 구현했습니다.
 
 > 프론트엔드(Next.js)는 별도 저장소 [ecommerce-frontend](https://github.com/Youngwook-Jeon/ecommerce-frontend) 에 있습니다. Gateway가 SPA를 프록시하므로 로컬에서는 두 저장소를 함께 실행합니다.
 
@@ -8,10 +10,13 @@ Spring Boot 기반의 **마이크로서비스 이커머스 백엔드**입니다.
 
 ## 프로젝트 하이라이트 & 핵심 문제 해결
 
-기능 구현을 넘어, **대규모 트래픽**과 **복잡한 상품 도메인**을 전제로 한 엔지니어링 의사결정을 정리했습니다.
+분산 트랜잭션의 정합성과 복잡한 상품 조회를 중심으로 설계 선택과 검증 근거를 정리했습니다. 성능 수치는 저장소의 로컬 벤치마크 범위에 한정하며, 운영 규모의 처리량을 의미하지 않습니다.
 
 | 영역 | 한 줄 요약 |
 |------|------------|
+| 주문·결제 정합성 | 로컬 트랜잭션 + Outbox CDC, 중복 전달을 고려한 멱등 상태 전이 |
+| 실패 복구 | 재시도 → DLT → 환불·재고 해제, 장기 미완료 상태 재조정 및 운영 감사 이력 |
+| 재고 예약 | 주문 전 soft hold, 결제 성공 시 확정, 실패 시 해제·TTL 만료 |
 | 조회 최적화 | 카테시안 곱·N+1 방어, 배치 fetch·쿼리 분리 |
 | **공개 PLP 키워드 검색** | `pg_trgm` GIN(이름+브랜드 통합), 선택도별 **~8–11배** GIN 우위 검증 |
 | 도메인 동기화 | 옵션 값 이미지 → Variant 썸네일 일괄 반영 |
@@ -65,13 +70,102 @@ JPA 엔티티와 비즈니스 규칙이 한 레이어에 섞이면 상태 전이
   (`lower(coalesce(name,'')) || ' ' || lower(coalesce(brand,''))`)
 - Testcontainers(PostgreSQL) 기반 5만 건 시드 데이터로 **선택도 구간별 플래너 실행 계획 및 시간 벤치마크** 진행
 
-**핵심 결과 (GIN vs Seq Scan)**
-- **희귀 키워드 (선택도 ~2% 미만):** GIN 인덱스가 풀 스캔 대비 **약 8~11배 빠른 성능(1~2ms)** 입증
-- **넓은 키워드 (선택도 ~5% 이상) 및 2글자 단어:** 옵티마이저가 랜덤 I/O 비용 및 Trigram Recheck 오버헤드를 계산하여 풀 스캔을 선택하는 정상 동작 확인 
+**측정 결과와 해석**
+
+- ACTIVE 상품 50,001건의 키워드 단독 조건에서, 선택도 0~1.87% 구간의 강제 GIN은 1.43~2.07ms, 강제 Seq Scan은 15.63~17.14ms로 약 8.27~11.57배 차이를 보였습니다.
+- 선택도 4.22%·8.44%에서는 기본 플래너가 Seq Scan을 선택했지만, 해당 실험의 강제 GIN 실행 시간은 더 짧았습니다. 플래너의 선택이 모든 데이터·캐시 조건에서 최적임을 뜻하지는 않습니다.
+- 2글자 키워드 `데님`에서는 강제 GIN 70.84ms, Seq Scan 17.51ms로 역전됐습니다. 검색어 길이와 선택도에 따라 실행 계획을 확인해야 하며, 위 수치는 API 전체 응답 시간이나 동시 부하 성능이 아닙니다.
 
 👉 **[상세 벤치마크 리포트 및 분석 결과 보기 (CSV/Markdown)](benchmark-reports/keyword-selectivity-comparison.md)**
 
 ---
+
+## 주문·결제 SAGA
+
+Order와 Payment는 각자의 DB 트랜잭션을 커밋하고 Outbox 이벤트로 다음 단계를 진행합니다. 주문 생성·재고 예약은 동기 호출로 조율하고 결제 결과는 이벤트로 반영하는 구조입니다. 전체 과정을 하나의 ACID 트랜잭션으로 묶지 않으므로, 중간 상태를 허용하고 멱등 재시도·보상·재조정으로 정합성을 회복합니다.
+
+### 성공 경로
+
+| 단계 | 처리 주체 / 호출·이벤트 | Order | Payment | 재고·트랜잭션 경계 |
+|---|---|---|---|---|
+| 1. 체크아웃 검증 | Order → Product: 카탈로그 동기화, 재고 예약 | 생성 전 | 생성 전 | 장바구니 변경 시 재검토 요청. `orderId`를 예약 키로 사용하고 기본 15분 soft hold |
+| 2. 주문 저장 | Order: 주문 + `order_outbox` 저장 | `PENDING_PAYMENT` | 생성 전 | 두 쓰기를 같은 로컬 트랜잭션에서 커밋. 예약 HTTP 호출은 이 트랜잭션 밖에서 실행 |
+| 3. 결제 작업 접수 | Debezium → `order.created` → Payment | `PENDING_PAYMENT` | `PENDING` | 결제와 provider session 요청을 같은 트랜잭션에 저장. 같은 주문의 재수신은 기존 결제 사용 |
+| 4. 결제 수행 | 작업 실행기가 provider session 생성 | `PENDING_PAYMENT` | `PENDING` | Stripe는 PaymentIntent/웹훅으로 결과 확인. Stub은 세션 생성 시 즉시 결과 적용 |
+| 5. 결과 영속화 | Payment: 결제 완료 + `payment_outbox` | `PENDING_PAYMENT` | `COMPLETED` | 완료 상태와 이벤트를 같은 로컬 트랜잭션에 저장. Stripe 웹훅은 서명 검증 후 Inbox에 보관하여 처리 |
+| 6. 주문 확정 | Debezium → `payment.completed` → Order → Product | `CONFIRMED` | `COMPLETED` | 재고 예약 확정 후 별도 주문 트랜잭션에서 조건부 상태 갱신. 중간 실패 시 멱등 재시도 |
+| 7. 화면 반영 | 프론트엔드가 Order 상태 조회 | `CONFIRMED` | `COMPLETED` | 주문 확정 뒤 장바구니 정리는 best-effort. 화면은 결제 SDK 응답이 아닌 주문 상태로 성공 판단 |
+
+### 실패·보상 경로
+
+아래 경로는 실패 지점별 분기이며, 모든 행이 순서대로 실행되는 것은 아닙니다. DLT(Dead Letter Topic)는 재시도 소진 또는 재시도 불가 오류를 별도로 처리하는 토픽입니다.
+
+| 실패 지점 / 조건 | 즉시 처리 | 후속 복구 경로 | 도달 상태·주의점 |
+|---|---|---|---|
+| 카탈로그 변경·재고 부족 | 주문 생성 거절 | 사용자가 장바구니 확인 후 재시도 | 결제 시작 전 종료 |
+| 예약 후 주문 DB 커밋 실패 | 예약 해제 호출 후 원래 오류 반환 | 해제도 실패하면 로그를 남기고 Product 예약 TTL로 회수 | 주문·Outbox는 롤백. 원격 예약은 DB 롤백만으로 취소되지 않음 |
+| `order.created` 소비 실패 | Kafka 재시도 후 `order.created.DLT` 보관 | Payment의 DLT 작업이 선점·재생, 한도 초과 시 `ESCALATED` | 같은 주문으로 결제 생성을 재시도. 운영 API에서 replay/resolve 가능 |
+| Stripe 결제 **시도** 실패 | `payment_intent.payment_failed` 이력만 기록 | 같은 PaymentIntent에서 후속 결제 결과 대기 | Payment는 `PENDING` 유지. 이 이벤트만으로 주문을 취소하지 않음 |
+| 결제 **최종** 실패 | Payment `FAILED` + `payment.failed` Outbox | Order가 `CANCELLED`를 먼저 커밋한 뒤 재고 해제 | Stripe에서는 `payment_intent.canceled`가 최종 실패에 해당 |
+| `payment.failed` 처리 중 취소·해제 실패 | 재시도 후 DLT | 보상 기록 + `inventory.release.requested` Outbox → Product 해제 | Product 처리 확인 후 보상 기록 `CLOSED`. 재고 해제만으로 주문 취소까지 보장하지는 않음 |
+| 결제 완료 후 재고 만료·거절 또는 불법 주문 상태 전이 | `payment.completed` 처리 오류를 DLT에서 분류 | 보상 기록 + `payment.refund.requested` Outbox → Payment 환불 | 재예약·강제 확정 대신 환불. Payment 처리 확인 후 보상 기록 `REFUNDED` |
+| 결제 완료 처리의 일시 장애가 재시도 한도 초과 | DLT 보상 기록에 `REPLAY` 권고 | 원인 확인 및 장기 미완료 주문 재조정 | 권고만으로 자동 DLT 재생이 실행되는 것은 아님 |
+| 주문 조회·검증 오류 또는 오류 메타데이터 부족 | `MANUAL` 조치로 보관 | 운영자 조사 | 환불 여부를 단정할 수 없는 건은 자동 환불하지 않음 |
+| 환불 소비·provider 호출 실패 | 재시도 후 환불 DLT 보관 | 임대 기반 재생, 한도 초과 시 `ESCALATED` | `compensationEventId`를 로컬 처리 키와 provider 멱등 키로 사용 |
+| 웹훅 지연·누락 또는 주문의 결과 반영 누락 | Inbox 재시도 / provider 상태 조회 / Payment 상태 배치 조회 | 이미 존재하는 완료·취소 유스케이스로 재조정 | 반복 실패는 운영 대상으로 남김. 미완료 상태가 모두 자동 종결되는 것은 아님 |
+
+`MANUAL`은 보상 기록의 초기 처리 상태이기도 합니다. **조치(`REFUND`, `RELEASE_INVENTORY`, `REPLAY`, `MANUAL`)와 처리 상태를 구분**해야 합니다. 환불·재고 해제 조치는 Outbox로 자동 전달되고, `SagaCompensationExecutor`는 실제 실행 대신 대상 서비스의 처리 기록을 조회합니다.
+
+현재 Payment 도메인의 상태는 `PENDING`, `COMPLETED`, `FAILED`입니다. 환불은 별도 처리 기록으로 관리하므로, **보상 기록의 `REFUNDED`가 Payment의 상태 변경이나 주문 취소를 뜻하지 않습니다.** 예약 TTL 만료도 Product의 재고 회수이며 Order의 자동 `EXPIRED` 전이와 동일하지 않습니다.
+
+### 정합성을 위한 선택과 비용
+
+| 설계 선택 | 해결하려는 문제 | 보장 범위 / 남는 비용 |
+|---|---|---|
+| Transactional Outbox + Debezium CDC | DB 저장과 Kafka 발행 사이의 이중 쓰기 실패 | 로컬 상태·발행 의도를 원자적으로 저장. CDC 지연과 중복 소비에 대한 대응은 별도로 필요 |
+| 멱등 처리 + 조건부 상태 갱신 | 재전달·동시 처리에 의한 중복 결제·잘못된 상태 덮어쓰기 | 주문 ID, provider event ID, 보상 event ID 등 경계별 키 사용. 시스템 전체 exactly-once를 주장하지 않음 |
+| 재고 soft hold + TTL | 결제 대기 중 판매 가능 재고 확보와 고아 예약 회수 | 결제 지연이 TTL을 넘으면 이미 결제됐더라도 환불이 필요할 수 있음 |
+| 재시도와 DLT 분리 | 일시 장애와 영구 오류의 무한 재시도 방지 | Order 기본 정책은 최초 실패 뒤 1초 간격 최대 3회 재시도. 재시도 불가 예외는 바로 DLT로 이동 |
+| 웹훅 Inbox + 상태 재조정 | 웹훅 반영 실패·이벤트 누락, provider 연결 정보를 찾지 못하는 예외 상황 | 영속 작업·외부 조회 비용 발생. Inbox 재시도 소진은 `ESCALATED`이며 결제의 `FAILED` 전이가 아님 |
+| 운영 API + 감사 이력 | 자동 처리만으로 해결할 수 없는 건의 추적 가능한 복구 | 장기 미완료 주문의 replay/close/refund와 처리자·사유·요청 ID 이력 관리 |
+
+코드 탐색: [주문 처리](order-service/order-domain/order-domain-application/src/main/java/com/project/young/orderservice/application/service/OrderApplicationService.java) · [결제 처리](payment-service/payment-domain/payment-domain-application/src/main/java/com/project/young/paymentservice/application/service/PaymentApplicationService.java) · [보상 분류](order-service/order-domain/order-domain-application/src/main/java/com/project/young/orderservice/application/compensation/CompensationDecisionClassifier.java) · [보상 Outbox 저장](order-service/order-domain/order-domain-application/src/main/java/com/project/young/orderservice/application/service/SagaCompensationApplicationService.java) · [보상 완료 확인](order-service/order-domain/order-domain-application/src/main/java/com/project/young/orderservice/application/service/SagaCompensationExecutor.java) · [주문 상태 재조정](order-service/order-domain/order-domain-application/src/main/java/com/project/young/orderservice/application/service/OrderPaymentReconciliationExecutor.java).
+
+### 대표 설계 결정과 대안
+
+아래는 현재 구현의 선택 이유와 대안별 비용입니다. 대안들을 모두 구현하여 성능을 비교했다는 의미는 아닙니다.
+
+| 결정 | 검토할 수 있는 대안 | 현재 선택의 이유 | 감수하는 비용 / 경계 |
+|---|---|---|---|
+| 상태 변경과 이벤트 발행 의도를 같은 DB 트랜잭션에 저장 | DB 커밋 뒤 Kafka 직접 발행 | 커밋 직후 프로세스가 종료돼도 발행 의도를 Outbox에 남길 수 있음 | Debezium 운영·CDC 지연이 추가됨. 소비자 멱등성은 별도 책임 |
+| 재고 예약은 동기 호출, 결제 결과는 이벤트로 반영 | 구매 전 과정을 동기 호출하거나 모든 단계를 비동기로 처리 | 재고 부족은 주문 생성 전에 응답하고, 사용자 결제·웹훅 대기는 `PENDING_PAYMENT`로 표현 | 예약과 주문 저장 사이의 원자성은 없음. 해제 보상·TTL과 중간 상태 UI 필요 |
+| 웹훅을 Inbox에 영속화한 뒤 작업 실행기가 적용 | 웹훅 HTTP 요청 안에서 결제 상태를 즉시 변경 | 접수와 비즈니스 처리를 분리하고 처리 실패를 로컬에서 재시도 | 작업 지연·재시도 상태 관리 필요. 누락된 웹훅은 Inbox만으로 복구할 수 없어 provider 조회로 보완 |
+| 기대 상태를 조건으로 DB 갱신 | 읽은 엔티티의 상태를 조건 없이 덮어쓰기 | 읽기 이후 상태가 바뀌면 갱신 실패를 감지하고 다시 판단 | 조건부 갱신은 해당 DB 행의 보호 수단. 원격 재고 확정이나 별도 환불 작업까지 원자화하지 않음 |
+
+웹훅 선도착은 정상 체크아웃의 대표 시나리오로 가정하지 않습니다. 현재 UI는 DB에 저장된 client secret을 조회한 뒤 결제를 확정하고, `payment_intent.created`는 Inbox 처리 대상이 아닙니다. 연결 정보 부재에 대한 재시도는 예외 조건을 방어하며, 관련 단위 테스트도 이 조건을 모의합니다.
+
+### 현재 상태 전이와 경합 방지 범위
+
+| 대상 | 현재 허용 전이 / 중복 처리 | 보호 수단과 한계 |
+|---|---|---|
+| Order | `PENDING_PAYMENT → CONFIRMED` 또는 `CANCELLED`. 같은 결과 재호출은 멱등 처리 | 기대 상태를 조건으로 갱신. 재고 확정은 주문 상태 갱신보다 먼저 수행되어 원격 부수 효과가 남는 구간이 있음 |
+| Payment | `PENDING → COMPLETED` 또는 `FAILED`. 결제 시도 실패는 `PENDING` 유지 | provider event ID 중복 검사와 기대 상태 조건부 갱신. 이미 종료된 결제는 웹훅으로 다른 종료 상태에 덮어쓰지 않음 |
+| 환불 보상 | Payment `COMPLETED`를 유지하고 별도 보상 처리 기록 저장 | 같은 `compensationEventId` 재처리 방지. 서로 다른 보상 ID로 같은 결제를 환불하는 업무 중복까지 방지한다는 의미는 아님 |
+| 운영자 재조정 | 재조정 레코드를 조건부 선점하여 replay·환불 요청 처리 | 해당 레코드의 작업 경합을 제어하지만, Kafka 주문 확정 경로와 공유하는 최종 결정 잠금은 아님 |
+
+따라서 로컬 상태 갱신의 충돌 감지와 서비스 전체의 확정·환불 상호 배제는 구분해야 합니다. **후속 설계 제안(미구현)**은 주문 확정과 보상 결정이 공유하는 영속 상태를 Order에 두고, 원격 호출 전에 조건부 전이로 실행 방향을 결정하는 것입니다. 환불 결정 후 늦은 결제 완료 이벤트가 주문을 다시 확정하지 못하게 하고, 환불 실행 상태는 Payment가 소유하도록 분리합니다. 임대 만료는 같은 결정을 재실행하는 조건이며, 반대 결정으로 전환하는 근거로 사용하지 않습니다.
+
+### 이벤트 계약
+
+SAGA 이벤트는 **JSON**이며, 상품 카탈로그의 Avro/Schema Registry 연동과 구분합니다. Outbox를 Debezium으로 전달하는 설정은 [CDC 문서](deployment/docker/DEBEZIUM.md)와 [커넥터 설정](deployment/docker/connectors)을 참고하세요.
+
+| 토픽 | Outbox 소유 서비스 → 소비 서비스 | 목적 |
+|---|---|---|
+| `order.created` | Order → Payment | 결제 시작 |
+| `payment.completed` | Payment → Order | 재고 확정·주문 확정 |
+| `payment.failed` | Payment → Order | 주문 취소·재고 해제 |
+| `payment.refund.requested` | Order → Payment | 결제 완료 후 주문 처리 불가에 대한 환불 |
+| `inventory.release.requested` | Order → Product | 실패한 재고 해제의 비동기 보상 |
 
 ## 시스템 구성
 
@@ -84,11 +178,10 @@ flowchart TB
   end
 
   subgraph Apps["다운스트림 (Gateway 라우팅)"]
-    SPA["ecommerce-frontend :3000\nNext.js SPA"]
+    SPA["ecommerce-frontend :3000\nNext.js App Router"]
     Product["product-service :9002"]
     Order["order-service :9003"]
     Payment["payment-service :9004"]
-    Customer["customer-service :9001\n(스켈레톤)"]
   end
 
   subgraph Infra["Docker (deployment/docker)"]
@@ -104,16 +197,17 @@ flowchart TB
   Edge -->|"/api/v1/product_service/**"| Product
   Edge -->|"/api/v1/order_service/**"| Order
   Edge -->|"/api/v1/payment_service/**"| Payment
-  Edge -->|"/api/v1/customer_service/**"| Customer
   Edge --> Redis
   Edge --> KC
   Product --> PG
   Order --> PG
   Payment --> PG
   Product --> KC
-  Product --> Kafka
-  Order --> Kafka
-  Payment --> Kafka
+  Order -->|"재고 예약·확정·해제 HTTP"| Product
+  PG -->|"Outbox CDC"| Connect
+  Kafka --> Product
+  Kafka --> Order
+  Kafka --> Payment
   Connect --> Kafka
   Product --> R2["Cloudflare R2"]
 ```
@@ -130,7 +224,7 @@ flowchart TB
 | Kafka Connect | 8083 | Debezium outbox CDC |
 | Keycloak | 8080 | Realm `Ecomart`, Client `edge-service` |
 | PostgreSQL | 5432 | DB `ecodb_product`, `ecodb_order`, `ecodb_payment` |
-| Redis | 6379 | Gateway 세션 저장소 |
+| Redis | 6379 | Gateway 세션, 비회원 장바구니, 상품 상세 캐시 |
 | Kafka brokers | 19092 / 29092 / 39092 | 로컬 리스너 |
 | Schema Registry | 8081 | Avro 스키마 |
 | Kafka UI | 9090 | 클러스터 모니터링 |
@@ -138,7 +232,8 @@ flowchart TB
 Gateway 경로 예시:
 
 - 상품 API: `http://localhost:9000/api/v1/product_service/**` → `product-service` 로 rewrite
-- 고객 API: `http://localhost:9000/api/v1/customer_service/**` → `customer-service` 로 rewrite
+- 주문·결제 API: `/api/v1/order_service/**`, `/api/v1/payment_service/**`
+- `customer-service`는 스켈레톤이며 기본 기동·Gateway 라우팅 대상이 아닙니다.
 - 공개(비인증) 상품 경로: `GET /api/v1/product_service/public/products`
 - SPA: `http://localhost:9000/**` → `http://localhost:3000`
 
@@ -174,8 +269,11 @@ ecommerce-msa/
 │   │   └── product-domain-application/  # Use case, Command/Query
 │   ├── product-dataaccess/      # JPA 엔티티, Repository 어댑터
 │   ├── product-web/             # REST Controller, DTO, Security
-│   ├── product-messaging/       # Kafka 발행 (인프라 연동)
+│   ├── product-messaging/       # 카탈로그 이벤트·캐시 무효화·재고 해제 소비
 │   └── product-service-main/    # Spring Boot 실행 모듈, Flyway
+├── order-service/               # 카트·주문·SAGA 보상 (domain/dataaccess/web/messaging/main)
+├── payment-service/             # 결제·provider·Inbox·DLT (동일 레이어 구조)
+├── saga-e2e-tests/              # 실제 CDC → 환불 소비 경로 통합 검증
 ├── infra/kafka/                 # kafka-config, kafka-model, kafka-producer
 └── deployment/docker/           # 로컬 인프라 Compose 스택
 ```
@@ -211,6 +309,7 @@ ecommerce-msa/
 |------|------|------|
 | JDK | 21 | 빌드·실행 |
 | Docker / Docker Compose | 최신 권장 | 인프라 기동 |
+| `curl`, `jq`, `nc` | - | 헬스체크·커넥터 등록 |
 | [kcat](https://github.com/edenhill/kcat) | - | `deployment/docker/startup.sh` 에서 Kafka 헬스체크 |
 | (선택) Cloudflare R2 | - | 이미지 업로드 API 사용 시 |
 
@@ -228,6 +327,7 @@ ecommerce-msa/
 cd ..   # ecommerce-msa → msa-ecomm-project (이미 루트면 생략)
 
 cp ecommerce-msa/.env.example ecommerce-msa/.env   # 최초 1회
+make check-prereqs
 make up
 ```
 
@@ -250,7 +350,7 @@ make down
 
 로그/PID: 워크스페이스 `.run/logs`, `.run/pids`.
 
-### Stripe 실결제 (선택)
+### Stripe 테스트 결제 (선택)
 
 1. `ecommerce-msa/.env`에만 설정:
    ```bash
@@ -267,79 +367,10 @@ make down
 
 이벤트 로그를 직접 보고 싶으면 `make stripe-listen`(포그라운드, 디버그용).
 
-Stripe 웹훅은 서명 검증 뒤 `provider_webhook_inbox`에 먼저 보관하고 2xx를 반환한다. 결제 세션이 아직
-영속되지 않은 이벤트는 지수 백오프로 재조정하며, 기본 20회 실패 후 `ESCALATED` 상태로 남는다. 필요하면
-`PAYMENT_PROVIDER_WEBHOOK_INBOX_DELAY_MS`, `PAYMENT_PROVIDER_WEBHOOK_INBOX_INITIAL_RETRY_DELAY_MS`,
-`PAYMENT_PROVIDER_WEBHOOK_INBOX_MAX_RETRY_DELAY_MS`, `PAYMENT_PROVIDER_WEBHOOK_INBOX_MAX_ATTEMPTS`로 조정한다.
-`payment_intent.payment_failed`는 재시도 가능한 결제 시도 실패로만 기록하며 주문 취소 이벤트를 만들지 않는다.
-최종 취소를 뜻하는 `payment_intent.canceled`만 `payment.failed`를 발행한다.
-웹훅이 아예 전달되지 않은 경우에도, provider session이 있는 오래된 `PENDING` Stripe PaymentIntent는 PSP 상태를
-주기적으로 조회해 같은 멱등 결제 완료·최종 실패 경로로 반영한다. 기본 조회 주기는 60초, 대상 최소 경과 시간은
-5분이며 `PAYMENT_PROVIDER_PAYMENT_RECONCILIATION_DELAY_MS`와
-`PAYMENT_PROVIDER_PAYMENT_RECONCILIATION_PENDING_AGE_MS`로 조정할 수 있다.
-
-`order.created` 소비가 재시도 후에도 실패해 `order.created.DLT`에 도달하면 payment-service는 이벤트 ID를
-기본 키로 `payment_order_created_dlts`에 한 번만 보관한다. 재생 작업은 `MANUAL` 항목을 선점해 같은 주문 ID로
-멱등 결제 처리를 다시 시작하고, 성공하면 `RESOLVED`, 최대 시도 횟수를 넘으면 `ESCALATED`로 종결한다. 실행 주기,
-선점 임대 시간 및 최대 시도 횟수는 각각 `PAYMENT_ORDER_CREATED_DLT_REPLAY_DELAY_MS`,
-`PAYMENT_ORDER_CREATED_DLT_REPLAY_LEASE_MS`, `PAYMENT_ORDER_CREATED_DLT_REPLAY_MAX_ATTEMPTS`로 조정한다.
-운영자는 `ADMIN` 권한으로 `GET /admin/operations/order-created-dlts?status=ESCALATED&limit=100`에서 상태별 DLT
-항목을 조회할 수 있다. `POST /admin/operations/order-created-dlts/{eventId}/replay`는 `MANUAL` 또는 `ESCALATED`
-항목을 조건부 선점하여 즉시 멱등 재생하고, `POST .../{eventId}/resolve`는 `{"reason":"..."}` 본문과 함께
-수동 종결 사유를 남긴다.
-
-운영자는 `ADMIN` 권한으로 `GET /admin/operations/provider-escalations?limit=100`을 호출해 자동 재시도 한도를
-초과한 provider session 요청과 webhook inbox 항목을 조회할 수 있다. 응답은 식별자, 시도 횟수, 마지막 실패 사유와
-시각만 포함하며 client secret 및 원본 웹훅 payload는 포함하지 않는다.
-
-Order의 장기 `PENDING_PAYMENT` 수렴 작업은 내부 API `POST /internal/orders/payment-statuses`에 최대 100개의
-`orderIds`를 보내 Payment의 권위 상태를 한 번에 조회한다. 응답에는 존재하는 결제의 `paymentId`, `orderId`,
-`status`, `updatedAt`만 포함하며 provider session과 client secret, 결제 수단 정보는 포함하지 않는다.
-Order Service는 `PENDING_PAYMENT` 주문을 마지막 갱신 시각 기준으로 최대 100건씩 projection 조회하고, 이 API를
-한 번 호출한다. Payment 조회 장애에는 `paymentOrderStatusReconciliation` circuit breaker가 적용된다.
-Payment가 `COMPLETED` 또는 `FAILED`면 기존 주문 확정·취소 경로로 멱등 수렴한다. 해당 처리 자체가 반복 실패하면
-`order_payment_reconciliation_failures`에 기록되며 기본 5회 후 `ESCALATED`가 된다. 운영자는 `ADMIN` 권한으로
-`GET /admin/operations/payment-reconciliation-escalations?limit=100`에서 이를 조회할 수 있다. 실행 주기·대기
-최소 시간·한도는 `ORDER_PAYMENT_STATUS_RECONCILIATION_DELAY_MS`,
-`ORDER_PAYMENT_STATUS_RECONCILIATION_PENDING_AGE_MS`, `ORDER_PAYMENT_STATUS_RECONCILIATION_MAX_ATTEMPTS`로 조정한다.
-운영자는 `POST .../{orderId}/replay`로 `ESCALATED` 건을 한 번 수동 재시도하거나,
-`POST .../{orderId}/close`에 `{"reason":"..."}`를 보내 외부에서 해결된 건을 종결할 수 있다. 결제가 이미
-`COMPLETED`인데 주문 확정이 불가능하다고 판단되면 `POST .../{orderId}/refund`를 같은 형식의 사유와 함께 호출한다.
-이 작업은 재조정 레코드를 `REFUND_REQUESTED`로 원자적으로 전환하고, 그 레코드의 `compensationEventId`를
-`refund_requested_outbox`의 멱등 키로 사용한다. 실제 환불은 기존 CDC `payment.refund.requested` 흐름에서 수행된다.
-수동 replay·종결·환불 요청은 인증된 운영자의 subject, `X-Request-Id`(없으면 서버 생성), 사유 및 환불 보상 ID를
-append-only 감사 이력으로 남긴다. 운영자는 `GET .../{orderId}/history?limit=100`으로 이력을 조회할 수 있다.
-
-Payment의 내부 재조정 API는 공개 Gateway 경로가 아니며, Order Service의 client-credentials 토큰만 허용한다.
-로컬 Keycloak realm은 `order-service` service account에 `INTERNAL_PAYMENT_RECONCILIATION_READ` role과
-`payment-service` audience를 부여한다. 배포 환경에서는 `ORDER_SERVICE_CLIENT_SECRET`을 플랫폼 secret store에서
-주입하고, 로컬 realm의 개발용 기본 secret을 사용하지 않는다.
-
 ### Debezium
 
 Outbox CDC 상세는 [deployment/docker/DEBEZIUM.md](deployment/docker/DEBEZIUM.md).  
 `make up`이 Flyway 이후 `setup-debezium.sh`까지 실행합니다. 커넥터만 다시 등록하려면 `make debezium`.
-
-### 수동 실행 (Makefile 없이)
-
-```bash
-cd deployment/docker && ./startup.sh
-
-cd ../..   # ecommerce-msa
-./mvnw clean install -DskipTests
-./mvnw -pl product-service/product-service-main spring-boot:run
-./mvnw -pl order-service/order-service-main spring-boot:run
-./mvnw -pl payment-service/payment-service-main spring-boot:run
-./mvnw -pl edge-service spring-boot:run
-
-cd deployment/docker && ./scripts/setup-debezium.sh
-```
-
-테스트 포함 전체 검증:
-
-```bash
-./mvnw clean verify
-```
 
 ### 프론트엔드 (선택)
 
@@ -381,8 +412,7 @@ make run-jar SERVICE=payment   # edge|product|order|payment|customer
 
 ## API 개요
 
-Gateway prefix: `/api/v1/product_service`  
-다운스트림 실제 경로는 rewrite 후 아래와 같습니다.
+상품 Gateway prefix는 `/api/v1/product_service`입니다. 아래 경로는 prefix를 제거한 서비스 내부 경로입니다.
 
 | 구분 | 경로 패턴 | 인증 |
 |------|-----------|------|
@@ -395,8 +425,22 @@ Gateway prefix: `/api/v1/product_service`
 **예시 — 공개 상품 목록**
 
 ```bash
-curl "http://localhost:9000/api/v1/product_service/public/products?page=0&size=20"
+# 실제 ACTIVE 카테고리 ID로 교체
+curl "http://localhost:9000/api/v1/product_service/public/products?categoryId=10&page=0&size=20"
 ```
+
+### 주문·결제 API
+
+| 서비스 prefix | 주요 경로 | 용도 |
+|---|---|---|
+| `/api/v1/order_service` | `/carts/current`, `/carts/current/items`, `/carts/current/sync`, `/carts/current/merge` | 비회원·회원 카트, 동기화·로그인 병합 |
+| `/api/v1/order_service` | `POST /orders`, `GET /orders/{orderId}` | 인증 사용자 주문 생성·본인 주문 상태 조회 |
+| `/api/v1/payment_service` | `GET /payments/orders/{orderId}/client-secret` | 결제 입력용 세션 조회 |
+| `/api/v1/payment_service` | `POST /webhooks/stripe` | Stripe 서명 검증 후 웹훅 접수 |
+| `/api/v1/order_service` | `/admin/operations/payment-reconciliation-escalations` | 장기 미완료 주문의 운영 조회·replay·close·refund·history |
+| `/api/v1/payment_service` | `/admin/operations/order-created-dlts`, `/admin/operations/provider-escalations` | 결제 시작 DLT·provider 작업 실패 운영 조회 |
+
+운영 API는 `ADMIN` 권한을 요구합니다. 주문 재조정의 수동 처리에는 처리자·요청 ID·사유를 감사 이력으로 남깁니다. 이 경로들은 자동 복구 한도를 넘은 건을 조사하고 처리하기 위한 수단입니다.
 
 **예시 — 로그인 사용자 정보 (Gateway)**
 
@@ -424,7 +468,7 @@ Realm: `Ecomart`
 
 1. 사용자가 Gateway(`edge-service`)에 접속 → Keycloak Authorization Code 로그인
 2. Gateway가 Redis에 세션 저장 (`ecomart:edge` namespace)
-3. API 호출 시 Gateway가 세션·CSRF 처리, 상품 서비스는 **JWT Resource Server** 로 토큰 검증
+3. API 호출 시 Gateway가 세션·CSRF 처리, 다운스트림 서비스는 **JWT Resource Server** 로 토큰 검증
 4. `roles` 클레임 기반 `@PreAuthorize` / 경로별 `ADMIN` 검사
 
 공개 스토어프론트 API는 Gateway `PublicApiPaths` 와 product-service `SecurityConfig` 양쪽에서 anonymous 허용됩니다.
@@ -433,59 +477,34 @@ Realm: `Ecomart`
 
 ## 데이터베이스
 
-- DB: `ecodb_product` (스키마: `product`)
-- 마이그레이션: `product-service-main/src/main/resources/db/migration/`
-- 애플리케이션 기동 시 Flyway가 스키마·시드 데이터 적용
+로컬 PostgreSQL 인스턴스 안에서 `ecodb_product`, `ecodb_order`, `ecodb_payment`로 데이터를 분리합니다. 각 서비스 실행 모듈의 `src/main/resources/db/migration/`을 Flyway로 적용하며, 다른 서비스 DB를 직접 갱신하는 대신 API·이벤트로 연동합니다.
 
 ---
 
 ## 테스트
 
 ```bash
-# 전체
-./mvnw verify
+# ecommerce-msa 디렉터리에서 실행. 통합 테스트에는 Docker 필요
+./mvnw clean verify
 
 # product-service 만
-./mvnw -pl product-service verify
+./mvnw -pl product-service/product-service-main -am test
 
 # 특정 모듈
-./mvnw -pl product-service/product-domain/product-domain-core test
+./mvnw -pl order-service/order-service-main -am test
+
+# 실제 Order 환불 Outbox → Debezium → Kafka → Payment 소비 검증
+./mvnw -pl saga-e2e-tests -am verify
 ```
 
-테스트 유형:
+그 외 테스트 유형:
 
 - **Domain:** 엔티티 불변식, 상태 전이, 도메인 서비스 규칙
 - **Application:** Use case 시나리오, Mock 포트
 - **Dataaccess:** JPA Repository, Adapter (Testcontainers PostgreSQL)
 - **Web:** `@WebMvcTest`, Security `@WithMockUser`
 - **Integration:** `ProductApiIntegrationTest`, `CategoryApiIntegrationTest`
+- **SAGA:** `OrderPaymentSagaKafkaIntegrationTest`, `OrderOutboxDebeziumIntegrationTest` — 결제 이벤트 소비와 주문 Outbox CDC
+- **Recovery:** `SagaCompensationApplicationServiceTest`, `ProviderWebhookInboxExecutorTest`, `OrderPaymentReconciliationExecutorTest` — 보상·웹훅 재처리·상태 재조정
+- **CDC E2E:** `RefundOutboxToPaymentConsumerIT` — PostgreSQL·Kafka·Debezium Connect와 서비스 컨테이너를 사용한 환불 전달 경로. 전체 브라우저 구매 과정이나 실제 Stripe 환불의 E2E 검증을 뜻하지 않음
 - **Benchmark (수동):** `PublicProductKeywordSearchBenchmarkIT` — PLP 키워드 선택도·GIN vs Seq Scan 리포트 (`RUN_KEYWORD_BENCHMARK=true`, [§5](#5-공개-plp-키워드-검색-pg_trgm-gin--선택도) 참고)
-
----
-
-## 진행 현황 / 로드맵
-
-- [x] Product 바운디드 컨텍스트 — 카테고리, 상품, 옵션, Variant, 관리자 이미지
-- [x] Gateway + Keycloak + Redis 세션
-- [x] 공개 상품 조회 API 스켈레톤
-- [ ] `customer-service` — Gateway 라우트 활성화(`/api/v1/customer_service/**`)·도메인 구현
-- [ ] `order-service` — `ecodb_order` 기반 주문 도메인
-- [ ] Kafka 이벤트 발행·다운스트림 연동 (`product-messaging`)
-- [ ] 공개 API 실제 조회 로직 연동 (현재 empty page 응답)
-
----
-
-## 트러블슈팅
-
-| 증상 | 확인 사항 |
-|------|-----------|
-| `startup.sh` 가 Kafka에서 멈춤 | `kcat -L -b localhost:19092` 로 브로커 3대 기동 여부 확인 |
-| product-service DB 연결 실패 | `eco-postgres` 컨테이너·`ecodb_product` 생성 여부 |
-| 401 on admin API | Keycloak 토큰·`ADMIN` 역할, Authorization 헤더 |
-| 이미지 presign 실패 | R2 환경 변수 및 `r2.enabled` 설정 |
-
----
-
-## 라이선스
-
-개인 학습·포트폴리오 목적 프로젝트입니다. 상업적 사용 시 별도 문의 바랍니다.

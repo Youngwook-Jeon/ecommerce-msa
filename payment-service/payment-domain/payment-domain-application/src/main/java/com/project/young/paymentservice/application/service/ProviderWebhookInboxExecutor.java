@@ -10,7 +10,11 @@ import org.springframework.stereotype.Component;
 
 import java.time.Clock;
 
-/** Reconciles verified webhooks that can arrive before their provider session is persisted. */
+/**
+ * Applies verified webhooks from the durable inbox.
+ * Retries when the provider-payment association is missing or processing fails,
+ * and escalates inbox items after the retry limit.
+ */
 @Component
 public class ProviderWebhookInboxExecutor {
 
