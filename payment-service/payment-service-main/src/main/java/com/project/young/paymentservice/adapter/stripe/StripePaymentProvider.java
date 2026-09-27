@@ -4,11 +4,15 @@ import com.project.young.common.domain.valueobject.Money;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort;
 import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.exception.PaymentDomainException;
+import com.project.young.paymentservice.domain.exception.PaymentRefundRejectedException;
+import com.project.young.paymentservice.domain.exception.PaymentRefundUnavailableException;
 import com.project.young.paymentservice.domain.valueobject.PaymentProvider;
 import com.stripe.model.PaymentIntent;
 import com.stripe.model.Refund;
+import com.stripe.exception.StripeException;
 import com.stripe.net.RequestOptions;
 import com.stripe.param.RefundCreateParams;
+import com.stripe.param.RefundListParams;
 import com.stripe.param.PaymentIntentCreateParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,15 +82,74 @@ public class StripePaymentProvider implements PaymentProviderPort {
     public void refund(Payment payment, String idempotencyKey) {
         try {
             log.info("Creating Stripe refund for payment {} with idempotency key {}", payment.getId().getValue(), idempotencyKey);
-            Refund.create(
+            Refund refund = Refund.create(
                     RefundCreateParams.builder().setPaymentIntent(payment.getProviderPaymentId()).build(),
                     RequestOptions.builder().setIdempotencyKey(idempotencyKey).build()
             );
-            log.info("Stripe refund completed for payment {}", payment.getId().getValue());
+            if (!"succeeded".equals(refund.getStatus()) && !"pending".equals(refund.getStatus())) {
+                throw new PaymentRefundRejectedException("Stripe refund requires manual review for payment "
+                        + payment.getId().getValue() + " (status=" + refund.getStatus() + ")");
+            }
+            log.info("Stripe refund accepted for payment {} refundId={} status={}",
+                    payment.getId().getValue(), refund.getId(), refund.getStatus());
+        } catch (PaymentRefundRejectedException ex) {
+            throw ex;
+        } catch (StripeException ex) {
+            Integer statusCode = ex.getStatusCode();
+            if (statusCode != null && statusCode >= 400 && statusCode < 500
+                    && statusCode != 408 && statusCode != 409 && statusCode != 425 && statusCode != 429) {
+                log.warn("Stripe rejected refund for payment {} status={}", payment.getId().getValue(), statusCode, ex);
+                throw new PaymentRefundRejectedException("Stripe rejected the refund for payment "
+                        + payment.getId().getValue(), ex);
+            }
+            log.warn("Stripe refund unavailable for payment {} status={}", payment.getId().getValue(), statusCode, ex);
+            throw new PaymentRefundUnavailableException("Stripe refund result is uncertain for payment "
+                    + payment.getId().getValue(), ex);
         } catch (Exception ex) {
             log.warn("Stripe refund failed for payment {}", payment.getId().getValue(), ex);
-            throw new PaymentDomainException("Failed to refund Stripe payment: " + ex.getMessage(), ex);
+            throw new PaymentRefundUnavailableException("Stripe refund result is uncertain for payment "
+                    + payment.getId().getValue(), ex);
         }
+    }
+
+    @Override
+    public boolean hasAcceptedFullRefund(Payment payment) {
+        try {
+            RefundListParams params = RefundListParams.builder()
+                    .setPaymentIntent(payment.getProviderPaymentId())
+                    .setLimit(100L)
+                    .build();
+            return hasAcceptedFullRefund(Refund.list(params).autoPagingIterable(), payment);
+        } catch (PaymentRefundRejectedException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new PaymentRefundUnavailableException("Could not inspect Stripe refunds for payment "
+                    + payment.getId().getValue(), ex);
+        }
+    }
+
+    static boolean hasAcceptedFullRefund(Iterable<Refund> refunds, Payment payment) {
+        long expectedAmount = toMinorUnits(payment.getAmount(), payment.getCurrency());
+        boolean found = false;
+        for (Refund refund : refunds) {
+            if (!Long.valueOf(expectedAmount).equals(refund.getAmount())) {
+                throw new PaymentRefundRejectedException("Unexpected partial refund exists for payment "
+                        + payment.getId().getValue());
+            }
+            if ("succeeded".equals(refund.getStatus()) || "pending".equals(refund.getStatus())) {
+                if (found) {
+                    throw new PaymentRefundRejectedException("Multiple refunds require manual review for payment "
+                            + payment.getId().getValue());
+                }
+                log.info("Found existing Stripe refund paymentId={} providerRefundId={} status={}",
+                        payment.getId().getValue(), refund.getId(), refund.getStatus());
+                found = true;
+                continue;
+            }
+            throw new PaymentRefundRejectedException("Stripe refund requires manual review for payment "
+                    + payment.getId().getValue() + " (status=" + refund.getStatus() + ")");
+        }
+        return found;
     }
 
     @Override

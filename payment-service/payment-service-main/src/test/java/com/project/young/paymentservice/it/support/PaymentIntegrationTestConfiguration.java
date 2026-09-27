@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.util.List;
@@ -44,6 +45,9 @@ public class PaymentIntegrationTestConfiguration {
     /** Test PSP that records every refund idempotency key without leaving the process. */
     public static final class RecordingPaymentProvider implements PaymentProviderPort {
         private final List<String> refundIdempotencyKeys = new CopyOnWriteArrayList<>();
+        private final List<Boolean> refundTransactionActive = new CopyOnWriteArrayList<>();
+        private final java.util.Set<java.util.UUID> acceptedRefundPaymentIds =
+                java.util.concurrent.ConcurrentHashMap.newKeySet();
         private final AtomicInteger remainingRefundFailures = new AtomicInteger();
 
         @Override
@@ -61,9 +65,16 @@ public class PaymentIntegrationTestConfiguration {
         @Override
         public void refund(Payment payment, String idempotencyKey) {
             refundIdempotencyKeys.add(idempotencyKey);
+            refundTransactionActive.add(TransactionSynchronizationManager.isActualTransactionActive());
             if (remainingRefundFailures.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
                 throw new IllegalStateException("Test PSP refund unavailable");
             }
+            acceptedRefundPaymentIds.add(payment.getId().getValue());
+        }
+
+        @Override
+        public boolean hasAcceptedFullRefund(Payment payment) {
+            return acceptedRefundPaymentIds.contains(payment.getId().getValue());
         }
 
         @Override
@@ -75,9 +86,13 @@ public class PaymentIntegrationTestConfiguration {
 
         public void reset() {
             refundIdempotencyKeys.clear();
+            refundTransactionActive.clear();
+            acceptedRefundPaymentIds.clear();
             remainingRefundFailures.set(0);
         }
 
         public List<String> refundIdempotencyKeys() { return List.copyOf(refundIdempotencyKeys); }
+
+        public List<Boolean> refundTransactionActive() { return List.copyOf(refundTransactionActive); }
     }
 }

@@ -60,10 +60,13 @@ BEGIN
   IF to_regclass('orders.inventory_release_requested_outbox') IS NULL THEN
     RAISE EXCEPTION 'Table orders.inventory_release_requested_outbox does not exist. Run order-service Flyway migrations first.';
   END IF;
+  IF to_regclass('orders.customer_refund_requested_outbox') IS NULL THEN
+    RAISE EXCEPTION 'Table orders.customer_refund_requested_outbox does not exist. Run order-service Flyway migrations first.';
+  END IF;
 END $$;
 
 GRANT USAGE ON SCHEMA orders TO debezium;
-GRANT SELECT ON TABLE orders.order_outbox, orders.refund_requested_outbox, orders.inventory_release_requested_outbox TO debezium;
+GRANT SELECT ON TABLE orders.order_outbox, orders.refund_requested_outbox, orders.inventory_release_requested_outbox, orders.customer_refund_requested_outbox TO debezium;
 
 DO $$
 BEGIN
@@ -92,6 +95,9 @@ BEGIN
     WHERE pubname = 'dbz_order_outbox_pub' AND schemaname = 'orders' AND tablename = 'inventory_release_requested_outbox'
   ) THEN
     ALTER PUBLICATION dbz_order_outbox_pub ADD TABLE orders.inventory_release_requested_outbox;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'dbz_order_outbox_pub' AND schemaname = 'orders' AND tablename = 'customer_refund_requested_outbox') THEN
+    ALTER PUBLICATION dbz_order_outbox_pub ADD TABLE orders.customer_refund_requested_outbox;
   END IF;
 END $$;
 SQL

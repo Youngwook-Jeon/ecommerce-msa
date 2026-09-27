@@ -3,15 +3,18 @@ package com.project.young.paymentservice.application.service;
 import com.project.young.common.application.contract.payment.PaymentReconciliationStatus;
 import com.project.young.paymentservice.application.dto.command.ApplyProviderPaymentResultCommand;
 import com.project.young.paymentservice.application.dto.command.ProcessPaymentCommand;
+import com.project.young.paymentservice.application.dto.command.RefundCustomerPaymentCommand;
 import com.project.young.paymentservice.application.dto.command.RefundPaymentCommand;
 import com.project.young.paymentservice.application.dto.event.PaymentCompletedEvent;
 import com.project.young.paymentservice.application.dto.event.PaymentFailedEvent;
 import com.project.young.paymentservice.application.dto.query.ClientSecretView;
 import com.project.young.paymentservice.application.dto.query.OrderPaymentStatusView;
+import com.project.young.paymentservice.application.port.output.CustomerRefundProcessingPort;
 import com.project.young.paymentservice.application.port.output.IdGenerator;
 import com.project.young.paymentservice.application.port.output.PaymentOutboxPort;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort.ProviderPaymentSession;
+import com.project.young.paymentservice.application.port.output.PaymentRefundClaimPort;
 import com.project.young.paymentservice.application.port.output.ProviderEventIdempotencyPort;
 import com.project.young.paymentservice.application.port.output.ProviderSessionRequestPort;
 import com.project.young.paymentservice.application.port.output.RefundCompensationPort;
@@ -19,6 +22,8 @@ import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.exception.PaymentClientSecretNotReadyException;
 import com.project.young.paymentservice.domain.exception.PaymentDomainException;
 import com.project.young.paymentservice.domain.exception.PaymentNotFoundException;
+import com.project.young.paymentservice.domain.exception.PaymentRefundNeedsReviewException;
+import com.project.young.paymentservice.domain.exception.PaymentRefundRejectedException;
 import com.project.young.paymentservice.domain.exception.PaymentStateConflictException;
 import com.project.young.paymentservice.domain.repository.PaymentRepository;
 import com.project.young.paymentservice.domain.valueobject.OrderId;
@@ -31,6 +36,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -44,6 +50,8 @@ import java.util.UUID;
 public class PaymentApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentApplicationService.class);
+    // Stripe can prune idempotency keys after 24 hours; leave a margin for clock skew.
+    private static final Duration SAFE_PSP_RETRY_WINDOW = Duration.ofHours(23);
 
     private final PaymentRepository paymentRepository;
     private final PaymentOutboxPort paymentOutboxPort;
@@ -51,6 +59,9 @@ public class PaymentApplicationService {
     private final ProviderEventIdempotencyPort providerEventIdempotencyPort;
     private final RefundCompensationPort refundCompensationPort;
     private final ProviderSessionRequestPort providerSessionRequestPort;
+    private final CustomerRefundProcessingPort customerRefundProcessingPort;
+    private final PaymentRefundClaimPort paymentRefundClaimPort;
+    private final PaymentRefundResultRecorder paymentRefundResultRecorder;
     private final IdGenerator idGenerator;
     private final Clock clock;
 
@@ -61,6 +72,9 @@ public class PaymentApplicationService {
             ProviderEventIdempotencyPort providerEventIdempotencyPort,
             RefundCompensationPort refundCompensationPort,
             ProviderSessionRequestPort providerSessionRequestPort,
+            CustomerRefundProcessingPort customerRefundProcessingPort,
+            PaymentRefundClaimPort paymentRefundClaimPort,
+            PaymentRefundResultRecorder paymentRefundResultRecorder,
             IdGenerator idGenerator,
             Clock clock
     ) {
@@ -70,6 +84,9 @@ public class PaymentApplicationService {
         this.providerEventIdempotencyPort = providerEventIdempotencyPort;
         this.refundCompensationPort = refundCompensationPort;
         this.providerSessionRequestPort = providerSessionRequestPort;
+        this.customerRefundProcessingPort = customerRefundProcessingPort;
+        this.paymentRefundClaimPort = paymentRefundClaimPort;
+        this.paymentRefundResultRecorder = paymentRefundResultRecorder;
         this.idGenerator = idGenerator;
         this.clock = clock;
     }
@@ -281,7 +298,6 @@ public class PaymentApplicationService {
         };
     }
 
-    @Transactional
     public boolean refundPayment(UUID paymentIdValue, UUID compensationEventId) {
         return refundPayment(new RefundPaymentCommand(compensationEventId, paymentIdValue, null));
     }
@@ -292,7 +308,6 @@ public class PaymentApplicationService {
      *
      * @return {@code true} when the compensation was newly applied; {@code false} when already processed
      */
-    @Transactional
     public boolean refundPayment(RefundPaymentCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         Objects.requireNonNull(command.compensationEventId(), "compensationEventId must not be null");
@@ -328,19 +343,67 @@ public class PaymentApplicationService {
             log.warn("Rejecting refund for payment {} in status {}", command.paymentId(), payment.getStatus());
             throw new PaymentDomainException("Only completed payments can be refunded: " + command.paymentId());
         }
-        paymentProviderPort.refund(payment, command.compensationEventId().toString());
-        boolean newlyRecorded = refundCompensationPort.recordProcessed(
-                command.compensationEventId(),
-                command.paymentId(),
-                payment.getOrderId().getValue()
-        );
+        paymentRefundClaimPort.claimOrVerify(
+                command.paymentId(), command.compensationEventId(), PaymentRefundClaimPort.Kind.COMPENSATION);
+        if (refundCompensationPort.isProcessed(command.compensationEventId())) {
+            return false;
+        }
+        refundAtProvider(payment, command.compensationEventId(), PaymentRefundClaimPort.Kind.COMPENSATION);
+        boolean newlyRecorded = paymentRefundResultRecorder.recordCompensation(
+                command, payment.getOrderId().getValue());
         log.info(
-                "Refund provider call completed paymentId={} compensationEventId={} newlyRecorded={}",
+                "Compensation refund result recorded paymentId={} compensationEventId={} newlyRecorded={}",
                 command.paymentId(),
                 command.compensationEventId(),
                 newlyRecorded
         );
         return newlyRecorded;
+    }
+
+    public boolean refundCustomerPayment(RefundCustomerPaymentCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
+        Objects.requireNonNull(command.refundId(), "refundId must not be null");
+        Objects.requireNonNull(command.paymentId(), "paymentId must not be null");
+        Objects.requireNonNull(command.orderId(), "orderId must not be null");
+        if (command.userId() == null || command.userId().isBlank()) {
+            throw new IllegalArgumentException("userId must not be blank");
+        }
+        if (customerRefundProcessingPort.isProcessed(command.refundId())) {
+            log.info("Skipping already processed customer refund refundId={}", command.refundId());
+            return false;
+        }
+        Payment payment = paymentRepository.findById(new PaymentId(command.paymentId()))
+                .orElseThrow(() -> new PaymentNotFoundException("Payment not found: " + command.paymentId()));
+        if (!payment.getOrderId().getValue().equals(command.orderId())
+                || !payment.getUserId().value().equals(command.userId())
+                || payment.getStatus() != PaymentStatus.COMPLETED) {
+            throw new PaymentRefundRejectedException(
+                    "Customer refund does not match a completed payment and its owner: " + command.paymentId());
+        }
+        paymentRefundClaimPort.claimOrVerify(
+                command.paymentId(), command.refundId(), PaymentRefundClaimPort.Kind.CUSTOMER);
+        if (customerRefundProcessingPort.isProcessed(command.refundId())) {
+            return false;
+        }
+        refundAtProvider(payment, command.refundId(), PaymentRefundClaimPort.Kind.CUSTOMER);
+        return paymentRefundResultRecorder.recordCustomerRefund(command);
+    }
+
+    private void refundAtProvider(Payment payment, UUID requestId, PaymentRefundClaimPort.Kind kind) {
+        PaymentRefundClaimPort.RefundAttempt attempt = paymentRefundClaimPort.markAttemptStarted(
+                payment.getId().getValue(), requestId, kind, clock.instant());
+        if (!attempt.firstAttempt()) {
+            if (paymentProviderPort.hasAcceptedFullRefund(payment)) {
+                log.info("Reconciled existing PSP refund paymentId={} requestId={}",
+                        payment.getId().getValue(), requestId);
+                return;
+            }
+            if (!clock.instant().isBefore(attempt.startedAt().plus(SAFE_PSP_RETRY_WINDOW))) {
+                throw new PaymentRefundNeedsReviewException("PSP refund outcome requires manual review paymentId="
+                        + payment.getId().getValue() + " requestId=" + requestId);
+            }
+        }
+        paymentProviderPort.refund(payment, requestId.toString());
     }
 
     @Transactional(readOnly = true)

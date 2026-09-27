@@ -1,6 +1,8 @@
 package com.project.young.paymentservice.it;
 
 import com.project.young.paymentservice.PaymentServiceMain;
+import com.project.young.paymentservice.application.dto.command.RefundCustomerPaymentCommand;
+import com.project.young.paymentservice.application.service.PaymentApplicationService;
 import com.project.young.paymentservice.application.service.RefundCompensationDltReplayExecutor;
 import com.project.young.paymentservice.it.support.PaymentIntegrationTestConfiguration;
 import com.project.young.paymentservice.it.support.PaymentIntegrationTestConfiguration.RecordingPaymentProvider;
@@ -84,6 +86,9 @@ class PaymentOrderCreatedKafkaIntegrationTest {
 
     @Autowired
     private RefundCompensationDltReplayExecutor refundDltReplayExecutor;
+
+    @Autowired
+    private PaymentApplicationService paymentApplicationService;
 
     @BeforeEach
     void setUp() {
@@ -195,7 +200,34 @@ class PaymentOrderCreatedKafkaIntegrationTest {
             assertThat(count).isNotNull();
             assertThat(count.longValue()).isEqualTo(1L);
             assertThat(paymentProvider.refundIdempotencyKeys()).containsExactly(compensationEventId.toString());
+            assertThat(paymentProvider.refundTransactionActive()).containsExactly(false);
         });
+    }
+
+    @Test
+    void customerRefund_recordsResultAndOutboxAfterPspCallWithoutOpenTransaction() {
+        UUID orderId = UUID.randomUUID();
+        sendOrderCreated(orderId, "50.00");
+        UUID paymentId = awaitPaymentId(orderId);
+        awaitCompletedPayment(paymentId);
+        UUID refundId = UUID.randomUUID();
+        RefundCustomerPaymentCommand command = new RefundCustomerPaymentCommand(
+                refundId, paymentId, orderId, USER_ID);
+
+        assertThat(paymentApplicationService.refundCustomerPayment(command)).isTrue();
+        assertThat(paymentApplicationService.refundCustomerPayment(command)).isFalse();
+        assertThat(paymentProvider.refundIdempotencyKeys()).containsExactly(refundId.toString());
+        assertThat(paymentProvider.refundTransactionActive()).containsExactly(false);
+
+        Object[] counts = transactionTemplate.execute(status -> new Object[] {
+                entityManager.createNativeQuery("SELECT COUNT(*) FROM customer_refund_processings WHERE refund_id = CAST(:refundId AS uuid)")
+                        .setParameter("refundId", refundId).getSingleResult(),
+                entityManager.createNativeQuery("SELECT COUNT(*) FROM payment_outbox WHERE refund_id = CAST(:refundId AS uuid) AND event_type = 'CUSTOMER_REFUND_COMPLETED'")
+                        .setParameter("refundId", refundId).getSingleResult()
+        });
+        assertThat(counts).isNotNull();
+        assertThat(((Number) counts[0]).longValue()).isEqualTo(1L);
+        assertThat(((Number) counts[1]).longValue()).isEqualTo(1L);
     }
 
     @Test

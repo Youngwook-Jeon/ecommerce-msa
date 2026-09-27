@@ -35,6 +35,9 @@ public class PaymentOutboxEntity {
     @Column(name = "event_id", nullable = false, unique = true, columnDefinition = "UUID")
     private UUID eventId;
 
+    @Column(name = "refund_id", columnDefinition = "UUID")
+    private UUID refundId;
+
     @Column(name = "payment_id", nullable = false, columnDefinition = "UUID")
     private UUID paymentId;
 

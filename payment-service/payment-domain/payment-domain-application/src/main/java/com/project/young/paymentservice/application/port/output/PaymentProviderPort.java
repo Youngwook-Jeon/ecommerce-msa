@@ -19,6 +19,9 @@ public interface PaymentProviderPort {
 
     void refund(Payment payment, String idempotencyKey);
 
+    /** True only when the PSP already accepted a full refund for this payment. */
+    boolean hasAcceptedFullRefund(Payment payment);
+
     /**
      * Reads a terminal PSP state when a webhook may have been lost. Empty means that the provider
      * still considers the payment non-terminal or does not support asynchronous reconciliation.

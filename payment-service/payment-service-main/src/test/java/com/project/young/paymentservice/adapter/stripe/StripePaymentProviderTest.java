@@ -2,11 +2,17 @@ package com.project.young.paymentservice.adapter.stripe;
 
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.paymentservice.application.provider.ProviderPaymentResultOutcome;
+import com.project.young.paymentservice.domain.entity.Payment;
+import com.project.young.paymentservice.domain.exception.PaymentRefundRejectedException;
+import com.project.young.paymentservice.domain.valueobject.PaymentId;
 import com.stripe.model.PaymentIntent;
+import com.stripe.model.Refund;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -56,5 +62,34 @@ class StripePaymentProviderTest {
                 .hasValueSatisfying(result -> assertThat(result.outcome())
                         .isEqualTo(ProviderPaymentResultOutcome.FINAL_FAILED));
         assertThat(StripePaymentProvider.toTerminalResult(pending)).isEmpty();
+    }
+
+    @Test
+    void hasAcceptedFullRefund_acceptsOneFullRefundOnly() {
+        Payment payment = mockPayment();
+        Refund accepted = mock(Refund.class);
+        when(accepted.getAmount()).thenReturn(2500L);
+        when(accepted.getStatus()).thenReturn("succeeded");
+        when(accepted.getId()).thenReturn("re_123");
+
+        assertThat(StripePaymentProvider.hasAcceptedFullRefund(List.of(accepted), payment)).isTrue();
+    }
+
+    @Test
+    void hasAcceptedFullRefund_rejectsPartialRefund() {
+        Payment payment = mockPayment();
+        Refund partial = mock(Refund.class);
+        when(partial.getAmount()).thenReturn(1000L);
+
+        assertThatThrownBy(() -> StripePaymentProvider.hasAcceptedFullRefund(List.of(partial), payment))
+                .isInstanceOf(PaymentRefundRejectedException.class);
+    }
+
+    private static Payment mockPayment() {
+        Payment payment = mock(Payment.class);
+        when(payment.getAmount()).thenReturn(new Money(new BigDecimal("25.00")));
+        when(payment.getCurrency()).thenReturn("USD");
+        when(payment.getId()).thenReturn(new PaymentId(UUID.randomUUID()));
+        return payment;
     }
 }

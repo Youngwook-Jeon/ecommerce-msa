@@ -64,6 +64,12 @@ public class StubPaymentProvider implements PaymentProviderPort {
     }
 
     @Override
+    public boolean hasAcceptedFullRefund(Payment payment) {
+        // The stub has no external transfer to duplicate; a prior attempt is safe to finalize.
+        return true;
+    }
+
+    @Override
     public Optional<ProviderPaymentResult> retrieveTerminalResult(Payment payment) {
         return Optional.empty();
     }

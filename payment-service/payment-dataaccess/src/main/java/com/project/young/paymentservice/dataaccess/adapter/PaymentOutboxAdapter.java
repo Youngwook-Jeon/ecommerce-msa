@@ -3,6 +3,7 @@ package com.project.young.paymentservice.dataaccess.adapter;
 import com.project.young.paymentservice.application.dto.event.PaymentCompletedEvent;
 import com.project.young.paymentservice.application.dto.event.PaymentFailedEvent;
 import com.project.young.paymentservice.application.dto.event.PaymentOutboxEventType;
+import com.project.young.paymentservice.application.dto.event.CustomerRefundCompletedEvent;
 import com.project.young.paymentservice.application.port.output.PaymentOutboxPort;
 import com.project.young.paymentservice.dataaccess.entity.PaymentOutboxEntity;
 import com.project.young.paymentservice.dataaccess.repository.PaymentOutboxJpaRepository;
@@ -45,5 +46,14 @@ public class PaymentOutboxAdapter implements PaymentOutboxPort {
                 .failureReason(event.failureReason())
                 .occurredAt(event.occurredAt())
                 .build());
+    }
+
+    @Override
+    public void enqueueCustomerRefundCompleted(CustomerRefundCompletedEvent event) {
+        paymentOutboxJpaRepository.save(PaymentOutboxEntity.builder()
+                .eventId(event.eventId()).refundId(event.refundId()).paymentId(event.paymentId())
+                .orderId(event.orderId()).userId(event.userId())
+                .eventType(PaymentOutboxEventType.CUSTOMER_REFUND_COMPLETED.name())
+                .amount(java.math.BigDecimal.ZERO).occurredAt(event.occurredAt()).build());
     }
 }

@@ -27,6 +27,8 @@ payment-service:
     refund-requested-consumer-group: payment-service-refund-requested
     refund-requested-dlt-topic: payment.refund.requested.DLT
     refund-requested-dlt-consumer-group: payment-service-refund-requested-dlt
+    customer-refund-requested-topic: customer.refund.requested
+    customer-refund-requested-consumer-group: payment-service-customer-refund-requested
     consumer:
       retry:
         max-attempts: ${PAYMENT_SAGA_RETRY_MAX_ATTEMPTS:3}

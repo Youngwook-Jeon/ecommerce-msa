@@ -4,7 +4,9 @@ import com.project.young.common.domain.valueobject.Money;
 import com.project.young.paymentservice.dataaccess.config.PaymentDataAccessConfig;
 import com.project.young.paymentservice.dataaccess.mapper.PaymentAggregateMapper;
 import com.project.young.paymentservice.dataaccess.mapper.PaymentDataAccessMapper;
+import com.project.young.paymentservice.dataaccess.repository.CustomerRefundProcessingJpaRepository;
 import com.project.young.paymentservice.dataaccess.repository.PaymentJpaRepository;
+import com.project.young.paymentservice.dataaccess.repository.PaymentRefundClaimJpaRepository;
 import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.valueobject.OrderId;
 import com.project.young.paymentservice.domain.valueobject.PaymentId;
@@ -45,7 +47,10 @@ class PaymentRepositoryImplIntegrationTest {
 
     @DynamicPropertySource
     static void overrideProperties(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgresContainer::getJdbcUrl);
+        registry.add("spring.datasource.url", () -> {
+            String jdbcUrl = postgresContainer.getJdbcUrl();
+            return jdbcUrl + (jdbcUrl.contains("?") ? "&" : "?") + "currentSchema=payments";
+        });
         registry.add("spring.datasource.username", postgresContainer::getUsername);
         registry.add("spring.datasource.password", postgresContainer::getPassword);
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "none");
@@ -60,6 +65,12 @@ class PaymentRepositoryImplIntegrationTest {
 
     @Autowired
     private PaymentJpaRepository paymentJpaRepository;
+
+    @Autowired
+    private CustomerRefundProcessingJpaRepository customerRefundProcessingJpaRepository;
+
+    @Autowired
+    private PaymentRefundClaimJpaRepository paymentRefundClaimJpaRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -91,6 +102,41 @@ class PaymentRepositoryImplIntegrationTest {
         assertThat(loaded.getStatus()).isEqualTo(PaymentStatus.PENDING);
         assertThat(loaded.getCurrency()).isEqualTo("USD");
         assertThat(loaded.getCreatedAt()).isNotNull();
+    }
+
+    @Test
+    void customerRefundRepository_isRegisteredAndV14MigrationIsApplied() {
+        assertThat(entityManager.createNativeQuery("SELECT current_schema()")
+                .getSingleResult()).isEqualTo("payments");
+        assertThat(customerRefundProcessingJpaRepository.existsByRefundId(UUID.randomUUID())).isFalse();
+        assertThat(paymentRefundClaimJpaRepository.findById(UUID.randomUUID())).isEmpty();
+        Number claimCount = (Number) entityManager.createNativeQuery("SELECT COUNT(*) FROM payments.payment_refund_claims")
+                .getSingleResult();
+        assertThat(claimCount.longValue()).isZero();
+    }
+
+    @Test
+    void paymentRefundClaimRepository_insertsOnceAndMarksFirstAttempt() {
+        UUID paymentId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        paymentRepository.insert(Payment.createPending(
+                new PaymentId(paymentId), new OrderId(UUID.randomUUID()),
+                new UserId("user-1"), new Money(new BigDecimal("25.00"))));
+        entityManager.flush();
+
+        assertThat(paymentRefundClaimJpaRepository.insertIfAbsent(paymentId, requestId, "CUSTOMER")).isEqualTo(1);
+        assertThat(paymentRefundClaimJpaRepository.insertIfAbsent(paymentId, UUID.randomUUID(), "COMPENSATION"))
+                .isZero();
+        java.time.Instant firstAttemptAt = java.time.Instant.parse("2026-09-27T00:00:00Z");
+        assertThat(paymentRefundClaimJpaRepository.markAttemptStarted(paymentId, firstAttemptAt)).isEqualTo(1);
+        assertThat(paymentRefundClaimJpaRepository.markAttemptStarted(paymentId, firstAttemptAt.plusSeconds(60)))
+                .isZero();
+        assertThat(paymentRefundClaimJpaRepository.findById(paymentId))
+                .hasValueSatisfying(claim -> {
+                    assertThat(claim.getRequestId()).isEqualTo(requestId);
+                    assertThat(claim.getRequestKind()).isEqualTo("CUSTOMER");
+                    assertThat(claim.getFirstAttemptAt()).isEqualTo(firstAttemptAt);
+                });
     }
 
     @Test
