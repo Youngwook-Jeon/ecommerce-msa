@@ -8,6 +8,7 @@ import com.project.young.orderservice.application.dto.event.CustomerRefundReques
 import com.project.young.orderservice.application.port.output.CustomerRefundRequestedOutboxPort;
 import com.project.young.orderservice.application.port.output.IdGenerator;
 import com.project.young.orderservice.application.port.output.PaymentStatusQueryPort;
+import com.project.young.orderservice.application.support.CustomerRefundTxExecutor;
 import com.project.young.orderservice.domain.entity.CustomerRefund;
 import com.project.young.orderservice.domain.entity.Order;
 import com.project.young.orderservice.domain.exception.CustomerRefundStateConflictException;
@@ -20,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -29,12 +31,15 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -61,6 +66,9 @@ class CustomerRefundApplicationServiceTest {
     private CustomerRefundRequestedOutboxPort customerRefundRequestedOutboxPort;
 
     @Mock
+    private CustomerRefundTxExecutor customerRefundTxExecutor;
+
+    @Mock
     private IdGenerator idGenerator;
 
     @Mock
@@ -75,9 +83,14 @@ class CustomerRefundApplicationServiceTest {
                 customerRefundRepository,
                 paymentStatusQueryPort,
                 customerRefundRequestedOutboxPort,
+                customerRefundTxExecutor,
                 idGenerator,
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
+        org.mockito.Mockito.lenient().doAnswer(invocation -> {
+            Supplier<?> action = invocation.getArgument(0);
+            return action.get();
+        }).when(customerRefundTxExecutor).executeInNewTransaction(any());
     }
 
     @Test
@@ -106,6 +119,12 @@ class CustomerRefundApplicationServiceTest {
         verify(customerRefundRequestedOutboxPort).enqueue(eventCaptor.capture());
         assertThat(eventCaptor.getValue().refundId()).isEqualTo(REFUND_ID);
         assertThat(eventCaptor.getValue().occurredAt()).isEqualTo(NOW);
+        verify(customerRefundTxExecutor).executeInNewTransaction(any());
+        verify(orderRepository, times(2)).findByIdAndUserId(ORDER_ID, USER_ID);
+        verify(customerRefundRepository, times(2)).findByOrderId(ORDER_ID);
+        InOrder transactionBoundaryOrder = inOrder(paymentStatusQueryPort, customerRefundTxExecutor);
+        transactionBoundaryOrder.verify(paymentStatusQueryPort).findByOrderIds(java.util.List.of(ORDER_ID_VALUE));
+        transactionBoundaryOrder.verify(customerRefundTxExecutor).executeInNewTransaction(any());
     }
 
     @Test

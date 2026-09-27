@@ -47,6 +47,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.DELETE, "/carts/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/orders/**").authenticated()
                 .requestMatchers(HttpMethod.POST, "/orders/**").authenticated()
+                .requestMatchers(HttpMethod.GET, "/refunds/**").authenticated()
                 .anyRequest().authenticated());
 
         return http.build();

@@ -8,9 +8,10 @@ import com.project.young.orderservice.application.dto.event.CustomerRefundReques
 import com.project.young.orderservice.application.port.output.CustomerRefundRequestedOutboxPort;
 import com.project.young.orderservice.application.port.output.IdGenerator;
 import com.project.young.orderservice.application.port.output.PaymentStatusQueryPort;
+import com.project.young.orderservice.application.support.CustomerRefundTxExecutor;
 import com.project.young.orderservice.domain.entity.CustomerRefund;
 import com.project.young.orderservice.domain.entity.Order;
-import com.project.young.orderservice.domain.exception.CustomerRefundDomainException;
+import com.project.young.orderservice.domain.exception.CustomerRefundNotFoundException;
 import com.project.young.orderservice.domain.exception.CustomerRefundStateConflictException;
 import com.project.young.orderservice.domain.exception.OrderNotFoundException;
 import com.project.young.orderservice.domain.repository.CustomerRefundRepository;
@@ -42,6 +43,7 @@ public class CustomerRefundApplicationService {
     private final CustomerRefundRepository customerRefundRepository;
     private final PaymentStatusQueryPort paymentStatusQueryPort;
     private final CustomerRefundRequestedOutboxPort customerRefundRequestedOutboxPort;
+    private final CustomerRefundTxExecutor customerRefundTxExecutor;
     private final IdGenerator idGenerator;
     private final Clock clock;
 
@@ -50,6 +52,7 @@ public class CustomerRefundApplicationService {
             CustomerRefundRepository customerRefundRepository,
             PaymentStatusQueryPort paymentStatusQueryPort,
             CustomerRefundRequestedOutboxPort customerRefundRequestedOutboxPort,
+            CustomerRefundTxExecutor customerRefundTxExecutor,
             IdGenerator idGenerator,
             Clock clock
     ) {
@@ -57,45 +60,33 @@ public class CustomerRefundApplicationService {
         this.customerRefundRepository = customerRefundRepository;
         this.paymentStatusQueryPort = paymentStatusQueryPort;
         this.customerRefundRequestedOutboxPort = customerRefundRequestedOutboxPort;
+        this.customerRefundTxExecutor = customerRefundTxExecutor;
         this.idGenerator = idGenerator;
         this.clock = clock;
     }
 
-    @Transactional
     public CustomerRefundView requestRefund(UserId userId, RequestCustomerRefundCommand command) {
         Objects.requireNonNull(userId, "userId must not be null");
         Objects.requireNonNull(command, "command must not be null");
         Objects.requireNonNull(command.orderId(), "orderId must not be null");
 
         OrderId orderId = new OrderId(command.orderId());
-        Order order = orderRepository.findByIdAndUserId(orderId, userId)
-                .orElseThrow(() -> {
-                    log.warn("Customer refund rejected: order {} not found for user {}", orderId.getValue(), userId.value());
-                    return new OrderNotFoundException("Order not found: " + orderId.getValue());
-                });
+        verifyRefundableOrderAndNoExistingRefund(userId, orderId);
+        PaymentStatusSnapshot payment = findCompletedPayment(orderId);
 
-        if (order.getStatus() != OrderStatus.CONFIRMED) {
-            log.warn(
-                    "Customer refund rejected: order {} is in status {} (user={})",
-                    orderId.getValue(),
-                    order.getStatus(),
-                    userId.value()
-            );
-            throw new CustomerRefundStateConflictException(
-                    "Only a confirmed order can be refunded.");
-        }
+        return customerRefundTxExecutor.executeInNewTransaction(
+                () -> persistRequestedRefund(userId, command.reason(), orderId, payment));
+    }
 
-        if (customerRefundRepository.findByOrderId(orderId).isPresent()) {
-            log.warn("Customer refund rejected: refund already exists for order {}", orderId.getValue());
-            throw new CustomerRefundStateConflictException("A customer refund already exists for this order.");
-        }
-
-        PaymentStatusSnapshot payment = paymentStatusQueryPort.findByOrderIds(List.of(orderId.getValue()))
-                .get(orderId.getValue());
-        if (payment == null || payment.status() != PaymentReconciliationStatus.COMPLETED) {
-            log.warn("Customer refund rejected: captured payment not found for order {}", orderId.getValue());
-            throw new CustomerRefundStateConflictException("A completed payment is required before requesting a refund.");
-        }
+    private CustomerRefundView persistRequestedRefund(
+            UserId userId,
+            String reason,
+            OrderId orderId,
+            PaymentStatusSnapshot payment
+    ) {
+        // Repeat local checks after the out-of-transaction Payment-service call.
+        // The unique order_id constraint remains the final concurrent-write guard.
+        verifyRefundableOrderAndNoExistingRefund(userId, orderId);
 
         Instant requestedAt = clock.instant();
         CustomerRefund customerRefund = CustomerRefund.request(
@@ -103,7 +94,7 @@ public class CustomerRefundApplicationService {
                 orderId,
                 payment.paymentId(),
                 userId,
-                command.reason(),
+                reason,
                 requestedAt
         );
         customerRefundRepository.insert(customerRefund);
@@ -125,6 +116,39 @@ public class CustomerRefundApplicationService {
         return CustomerRefundView.from(customerRefund);
     }
 
+    private void verifyRefundableOrderAndNoExistingRefund(UserId userId, OrderId orderId) {
+        Order order = orderRepository.findByIdAndUserId(orderId, userId)
+                .orElseThrow(() -> {
+                    log.warn("Customer refund rejected: order {} not found for user {}", orderId.getValue(), userId.value());
+                    return new OrderNotFoundException("Order not found: " + orderId.getValue());
+                });
+
+        if (order.getStatus() != OrderStatus.CONFIRMED) {
+            log.warn(
+                    "Customer refund rejected: order {} is in status {} (user={})",
+                    orderId.getValue(),
+                    order.getStatus(),
+                    userId.value()
+            );
+            throw new CustomerRefundStateConflictException("Only a confirmed order can be refunded.");
+        }
+
+        if (customerRefundRepository.findByOrderId(orderId).isPresent()) {
+            log.warn("Customer refund rejected: refund already exists for order {}", orderId.getValue());
+            throw new CustomerRefundStateConflictException("A customer refund already exists for this order.");
+        }
+    }
+
+    private PaymentStatusSnapshot findCompletedPayment(OrderId orderId) {
+        PaymentStatusSnapshot payment = paymentStatusQueryPort.findByOrderIds(List.of(orderId.getValue()))
+                .get(orderId.getValue());
+        if (payment == null || payment.status() != PaymentReconciliationStatus.COMPLETED) {
+            log.warn("Customer refund rejected: captured payment not found for order {}", orderId.getValue());
+            throw new CustomerRefundStateConflictException("A completed payment is required before requesting a refund.");
+        }
+        return payment;
+    }
+
     @Transactional(readOnly = true)
     public CustomerRefundView getRefund(UserId userId, CustomerRefundId refundId) {
         Objects.requireNonNull(userId, "userId must not be null");
@@ -133,6 +157,7 @@ public class CustomerRefundApplicationService {
         log.debug("Fetching customer refund {} for user {}", refundId.getValue(), userId.value());
         return customerRefundRepository.findByIdAndUserId(refundId, userId)
                 .map(CustomerRefundView::from)
-                .orElseThrow(() -> new CustomerRefundDomainException("Customer refund not found: " + refundId.getValue()));
+                .orElseThrow(() -> new CustomerRefundNotFoundException(
+                        "Customer refund not found: " + refundId.getValue()));
     }
 }

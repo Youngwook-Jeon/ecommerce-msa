@@ -10,6 +10,8 @@ import com.project.young.orderservice.application.port.output.ProductCatalogUnav
 import com.project.young.orderservice.domain.exception.CartDomainException;
 import com.project.young.orderservice.domain.exception.CartItemNotFoundException;
 import com.project.young.orderservice.domain.exception.CartNotFoundException;
+import com.project.young.orderservice.domain.exception.CustomerRefundNotFoundException;
+import com.project.young.orderservice.domain.exception.CustomerRefundStateConflictException;
 import com.project.young.orderservice.domain.exception.OrderCheckoutValidationException;
 import com.project.young.orderservice.domain.exception.OrderDomainException;
 import com.project.young.orderservice.domain.exception.OrderIllegalTransitionException;
@@ -28,6 +30,28 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @Slf4j
 @ControllerAdvice
 public class OrderServiceGlobalExceptionHandler extends GlobalExceptionHandler {
+
+    @ResponseBody
+    @ExceptionHandler(CustomerRefundStateConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDTO handleCustomerRefundStateConflictException(CustomerRefundStateConflictException exception) {
+        log.warn(exception.getMessage());
+        return ErrorDTO.builder()
+                .code(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(CustomerRefundNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ErrorDTO handleCustomerRefundNotFoundException(CustomerRefundNotFoundException exception) {
+        log.warn(exception.getMessage());
+        return ErrorDTO.builder()
+                .code(HttpStatus.NOT_FOUND.getReasonPhrase())
+                .message(exception.getMessage())
+                .build();
+    }
 
     @ResponseBody
     @ExceptionHandler(OrderPaymentReconciliationOperationException.class)
