@@ -14,4 +14,6 @@ public interface CustomerRefundRepository {
     Optional<CustomerRefund> findByIdAndUserId(CustomerRefundId refundId, UserId userId);
 
     Optional<CustomerRefund> findByOrderId(OrderId orderId);
+
+    boolean updateIfRequested(CustomerRefund customerRefund);
 }

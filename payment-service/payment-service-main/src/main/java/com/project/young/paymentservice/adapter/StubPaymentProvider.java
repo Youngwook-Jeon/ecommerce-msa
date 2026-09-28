@@ -58,15 +58,21 @@ public class StubPaymentProvider implements PaymentProviderPort {
     }
 
     @Override
-    public void refund(Payment payment, String idempotencyKey) {
+    public RefundResult refund(Payment payment, String idempotencyKey) {
         // Local provider has no external balance; accepting the stable key models a successful refund.
         log.info("Accepted stub refund for payment {} with idempotency key {}", payment.getId().getValue(), idempotencyKey);
+        return new RefundResult("stub_refund_" + idempotencyKey, RefundState.SUCCEEDED);
     }
 
     @Override
-    public boolean hasAcceptedFullRefund(Payment payment) {
+    public Optional<RefundResult> findFullRefund(Payment payment) {
         // The stub has no external transfer to duplicate; a prior attempt is safe to finalize.
-        return true;
+        return Optional.of(new RefundResult("stub_refund_" + payment.getId().getValue(), RefundState.SUCCEEDED));
+    }
+
+    @Override
+    public RefundResult retrieveRefund(String providerRefundId) {
+        return new RefundResult(providerRefundId, RefundState.SUCCEEDED);
     }
 
     @Override

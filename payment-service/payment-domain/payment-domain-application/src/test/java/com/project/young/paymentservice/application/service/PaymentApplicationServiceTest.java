@@ -454,7 +454,9 @@ class PaymentApplicationServiceTest {
         when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completed));
         when(paymentRefundClaimPort.markAttemptStarted(PAYMENT_ID, compensationEventId,
                 PaymentRefundClaimPort.Kind.COMPENSATION, FIXED_NOW))
-                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(true, FIXED_NOW));
+                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(true, FIXED_NOW, null));
+        when(paymentProviderPort.refund(completed, compensationEventId.toString())).thenReturn(
+                new PaymentProviderPort.RefundResult("re_1", PaymentProviderPort.RefundState.SUCCEEDED));
         when(paymentRefundResultRecorder.recordCompensation(any(), eq(ORDER_ID))).thenReturn(true);
 
         boolean applied = paymentApplicationService.refundPayment(
@@ -468,6 +470,25 @@ class PaymentApplicationServiceTest {
         verify(paymentRefundClaimPort).claimOrVerify(PAYMENT_ID, compensationEventId, PaymentRefundClaimPort.Kind.COMPENSATION);
         verify(paymentRefundClaimPort).markAttemptStarted(PAYMENT_ID, compensationEventId,
                 PaymentRefundClaimPort.Kind.COMPENSATION, FIXED_NOW);
+    }
+
+    @Test
+    void refundPayment_whenProviderPending_doesNotRecordCompensation() {
+        UUID compensationEventId = UUID.randomUUID();
+        Payment completed = completedPayment();
+        when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completed));
+        when(paymentRefundClaimPort.markAttemptStarted(PAYMENT_ID, compensationEventId,
+                PaymentRefundClaimPort.Kind.COMPENSATION, FIXED_NOW))
+                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(true, FIXED_NOW, null));
+        when(paymentProviderPort.refund(completed, compensationEventId.toString())).thenReturn(
+                new PaymentProviderPort.RefundResult("re_pending", PaymentProviderPort.RefundState.PENDING));
+
+        assertThat(paymentApplicationService.refundPayment(
+                new RefundPaymentCommand(compensationEventId, PAYMENT_ID, ORDER_ID))).isFalse();
+
+        verify(paymentRefundClaimPort).recordProviderResult(PAYMENT_ID, compensationEventId,
+                PaymentRefundClaimPort.Kind.COMPENSATION, "re_pending", PaymentProviderPort.RefundState.PENDING);
+        verify(paymentRefundResultRecorder, never()).recordCompensation(any(), any());
     }
 
     @Test
@@ -508,7 +529,9 @@ class PaymentApplicationServiceTest {
         when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completed));
         when(paymentRefundClaimPort.markAttemptStarted(PAYMENT_ID, refundId,
                 PaymentRefundClaimPort.Kind.CUSTOMER, FIXED_NOW))
-                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(true, FIXED_NOW));
+                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(true, FIXED_NOW, null));
+        when(paymentProviderPort.refund(completed, refundId.toString())).thenReturn(
+                new PaymentProviderPort.RefundResult("re_1", PaymentProviderPort.RefundState.SUCCEEDED));
         when(paymentRefundResultRecorder.recordCustomerRefund(any())).thenReturn(true);
 
         assertThat(paymentApplicationService.refundCustomerPayment(
@@ -520,6 +543,66 @@ class PaymentApplicationServiceTest {
         verify(paymentProviderPort).refund(completed, refundId.toString());
         verify(paymentRefundResultRecorder).recordCustomerRefund(
                 new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID));
+    }
+
+    @Test
+    void refundCustomerPayment_whenProviderPending_doesNotRecordCompletion() {
+        UUID refundId = UUID.randomUUID();
+        Payment completed = completedPayment();
+        when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completed));
+        when(paymentRefundClaimPort.markAttemptStarted(PAYMENT_ID, refundId,
+                PaymentRefundClaimPort.Kind.CUSTOMER, FIXED_NOW))
+                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(true, FIXED_NOW, null));
+        when(paymentProviderPort.refund(completed, refundId.toString())).thenReturn(
+                new PaymentProviderPort.RefundResult("re_pending", PaymentProviderPort.RefundState.PENDING));
+
+        assertThat(paymentApplicationService.refundCustomerPayment(
+                new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID))).isFalse();
+
+        verify(paymentRefundClaimPort).recordProviderResult(PAYMENT_ID, refundId,
+                PaymentRefundClaimPort.Kind.CUSTOMER, "re_pending", PaymentProviderPort.RefundState.PENDING);
+        verify(paymentRefundResultRecorder, never()).recordCustomerRefund(any());
+    }
+
+    @Test
+    void refundCustomerPayment_whenPendingProviderLaterSucceeds_recordsOnce() {
+        UUID refundId = UUID.randomUUID();
+        Payment completed = completedPayment();
+        when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completed));
+        when(paymentRefundClaimPort.markAttemptStarted(PAYMENT_ID, refundId,
+                PaymentRefundClaimPort.Kind.CUSTOMER, FIXED_NOW))
+                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(false, FIXED_NOW, "re_pending"));
+        when(paymentProviderPort.retrieveRefund("re_pending")).thenReturn(
+                new PaymentProviderPort.RefundResult("re_pending", PaymentProviderPort.RefundState.SUCCEEDED));
+        when(paymentRefundResultRecorder.recordCustomerRefund(any())).thenReturn(true);
+
+        assertThat(paymentApplicationService.refundCustomerPayment(
+                new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID))).isTrue();
+
+        verify(paymentProviderPort, never()).refund(any(), any());
+        verify(paymentRefundClaimPort).recordProviderResult(PAYMENT_ID, refundId,
+                PaymentRefundClaimPort.Kind.CUSTOMER, "re_pending", PaymentProviderPort.RefundState.SUCCEEDED);
+        verify(paymentRefundResultRecorder).recordCustomerRefund(any());
+    }
+
+    @Test
+    void refundCustomerPayment_whenProviderFinallyFails_emitsFailureOnly() {
+        UUID refundId = UUID.randomUUID();
+        Payment completed = completedPayment();
+        when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completed));
+        when(paymentRefundClaimPort.markAttemptStarted(PAYMENT_ID, refundId,
+                PaymentRefundClaimPort.Kind.CUSTOMER, FIXED_NOW))
+                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(false, FIXED_NOW, "re_failed"));
+        when(paymentProviderPort.retrieveRefund("re_failed")).thenReturn(
+                new PaymentProviderPort.RefundResult("re_failed", PaymentProviderPort.RefundState.FAILED));
+
+        assertThat(paymentApplicationService.refundCustomerPayment(
+                new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID))).isFalse();
+
+        verify(paymentRefundClaimPort).recordProviderResult(PAYMENT_ID, refundId,
+                PaymentRefundClaimPort.Kind.CUSTOMER, "re_failed", PaymentProviderPort.RefundState.FAILED);
+        verify(paymentRefundResultRecorder).recordCustomerRefundFailed(any(), eq("PSP refund failed"));
+        verify(paymentRefundResultRecorder, never()).recordCustomerRefund(any());
     }
 
     @Test
@@ -554,8 +637,9 @@ class PaymentApplicationServiceTest {
         when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completed));
         when(paymentRefundClaimPort.markAttemptStarted(PAYMENT_ID, refundId,
                 PaymentRefundClaimPort.Kind.CUSTOMER, FIXED_NOW))
-                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(false, FIXED_NOW.minus(Duration.ofHours(1))));
-        when(paymentProviderPort.hasAcceptedFullRefund(completed)).thenReturn(true);
+                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(false, FIXED_NOW.minus(Duration.ofHours(1)), null));
+        when(paymentProviderPort.findFullRefund(completed)).thenReturn(Optional.of(
+                new PaymentProviderPort.RefundResult("re_existing", PaymentProviderPort.RefundState.SUCCEEDED)));
         when(paymentRefundResultRecorder.recordCustomerRefund(any())).thenReturn(true);
 
         assertThat(paymentApplicationService.refundCustomerPayment(
@@ -572,13 +656,16 @@ class PaymentApplicationServiceTest {
         when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completed));
         when(paymentRefundClaimPort.markAttemptStarted(PAYMENT_ID, refundId,
                 PaymentRefundClaimPort.Kind.CUSTOMER, FIXED_NOW))
-                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(false, FIXED_NOW.minus(Duration.ofHours(1))));
+                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(false, FIXED_NOW.minus(Duration.ofHours(1)), null));
+        when(paymentProviderPort.findFullRefund(completed)).thenReturn(Optional.empty());
+        when(paymentProviderPort.refund(completed, refundId.toString())).thenReturn(
+                new PaymentProviderPort.RefundResult("re_1", PaymentProviderPort.RefundState.SUCCEEDED));
         when(paymentRefundResultRecorder.recordCustomerRefund(any())).thenReturn(true);
 
         assertThat(paymentApplicationService.refundCustomerPayment(
                 new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID))).isTrue();
 
-        verify(paymentProviderPort).hasAcceptedFullRefund(completed);
+        verify(paymentProviderPort).findFullRefund(completed);
         verify(paymentProviderPort).refund(completed, refundId.toString());
     }
 
@@ -589,13 +676,14 @@ class PaymentApplicationServiceTest {
         when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completed));
         when(paymentRefundClaimPort.markAttemptStarted(PAYMENT_ID, refundId,
                 PaymentRefundClaimPort.Kind.CUSTOMER, FIXED_NOW))
-                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(false, FIXED_NOW.minus(Duration.ofHours(24))));
+                .thenReturn(new PaymentRefundClaimPort.RefundAttempt(false, FIXED_NOW.minus(Duration.ofHours(24)), null));
+        when(paymentProviderPort.findFullRefund(completed)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> paymentApplicationService.refundCustomerPayment(
                 new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID)))
                 .isInstanceOf(PaymentRefundNeedsReviewException.class);
 
-        verify(paymentProviderPort).hasAcceptedFullRefund(completed);
+        verify(paymentProviderPort).findFullRefund(completed);
         verify(paymentProviderPort, never()).refund(any(), any());
         verify(paymentRefundResultRecorder, never()).recordCustomerRefund(any());
     }

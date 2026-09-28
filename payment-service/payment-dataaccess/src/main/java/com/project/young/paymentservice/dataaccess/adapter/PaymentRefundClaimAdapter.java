@@ -1,16 +1,19 @@
 package com.project.young.paymentservice.dataaccess.adapter;
 
 import com.project.young.paymentservice.application.port.output.PaymentRefundClaimPort;
+import com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundState;
 import com.project.young.paymentservice.dataaccess.entity.PaymentRefundClaimEntity;
 import com.project.young.paymentservice.dataaccess.repository.PaymentRefundClaimJpaRepository;
 import com.project.young.paymentservice.domain.exception.PaymentRefundClaimConflictException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -46,7 +49,36 @@ public class PaymentRefundClaimAdapter implements PaymentRefundClaimPort {
         }
         log.debug("Refund attempt registered paymentId={} requestId={} firstAttempt={}",
                 paymentId, requestId, started == 1);
-        return new RefundAttempt(started == 1, startedAt);
+        return new RefundAttempt(started == 1, startedAt, claim.getProviderRefundId());
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void recordProviderResult(UUID paymentId, UUID requestId, Kind kind,
+                                     String providerRefundId, RefundState state) {
+        if (repository.recordProviderResult(paymentId, requestId, kind.name(), providerRefundId, state.name(),
+                Instant.now()) != 1) {
+            PaymentRefundClaimEntity claim = findOwnedClaim(paymentId, requestId, kind);
+            if (state == RefundState.PENDING && providerRefundId.equals(claim.getProviderRefundId())
+                    && (RefundState.SUCCEEDED.name().equals(claim.getProviderRefundState())
+                    || RefundState.FAILED.name().equals(claim.getProviderRefundState()))) {
+                log.debug("Ignoring stale pending refund result paymentId={} requestId={} state={}",
+                        paymentId, requestId, claim.getProviderRefundState());
+                return;
+            }
+            throw new PaymentRefundClaimConflictException("Refund provider result conflicts with claim: " + paymentId);
+        }
+        log.info("Recorded provider refund state paymentId={} requestId={} providerRefundId={} state={}",
+                paymentId, requestId, providerRefundId, state);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PendingRefund> findUnfinalized(int limit) {
+        return repository.findUnfinalized(PageRequest.of(0, limit)).stream()
+                .map(claim -> new PendingRefund(claim.getPaymentId(), claim.getRequestId(),
+                        Kind.valueOf(claim.getRequestKind()), claim.getProviderRefundId()))
+                .toList();
     }
 
     private PaymentRefundClaimEntity findOwnedClaim(UUID paymentId, UUID requestId, Kind kind) {

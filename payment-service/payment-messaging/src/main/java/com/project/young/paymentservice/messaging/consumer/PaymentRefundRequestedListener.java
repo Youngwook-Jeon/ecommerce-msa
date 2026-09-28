@@ -58,7 +58,7 @@ public class PaymentRefundRequestedListener {
                 message.orderId()
         ));
         log.info(
-                "Payment refund request finished compensationEventId={} paymentId={} applied={}",
+                "Payment refund request handled compensationEventId={} paymentId={} completed={}",
                 message.compensationEventId(),
                 message.paymentId(),
                 applied

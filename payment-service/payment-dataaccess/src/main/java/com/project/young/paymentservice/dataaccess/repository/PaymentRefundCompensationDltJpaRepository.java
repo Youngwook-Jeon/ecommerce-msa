@@ -37,7 +37,9 @@ public interface PaymentRefundCompensationDltJpaRepository extends JpaRepository
     @Modifying
     @Query(value = "UPDATE payment_refund_compensation_dlts SET handling_status = 'MANUAL', replay_started_at = NULL, failure_message = :message WHERE compensation_event_id = :id", nativeQuery = true)
     int returnManual(@Param("id") UUID id, @Param("message") String message);
-    @Modifying @Query(value = "UPDATE payment_refund_compensation_dlts SET handling_status = 'ESCALATED', replay_started_at = NULL, failure_message = :message WHERE compensation_event_id = :id AND handling_status = 'MANUAL'", nativeQuery = true)
+
+    @Modifying
+    @Query(value = "UPDATE payment_refund_compensation_dlts SET handling_status = 'ESCALATED', replay_started_at = NULL, failure_message = :message WHERE compensation_event_id = :id AND handling_status = 'MANUAL'", nativeQuery = true)
     int escalate(@Param("id") UUID id, @Param("message") String message);
 
     @Modifying

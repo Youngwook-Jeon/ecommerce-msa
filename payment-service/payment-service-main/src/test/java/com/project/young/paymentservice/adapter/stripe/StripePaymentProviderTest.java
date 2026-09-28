@@ -65,24 +65,52 @@ class StripePaymentProviderTest {
     }
 
     @Test
-    void hasAcceptedFullRefund_acceptsOneFullRefundOnly() {
+    void findFullRefund_acceptsOneFullRefundOnly() {
         Payment payment = mockPayment();
         Refund accepted = mock(Refund.class);
         when(accepted.getAmount()).thenReturn(2500L);
         when(accepted.getStatus()).thenReturn("succeeded");
         when(accepted.getId()).thenReturn("re_123");
 
-        assertThat(StripePaymentProvider.hasAcceptedFullRefund(List.of(accepted), payment)).isTrue();
+        assertThat(StripePaymentProvider.findFullRefund(List.of(accepted), payment))
+                .contains(new com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundResult(
+                        "re_123", com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundState.SUCCEEDED));
     }
 
     @Test
-    void hasAcceptedFullRefund_rejectsPartialRefund() {
+    void findFullRefund_rejectsPartialRefund() {
         Payment payment = mockPayment();
         Refund partial = mock(Refund.class);
         when(partial.getAmount()).thenReturn(1000L);
 
-        assertThatThrownBy(() -> StripePaymentProvider.hasAcceptedFullRefund(List.of(partial), payment))
+        assertThatThrownBy(() -> StripePaymentProvider.findFullRefund(List.of(partial), payment))
                 .isInstanceOf(PaymentRefundRejectedException.class);
+    }
+
+    @Test
+    void findFullRefund_preservesPendingState() {
+        Payment payment = mockPayment();
+        Refund pending = mock(Refund.class);
+        when(pending.getAmount()).thenReturn(2500L);
+        when(pending.getStatus()).thenReturn("pending");
+        when(pending.getId()).thenReturn("re_pending");
+
+        assertThat(StripePaymentProvider.findFullRefund(List.of(pending), payment))
+                .contains(new com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundResult(
+                        "re_pending", com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundState.PENDING));
+    }
+
+    @Test
+    void findFullRefund_preservesFailedState() {
+        Payment payment = mockPayment();
+        Refund failed = mock(Refund.class);
+        when(failed.getAmount()).thenReturn(2500L);
+        when(failed.getStatus()).thenReturn("failed");
+        when(failed.getId()).thenReturn("re_failed");
+
+        assertThat(StripePaymentProvider.findFullRefund(List.of(failed), payment))
+                .contains(new com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundResult(
+                        "re_failed", com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundState.FAILED));
     }
 
     private static Payment mockPayment() {

@@ -7,6 +7,7 @@ import com.project.young.paymentservice.dataaccess.mapper.PaymentDataAccessMappe
 import com.project.young.paymentservice.dataaccess.repository.CustomerRefundProcessingJpaRepository;
 import com.project.young.paymentservice.dataaccess.repository.PaymentJpaRepository;
 import com.project.young.paymentservice.dataaccess.repository.PaymentRefundClaimJpaRepository;
+import com.project.young.paymentservice.dataaccess.repository.PaymentOutboxJpaRepository;
 import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.valueobject.OrderId;
 import com.project.young.paymentservice.domain.valueobject.PaymentId;
@@ -21,6 +22,7 @@ import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabas
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -71,6 +73,9 @@ class PaymentRepositoryImplIntegrationTest {
 
     @Autowired
     private PaymentRefundClaimJpaRepository paymentRefundClaimJpaRepository;
+
+    @Autowired
+    private PaymentOutboxJpaRepository paymentOutboxJpaRepository;
 
     @Autowired
     private EntityManager entityManager;
@@ -137,6 +142,47 @@ class PaymentRepositoryImplIntegrationTest {
                     assertThat(claim.getRequestKind()).isEqualTo("CUSTOMER");
                     assertThat(claim.getFirstAttemptAt()).isEqualTo(firstAttemptAt);
                 });
+    }
+
+    @Test
+    void pendingRefundClaim_isReconciledUntilCompletedLedgerExists() {
+        UUID paymentId = UUID.randomUUID();
+        UUID refundId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        paymentRepository.insert(Payment.createPending(new PaymentId(paymentId), new OrderId(orderId),
+                new UserId("user-1"), new Money(new BigDecimal("25.00"))));
+        entityManager.flush();
+        paymentRefundClaimJpaRepository.insertIfAbsent(paymentId, refundId, "CUSTOMER");
+        paymentRefundClaimJpaRepository.markAttemptStarted(paymentId, java.time.Instant.now());
+        paymentRefundClaimJpaRepository.recordProviderResult(paymentId, refundId, "CUSTOMER",
+                "re_pending", "PENDING", java.time.Instant.now());
+        entityManager.flush();
+        entityManager.clear();
+
+        assertThat(paymentRefundClaimJpaRepository.findUnfinalized(PageRequest.of(0, 100)))
+                .extracting(claim -> claim.getPaymentId()).contains(paymentId);
+
+        paymentRefundClaimJpaRepository.recordProviderResult(paymentId, refundId, "CUSTOMER",
+                "re_pending", "SUCCEEDED", java.time.Instant.now());
+        customerRefundProcessingJpaRepository.insert(refundId, paymentId, orderId, "user-1", java.time.Instant.now());
+        entityManager.flush();
+        entityManager.clear();
+        assertThat(paymentRefundClaimJpaRepository.findUnfinalized(PageRequest.of(0, 100))).isEmpty();
+    }
+
+    @Test
+    void failedRefundOutbox_isInsertedOnlyOnce() {
+        UUID paymentId = UUID.randomUUID();
+        UUID refundId = UUID.randomUUID();
+        UUID orderId = UUID.randomUUID();
+        paymentRepository.insert(Payment.createPending(new PaymentId(paymentId), new OrderId(orderId),
+                new UserId("user-1"), new Money(new BigDecimal("25.00"))));
+        entityManager.flush();
+
+        assertThat(paymentOutboxJpaRepository.insertCustomerRefundFailed(UUID.randomUUID(), refundId,
+                paymentId, orderId, "user-1", "PSP refund failed", java.time.Instant.now())).isEqualTo(1);
+        assertThat(paymentOutboxJpaRepository.insertCustomerRefundFailed(UUID.randomUUID(), refundId,
+                paymentId, orderId, "user-1", "PSP refund failed", java.time.Instant.now())).isZero();
     }
 
     @Test

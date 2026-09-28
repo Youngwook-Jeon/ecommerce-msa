@@ -3,6 +3,7 @@ package com.project.young.paymentservice.application.service;
 import com.project.young.paymentservice.application.dto.command.RefundCustomerPaymentCommand;
 import com.project.young.paymentservice.application.dto.command.RefundPaymentCommand;
 import com.project.young.paymentservice.application.dto.event.CustomerRefundCompletedEvent;
+import com.project.young.paymentservice.application.dto.event.CustomerRefundFailedEvent;
 import com.project.young.paymentservice.application.port.output.CustomerRefundProcessingPort;
 import com.project.young.paymentservice.application.port.output.IdGenerator;
 import com.project.young.paymentservice.application.port.output.PaymentOutboxPort;
@@ -89,5 +90,22 @@ class PaymentRefundResultRecorderTest {
         assertThat(recorder.recordCompensation(command, actualOrderId)).isTrue();
 
         verify(compensationPort).recordProcessed(command.compensationEventId(), command.paymentId(), actualOrderId);
+    }
+
+    @Test
+    void recordCustomerRefundFailed_writesDistinctFailureOutbox() {
+        RefundCustomerPaymentCommand command = new RefundCustomerPaymentCommand(
+                UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "user-1");
+        UUID eventId = UUID.randomUUID();
+        when(idGenerator.generateId()).thenReturn(eventId);
+        when(outboxPort.enqueueCustomerRefundFailed(any(CustomerRefundFailedEvent.class))).thenReturn(true);
+
+        assertThat(recorder.recordCustomerRefundFailed(command, "PSP refund failed")).isTrue();
+
+        ArgumentCaptor<CustomerRefundFailedEvent> event = ArgumentCaptor.forClass(CustomerRefundFailedEvent.class);
+        verify(outboxPort).enqueueCustomerRefundFailed(event.capture());
+        assertThat(event.getValue().eventId()).isEqualTo(eventId);
+        assertThat(event.getValue().refundId()).isEqualTo(command.refundId());
+        verify(customerPort, never()).recordProcessed(any(), any(), any(), any());
     }
 }

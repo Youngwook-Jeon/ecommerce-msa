@@ -3,6 +3,7 @@ package com.project.young.paymentservice.application.service;
 import com.project.young.paymentservice.application.dto.command.RefundCustomerPaymentCommand;
 import com.project.young.paymentservice.application.dto.command.RefundPaymentCommand;
 import com.project.young.paymentservice.application.dto.event.CustomerRefundCompletedEvent;
+import com.project.young.paymentservice.application.dto.event.CustomerRefundFailedEvent;
 import com.project.young.paymentservice.application.port.output.CustomerRefundProcessingPort;
 import com.project.young.paymentservice.application.port.output.IdGenerator;
 import com.project.young.paymentservice.application.port.output.PaymentOutboxPort;
@@ -16,7 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.util.UUID;
 
-/** Persists a PSP-accepted refund and its outbox result in a short DB transaction. */
+/** Persists a PSP-confirmed refund and its outbox result in a short DB transaction. */
 @Service
 public class PaymentRefundResultRecorder {
 
@@ -64,5 +65,15 @@ public class PaymentRefundResultRecorder {
         log.info("Recorded customer refund and completion event refundId={} paymentId={}",
                 command.refundId(), command.paymentId());
         return true;
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public boolean recordCustomerRefundFailed(RefundCustomerPaymentCommand command, String reason) {
+        boolean recorded = paymentOutboxPort.enqueueCustomerRefundFailed(new CustomerRefundFailedEvent(
+                idGenerator.generateId(), command.refundId(), command.paymentId(), command.orderId(),
+                command.userId(), reason, clock.instant()));
+        log.warn("Recorded customer refund failure refundId={} paymentId={} newlyRecorded={}",
+                command.refundId(), command.paymentId(), recorded);
+        return recorded;
     }
 }

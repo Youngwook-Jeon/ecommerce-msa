@@ -14,6 +14,8 @@ import com.project.young.paymentservice.application.port.output.IdGenerator;
 import com.project.young.paymentservice.application.port.output.PaymentOutboxPort;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort.ProviderPaymentSession;
+import com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundResult;
+import com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundState;
 import com.project.young.paymentservice.application.port.output.PaymentRefundClaimPort;
 import com.project.young.paymentservice.application.port.output.ProviderEventIdempotencyPort;
 import com.project.young.paymentservice.application.port.output.ProviderSessionRequestPort;
@@ -348,7 +350,12 @@ public class PaymentApplicationService {
         if (refundCompensationPort.isProcessed(command.compensationEventId())) {
             return false;
         }
-        refundAtProvider(payment, command.compensationEventId(), PaymentRefundClaimPort.Kind.COMPENSATION);
+        RefundResult result = refundAtProvider(payment, command.compensationEventId(), PaymentRefundClaimPort.Kind.COMPENSATION);
+        if (result.state() == RefundState.PENDING) {
+            log.info("Compensation refund awaiting PSP settlement paymentId={} eventId={} providerRefundId={}",
+                    command.paymentId(), command.compensationEventId(), result.providerRefundId());
+            return false;
+        }
         boolean newlyRecorded = paymentRefundResultRecorder.recordCompensation(
                 command, payment.getOrderId().getValue());
         log.info(
@@ -385,25 +392,50 @@ public class PaymentApplicationService {
         if (customerRefundProcessingPort.isProcessed(command.refundId())) {
             return false;
         }
-        refundAtProvider(payment, command.refundId(), PaymentRefundClaimPort.Kind.CUSTOMER);
+        RefundResult result = refundAtProvider(payment, command.refundId(), PaymentRefundClaimPort.Kind.CUSTOMER);
+        if (result.state() == RefundState.FAILED) {
+            paymentRefundResultRecorder.recordCustomerRefundFailed(command, "PSP refund failed");
+            return false;
+        }
+        if (result.state() == RefundState.PENDING) {
+            log.info("Customer refund awaiting PSP settlement refundId={} paymentId={} providerRefundId={}",
+                    command.refundId(), command.paymentId(), result.providerRefundId());
+            return false;
+        }
         return paymentRefundResultRecorder.recordCustomerRefund(command);
     }
 
-    private void refundAtProvider(Payment payment, UUID requestId, PaymentRefundClaimPort.Kind kind) {
+    private RefundResult refundAtProvider(Payment payment, UUID requestId, PaymentRefundClaimPort.Kind kind) {
         PaymentRefundClaimPort.RefundAttempt attempt = paymentRefundClaimPort.markAttemptStarted(
                 payment.getId().getValue(), requestId, kind, clock.instant());
+        RefundResult result;
         if (!attempt.firstAttempt()) {
-            if (paymentProviderPort.hasAcceptedFullRefund(payment)) {
-                log.info("Reconciled existing PSP refund paymentId={} requestId={}",
-                        payment.getId().getValue(), requestId);
-                return;
+            if (attempt.providerRefundId() != null) {
+                result = paymentProviderPort.retrieveRefund(attempt.providerRefundId());
+                return recordRefundResult(payment, requestId, kind, result);
+            }
+            Optional<RefundResult> existing = paymentProviderPort.findFullRefund(payment);
+            if (existing.isPresent()) {
+                return recordRefundResult(payment, requestId, kind, existing.get());
             }
             if (!clock.instant().isBefore(attempt.startedAt().plus(SAFE_PSP_RETRY_WINDOW))) {
                 throw new PaymentRefundNeedsReviewException("PSP refund outcome requires manual review paymentId="
                         + payment.getId().getValue() + " requestId=" + requestId);
             }
         }
-        paymentProviderPort.refund(payment, requestId.toString());
+        result = paymentProviderPort.refund(payment, requestId.toString());
+        return recordRefundResult(payment, requestId, kind, result);
+    }
+
+    private RefundResult recordRefundResult(Payment payment, UUID requestId,
+                                            PaymentRefundClaimPort.Kind kind, RefundResult result) {
+        paymentRefundClaimPort.recordProviderResult(payment.getId().getValue(), requestId, kind,
+                result.providerRefundId(), result.state());
+        if (result.state() == RefundState.FAILED && kind == PaymentRefundClaimPort.Kind.COMPENSATION) {
+            throw new PaymentRefundRejectedException("PSP refund failed paymentId=" + payment.getId().getValue()
+                    + " requestId=" + requestId + " providerRefundId=" + result.providerRefundId());
+        }
+        return result;
     }
 
     @Transactional(readOnly = true)

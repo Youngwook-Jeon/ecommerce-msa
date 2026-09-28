@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public interface PaymentRefundClaimJpaRepository extends JpaRepository<PaymentRefundClaimEntity, UUID> {
@@ -27,4 +28,34 @@ public interface PaymentRefundClaimJpaRepository extends JpaRepository<PaymentRe
             WHERE payment_id = :paymentId AND first_attempt_at IS NULL
             """, nativeQuery = true)
     int markAttemptStarted(@Param("paymentId") UUID paymentId, @Param("now") Instant now);
+
+    @Modifying
+    @Query(value = """
+            UPDATE payment_refund_claims
+            SET provider_refund_id = :providerRefundId, provider_refund_state = :state,
+                provider_refund_checked_at = :now
+            WHERE payment_id = :paymentId AND request_id = :requestId AND request_kind = :kind
+              AND (provider_refund_id IS NULL OR provider_refund_id = :providerRefundId)
+              AND (:state <> 'PENDING' OR provider_refund_state IS NULL OR provider_refund_state = 'PENDING')
+            """, nativeQuery = true)
+    int recordProviderResult(@Param("paymentId") UUID paymentId, @Param("requestId") UUID requestId,
+                             @Param("kind") String kind, @Param("providerRefundId") String providerRefundId,
+                             @Param("state") String state, @Param("now") Instant now);
+
+    @Query(value = """
+            SELECT c.* FROM payment_refund_claims c
+            WHERE c.first_attempt_at IS NOT NULL
+              AND (c.provider_refund_state IS NULL OR c.provider_refund_state IN ('PENDING', 'SUCCEEDED', 'FAILED'))
+              AND ((c.request_kind = 'CUSTOMER' AND c.provider_refund_state = 'FAILED' AND NOT EXISTS (
+                    SELECT 1 FROM payment_outbox o WHERE o.refund_id = c.request_id
+                      AND o.event_type = 'CUSTOMER_REFUND_FAILED'))
+                OR (c.request_kind = 'CUSTOMER' AND c.provider_refund_state IS DISTINCT FROM 'FAILED' AND NOT EXISTS (
+                    SELECT 1 FROM customer_refund_processings p WHERE p.refund_id = c.request_id))
+                OR (c.request_kind = 'COMPENSATION' AND c.provider_refund_state = 'FAILED' AND NOT EXISTS (
+                    SELECT 1 FROM payment_refund_compensation_dlts d WHERE d.compensation_event_id = c.request_id))
+                OR (c.request_kind = 'COMPENSATION' AND c.provider_refund_state IS DISTINCT FROM 'FAILED' AND NOT EXISTS (
+                    SELECT 1 FROM payment_refund_compensations p WHERE p.compensation_event_id = c.request_id)))
+            ORDER BY COALESCE(c.provider_refund_checked_at, c.first_attempt_at), c.payment_id
+            """, nativeQuery = true)
+    List<PaymentRefundClaimEntity> findUnfinalized(org.springframework.data.domain.Pageable pageable);
 }

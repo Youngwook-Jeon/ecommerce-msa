@@ -17,10 +17,25 @@ public interface PaymentProviderPort {
 
     ProviderPaymentSession createPayment(Payment payment);
 
-    void refund(Payment payment, String idempotencyKey);
+    RefundResult refund(Payment payment, String idempotencyKey);
 
-    /** True only when the PSP already accepted a full refund for this payment. */
-    boolean hasAcceptedFullRefund(Payment payment);
+    /** Looks up an existing full refund before retrying an uncertain create response. */
+    Optional<RefundResult> findFullRefund(Payment payment);
+
+    /** Refreshes one known refund without creating another PSP operation. */
+    RefundResult retrieveRefund(String providerRefundId);
+
+    enum RefundState { PENDING, SUCCEEDED, FAILED }
+
+    record RefundResult(String providerRefundId, RefundState state) {
+        public RefundResult {
+            Objects.requireNonNull(providerRefundId, "providerRefundId must not be null");
+            Objects.requireNonNull(state, "state must not be null");
+            if (providerRefundId.isBlank()) {
+                throw new IllegalArgumentException("providerRefundId must not be blank");
+            }
+        }
+    }
 
     /**
      * Reads a terminal PSP state when a webhook may have been lost. Empty means that the provider

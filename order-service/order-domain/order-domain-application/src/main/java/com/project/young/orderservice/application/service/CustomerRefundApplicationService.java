@@ -4,6 +4,7 @@ import com.project.young.common.application.contract.payment.PaymentReconciliati
 import com.project.young.orderservice.application.dto.CustomerRefundView;
 import com.project.young.orderservice.application.dto.PaymentStatusSnapshot;
 import com.project.young.orderservice.application.dto.command.RequestCustomerRefundCommand;
+import com.project.young.orderservice.application.dto.command.ApplyCustomerRefundResultCommand;
 import com.project.young.orderservice.application.dto.event.CustomerRefundRequestedEvent;
 import com.project.young.orderservice.application.port.output.CustomerRefundRequestedOutboxPort;
 import com.project.young.orderservice.application.port.output.IdGenerator;
@@ -17,6 +18,7 @@ import com.project.young.orderservice.domain.exception.OrderNotFoundException;
 import com.project.young.orderservice.domain.repository.CustomerRefundRepository;
 import com.project.young.orderservice.domain.repository.OrderRepository;
 import com.project.young.orderservice.domain.valueobject.CustomerRefundId;
+import com.project.young.orderservice.domain.valueobject.CustomerRefundStatus;
 import com.project.young.orderservice.domain.valueobject.OrderId;
 import com.project.young.orderservice.domain.valueobject.OrderStatus;
 import com.project.young.orderservice.domain.valueobject.UserId;
@@ -159,5 +161,32 @@ public class CustomerRefundApplicationService {
                 .map(CustomerRefundView::from)
                 .orElseThrow(() -> new CustomerRefundNotFoundException(
                         "Customer refund not found: " + refundId.getValue()));
+    }
+
+    @Transactional
+    public boolean applyResult(ApplyCustomerRefundResultCommand command) {
+        CustomerRefund refund = customerRefundRepository.findByIdAndUserId(
+                        new CustomerRefundId(command.refundId()), new UserId(command.userId()))
+                .orElseThrow(() -> new CustomerRefundNotFoundException("Customer refund not found: " + command.refundId()));
+        if (!refund.getPaymentId().equals(command.paymentId())
+                || !refund.getOrderId().getValue().equals(command.orderId())) {
+            throw new CustomerRefundStateConflictException("Customer refund result does not match request.");
+        }
+        CustomerRefundStatus target = command.succeeded()
+                ? CustomerRefundStatus.COMPLETED : CustomerRefundStatus.FAILED;
+        if (refund.getStatus() == target) {
+            return false;
+        }
+        if (command.succeeded()) {
+            refund.complete(clock.instant());
+        } else {
+            refund.fail(command.failureReason(), clock.instant());
+        }
+        if (!customerRefundRepository.updateIfRequested(refund)) {
+            throw new CustomerRefundStateConflictException("Customer refund result raced with another transition.");
+        }
+        log.info("Applied customer refund result refundId={} paymentId={} status={}",
+                command.refundId(), command.paymentId(), target);
+        return true;
     }
 }

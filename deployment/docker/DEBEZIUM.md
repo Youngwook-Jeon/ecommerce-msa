@@ -150,6 +150,8 @@ GRANT CONNECT ON DATABASE ecodb_product
 |-----------|------|-------|--------|
 | `payment-completed-outbox-connector` | `payment_completed_outbox_slot` | `payment.completed` | `PAYMENT_COMPLETED` |
 | `payment-failed-outbox-connector` | `payment_failed_outbox_slot` | `payment.failed` | `PAYMENT_FAILED` |
+| `customer-refund-completed-outbox-connector` | `customer_refund_completed_outbox_slot` | `customer.refund.completed` | `CUSTOMER_REFUND_COMPLETED` |
+| `customer-refund-failed-outbox-connector` | `customer_refund_failed_outbox_slot` | `customer.refund.failed` | `CUSTOMER_REFUND_FAILED` |
 
 - **DB:** `ecodb_payment`, schema `payments`
 - **Publication:** `dbz_payment_outbox_pub` (`grant-debezium-payment-outbox.sh`)

@@ -67,9 +67,9 @@ class PaymentRefundClaimAdapterTest {
         PaymentRefundClaimAdapter adapter = new PaymentRefundClaimAdapter(repository);
 
         assertThat(adapter.markAttemptStarted(paymentId, requestId, Kind.COMPENSATION, now))
-                .isEqualTo(new RefundAttempt(true, now));
+                .isEqualTo(new RefundAttempt(true, now, null));
         assertThat(adapter.markAttemptStarted(paymentId, requestId, Kind.COMPENSATION, now))
-                .isEqualTo(new RefundAttempt(false, now));
+                .isEqualTo(new RefundAttempt(false, now, null));
 
         verify(repository, times(2)).markAttemptStarted(paymentId, now);
     }

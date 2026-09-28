@@ -31,6 +31,10 @@ order-service:
     enabled: true
     payment-completed-topic: payment.completed
     payment-failed-topic: payment.failed
+    customer-refund-completed-topic: customer.refund.completed
+    customer-refund-completed-consumer-group: order-service-customer-refund-completed
+    customer-refund-failed-topic: customer.refund.failed
+    customer-refund-failed-consumer-group: order-service-customer-refund-failed
     payment-completed-consumer-group: order-service-payment-completed
     payment-failed-consumer-group: order-service-payment-failed
     payment-completed-dlt-topic: payment.completed.DLT

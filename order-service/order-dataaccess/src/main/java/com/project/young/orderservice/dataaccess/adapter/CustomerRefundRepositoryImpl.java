@@ -8,6 +8,7 @@ import com.project.young.orderservice.domain.repository.CustomerRefundRepository
 import com.project.young.orderservice.domain.valueobject.CustomerRefundId;
 import com.project.young.orderservice.domain.valueobject.OrderId;
 import com.project.young.orderservice.domain.valueobject.UserId;
+import com.project.young.orderservice.domain.valueobject.CustomerRefundStatus;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,5 +62,13 @@ public class CustomerRefundRepositoryImpl implements CustomerRefundRepository {
         }
         return customerRefundJpaRepository.findByOrderId(orderId.getValue())
                 .map(customerRefundDataAccessMapper::toDomain);
+    }
+
+    @Override
+    @Transactional
+    public boolean updateIfRequested(CustomerRefund refund) {
+        return customerRefundJpaRepository.updateIfRequested(refund.getId().getValue(),
+                CustomerRefundStatus.REQUESTED, refund.getStatus(), refund.getFailureReason(),
+                refund.getUpdatedAt()) == 1;
     }
 }

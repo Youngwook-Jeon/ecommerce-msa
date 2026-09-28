@@ -30,6 +30,15 @@ public class PaymentRefundClaimEntity {
     @Column(name = "first_attempt_at")
     private Instant firstAttemptAt;
 
+    @Column(name = "provider_refund_id", length = 255)
+    private String providerRefundId;
+
+    @Column(name = "provider_refund_state", length = 32)
+    private String providerRefundState;
+
+    @Column(name = "provider_refund_checked_at")
+    private Instant providerRefundCheckedAt;
+
     protected PaymentRefundClaimEntity() {
     }
 }

@@ -56,6 +56,8 @@ payment-service:
   provider-payment-reconciliation:
     fixed-delay-ms: ${PAYMENT_PROVIDER_PAYMENT_RECONCILIATION_DELAY_MS:60000}
     pending-age-ms: ${PAYMENT_PROVIDER_PAYMENT_RECONCILIATION_PENDING_AGE_MS:300000}
+  provider-refund-reconciliation:
+    fixed-delay-ms: ${PAYMENT_PROVIDER_REFUND_RECONCILIATION_DELAY_MS:60000}
 
 kafka-config:
   bootstrap-servers: localhost:19092, localhost:29092, localhost:39092

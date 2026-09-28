@@ -4,6 +4,7 @@ import com.project.young.common.application.contract.payment.PaymentReconciliati
 import com.project.young.orderservice.application.dto.CustomerRefundView;
 import com.project.young.orderservice.application.dto.PaymentStatusSnapshot;
 import com.project.young.orderservice.application.dto.command.RequestCustomerRefundCommand;
+import com.project.young.orderservice.application.dto.command.ApplyCustomerRefundResultCommand;
 import com.project.young.orderservice.application.dto.event.CustomerRefundRequestedEvent;
 import com.project.young.orderservice.application.port.output.CustomerRefundRequestedOutboxPort;
 import com.project.young.orderservice.application.port.output.IdGenerator;
@@ -15,6 +16,8 @@ import com.project.young.orderservice.domain.exception.CustomerRefundStateConfli
 import com.project.young.orderservice.domain.repository.CustomerRefundRepository;
 import com.project.young.orderservice.domain.repository.OrderRepository;
 import com.project.young.orderservice.domain.valueobject.OrderId;
+import com.project.young.orderservice.domain.valueobject.CustomerRefundId;
+import com.project.young.orderservice.domain.valueobject.CustomerRefundStatus;
 import com.project.young.orderservice.domain.valueobject.OrderStatus;
 import com.project.young.orderservice.domain.valueobject.UserId;
 import org.junit.jupiter.api.BeforeEach;
@@ -91,6 +94,35 @@ class CustomerRefundApplicationServiceTest {
             Supplier<?> action = invocation.getArgument(0);
             return action.get();
         }).when(customerRefundTxExecutor).executeInNewTransaction(any());
+    }
+
+    @Test
+    void applyResult_completesRequestedRefundIdempotently() {
+        CustomerRefund refund = CustomerRefund.request(new CustomerRefundId(REFUND_ID), ORDER_ID,
+                PAYMENT_ID, USER_ID, "no longer needed", NOW.minusSeconds(10));
+        when(customerRefundRepository.findByIdAndUserId(new CustomerRefundId(REFUND_ID), USER_ID))
+                .thenReturn(Optional.of(refund));
+        when(customerRefundRepository.updateIfRequested(refund)).thenReturn(true);
+        ApplyCustomerRefundResultCommand result = new ApplyCustomerRefundResultCommand(
+                REFUND_ID, PAYMENT_ID, ORDER_ID_VALUE, USER_ID.value(), true, null);
+
+        assertThat(service.applyResult(result)).isTrue();
+        assertThat(refund.getStatus()).isEqualTo(CustomerRefundStatus.COMPLETED);
+        assertThat(service.applyResult(result)).isFalse();
+        verify(customerRefundRepository).updateIfRequested(refund);
+    }
+
+    @Test
+    void applyResult_marksFinalProviderFailure() {
+        CustomerRefund refund = CustomerRefund.request(new CustomerRefundId(REFUND_ID), ORDER_ID,
+                PAYMENT_ID, USER_ID, "no longer needed", NOW.minusSeconds(10));
+        when(customerRefundRepository.findByIdAndUserId(new CustomerRefundId(REFUND_ID), USER_ID))
+                .thenReturn(Optional.of(refund));
+        when(customerRefundRepository.updateIfRequested(refund)).thenReturn(true);
+
+        assertThat(service.applyResult(new ApplyCustomerRefundResultCommand(
+                REFUND_ID, PAYMENT_ID, ORDER_ID_VALUE, USER_ID.value(), false, "PSP refund failed"))).isTrue();
+        assertThat(refund.getStatus()).isEqualTo(CustomerRefundStatus.FAILED);
     }
 
     @Test

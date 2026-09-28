@@ -46,8 +46,8 @@ public class PaymentIntegrationTestConfiguration {
     public static final class RecordingPaymentProvider implements PaymentProviderPort {
         private final List<String> refundIdempotencyKeys = new CopyOnWriteArrayList<>();
         private final List<Boolean> refundTransactionActive = new CopyOnWriteArrayList<>();
-        private final java.util.Set<java.util.UUID> acceptedRefundPaymentIds =
-                java.util.concurrent.ConcurrentHashMap.newKeySet();
+        private final java.util.Map<java.util.UUID, String> acceptedRefundIds =
+                new java.util.concurrent.ConcurrentHashMap<>();
         private final AtomicInteger remainingRefundFailures = new AtomicInteger();
 
         @Override
@@ -63,18 +63,26 @@ public class PaymentIntegrationTestConfiguration {
         }
 
         @Override
-        public void refund(Payment payment, String idempotencyKey) {
+        public RefundResult refund(Payment payment, String idempotencyKey) {
             refundIdempotencyKeys.add(idempotencyKey);
             refundTransactionActive.add(TransactionSynchronizationManager.isActualTransactionActive());
             if (remainingRefundFailures.getAndUpdate(value -> Math.max(0, value - 1)) > 0) {
                 throw new IllegalStateException("Test PSP refund unavailable");
             }
-            acceptedRefundPaymentIds.add(payment.getId().getValue());
+            String providerRefundId = "it_refund_" + idempotencyKey;
+            acceptedRefundIds.put(payment.getId().getValue(), providerRefundId);
+            return new RefundResult(providerRefundId, RefundState.SUCCEEDED);
         }
 
         @Override
-        public boolean hasAcceptedFullRefund(Payment payment) {
-            return acceptedRefundPaymentIds.contains(payment.getId().getValue());
+        public Optional<RefundResult> findFullRefund(Payment payment) {
+            return Optional.ofNullable(acceptedRefundIds.get(payment.getId().getValue()))
+                    .map(id -> new RefundResult(id, RefundState.SUCCEEDED));
+        }
+
+        @Override
+        public RefundResult retrieveRefund(String providerRefundId) {
+            return new RefundResult(providerRefundId, RefundState.SUCCEEDED);
         }
 
         @Override
@@ -87,7 +95,7 @@ public class PaymentIntegrationTestConfiguration {
         public void reset() {
             refundIdempotencyKeys.clear();
             refundTransactionActive.clear();
-            acceptedRefundPaymentIds.clear();
+            acceptedRefundIds.clear();
             remainingRefundFailures.set(0);
         }
 

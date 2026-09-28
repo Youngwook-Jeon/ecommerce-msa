@@ -12,6 +12,7 @@ public final class SagaKafkaTopics {
     public static final String PAYMENT_REFUND_REQUESTED = "payment.refund.requested";
     public static final String CUSTOMER_REFUND_REQUESTED = "customer.refund.requested";
     public static final String CUSTOMER_REFUND_COMPLETED = "customer.refund.completed";
+    public static final String CUSTOMER_REFUND_FAILED = "customer.refund.failed";
     public static final String INVENTORY_RELEASE_REQUESTED = "inventory.release.requested";
 
     private SagaKafkaTopics() {

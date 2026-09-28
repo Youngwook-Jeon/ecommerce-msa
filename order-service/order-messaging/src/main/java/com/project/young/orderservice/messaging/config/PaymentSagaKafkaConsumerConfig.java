@@ -3,6 +3,8 @@ package com.project.young.orderservice.messaging.config;
 import com.project.young.kafka.config.KafkaConfigData;
 import com.project.young.kafka.saga.dto.PaymentCompletedMessage;
 import com.project.young.kafka.saga.dto.PaymentFailedMessage;
+import com.project.young.kafka.saga.dto.CustomerRefundCompletedMessage;
+import com.project.young.kafka.saga.dto.CustomerRefundFailedMessage;
 import com.project.young.orderservice.messaging.error.KafkaListenerFailureStrategy;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -105,6 +107,22 @@ public class PaymentSagaKafkaConsumerConfig {
                 listenerFactory(paymentFailedDltConsumerFactory());
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
         factory.setCommonErrorHandler(new DefaultErrorHandler(new FixedBackOff(1000L, 3L)));
+        return factory;
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, CustomerRefundCompletedMessage>
+    customerRefundCompletedKafkaListenerContainerFactory() {
+        var factory = listenerFactory(jsonConsumerFactory(CustomerRefundCompletedMessage.class, false));
+        kafkaListenerFailureStrategy.configure(factory);
+        return factory;
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory<String, CustomerRefundFailedMessage>
+    customerRefundFailedKafkaListenerContainerFactory() {
+        var factory = listenerFactory(jsonConsumerFactory(CustomerRefundFailedMessage.class, false));
+        kafkaListenerFailureStrategy.configure(factory);
         return factory;
     }
 

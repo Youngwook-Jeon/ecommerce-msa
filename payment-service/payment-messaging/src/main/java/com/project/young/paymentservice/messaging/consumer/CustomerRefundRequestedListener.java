@@ -35,14 +35,15 @@ public class CustomerRefundRequestedListener {
         }
         log.info("Processing customer refund refundId={} paymentId={} orderId={}",
                 message.refundId(), message.paymentId(), message.orderId());
-        paymentApplicationService.refundCustomerPayment(new RefundCustomerPaymentCommand(
+        boolean completed = paymentApplicationService.refundCustomerPayment(new RefundCustomerPaymentCommand(
                 message.refundId(),
                 message.paymentId(),
                 message.orderId(),
                 message.userId()
         ));
         acknowledge(acknowledgment);
-        log.info("Completed customer refund refundId={} paymentId={}", message.refundId(), message.paymentId());
+        log.info("Customer refund request handled refundId={} paymentId={} completed={}",
+                message.refundId(), message.paymentId(), completed);
     }
 
     private static void acknowledge(Acknowledgment acknowledgment) {
