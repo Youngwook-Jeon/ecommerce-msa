@@ -172,21 +172,17 @@ public class CustomerRefundApplicationService {
                 || !refund.getOrderId().getValue().equals(command.orderId())) {
             throw new CustomerRefundStateConflictException("Customer refund result does not match request.");
         }
-        CustomerRefundStatus target = command.succeeded()
-                ? CustomerRefundStatus.COMPLETED : CustomerRefundStatus.FAILED;
-        if (refund.getStatus() == target) {
+        long expectedVersion = refund.getResultVersion();
+        CustomerRefundStatus expectedStatus = refund.getStatus();
+        if (!refund.applyProviderResult(command.succeeded(), command.resultVersion(), command.failedAfterCompletion(),
+                command.failureReason(), command.refundCompletedAt(), command.refundFailedAt(), clock.instant())) {
             return false;
         }
-        if (command.succeeded()) {
-            refund.complete(clock.instant());
-        } else {
-            refund.fail(command.failureReason(), clock.instant());
-        }
-        if (!customerRefundRepository.updateIfRequested(refund)) {
+        if (!customerRefundRepository.updateResultIfVersion(refund, expectedVersion, expectedStatus)) {
             throw new CustomerRefundStateConflictException("Customer refund result raced with another transition.");
         }
         log.info("Applied customer refund result refundId={} paymentId={} status={}",
-                command.refundId(), command.paymentId(), target);
+                command.refundId(), command.paymentId(), refund.getStatus());
         return true;
     }
 }

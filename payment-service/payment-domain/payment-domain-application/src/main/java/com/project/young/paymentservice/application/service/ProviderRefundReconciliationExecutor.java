@@ -3,6 +3,7 @@ package com.project.young.paymentservice.application.service;
 import com.project.young.paymentservice.application.dto.command.RefundCustomerPaymentCommand;
 import com.project.young.paymentservice.application.dto.command.RefundPaymentCommand;
 import com.project.young.paymentservice.application.dto.command.RecordRefundCompensationDltCommand;
+import com.project.young.paymentservice.application.dto.command.EscalateCustomerRefundCommand;
 import com.project.young.paymentservice.application.port.output.PaymentRefundClaimPort;
 import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.exception.PaymentRefundRejectedException;
@@ -24,12 +25,14 @@ public class ProviderRefundReconciliationExecutor {
     private final PaymentRepository payments;
     private final PaymentApplicationService applicationService;
     private final RefundCompensationDltApplicationService compensationOperations;
+    private final CustomerRefundReviewApplicationService customerOperations;
     private final String refundRequestedTopic;
     private final String refundRequestedDltTopic;
 
     public ProviderRefundReconciliationExecutor(PaymentRefundClaimPort claims, PaymentRepository payments,
                                                 PaymentApplicationService applicationService,
                                                 RefundCompensationDltApplicationService compensationOperations,
+                                                CustomerRefundReviewApplicationService customerOperations,
                                                 @Value("${payment-service.saga-events.refund-requested-topic:payment.refund.requested}")
                                                 String refundRequestedTopic,
                                                 @Value("${payment-service.saga-events.refund-requested-dlt-topic:payment.refund.requested.DLT}")
@@ -38,6 +41,7 @@ public class ProviderRefundReconciliationExecutor {
         this.payments = payments;
         this.applicationService = applicationService;
         this.compensationOperations = compensationOperations;
+        this.customerOperations = customerOperations;
         this.refundRequestedTopic = refundRequestedTopic;
         this.refundRequestedDltTopic = refundRequestedDltTopic;
     }
@@ -68,6 +72,15 @@ public class ProviderRefundReconciliationExecutor {
                                 ex.getClass().getName(), ex.getMessage()));
                     } catch (RuntimeException queueFailure) {
                         log.error("Could not queue failed provider refund paymentId={} requestId={}",
+                                claim.paymentId(), claim.requestId(), queueFailure);
+                    }
+                } else {
+                    try {
+                        customerOperations.escalate(new EscalateCustomerRefundCommand(
+                                claim.requestId(), claim.paymentId(), claim.providerRefundId(),
+                                ex.getClass().getName(), ex.getMessage()));
+                    } catch (RuntimeException queueFailure) {
+                        log.error("Could not queue customer refund review paymentId={} refundId={}; reconciliation will retry",
                                 claim.paymentId(), claim.requestId(), queueFailure);
                     }
                 }

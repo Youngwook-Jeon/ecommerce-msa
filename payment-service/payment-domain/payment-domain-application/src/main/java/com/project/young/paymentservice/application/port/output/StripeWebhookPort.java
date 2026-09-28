@@ -1,5 +1,7 @@
 package com.project.young.paymentservice.application.port.output;
 
+import com.project.young.paymentservice.application.dto.command.ObserveProviderRefundCommand;
+
 import com.project.young.paymentservice.application.dto.command.ApplyProviderPaymentResultCommand;
 
 import java.util.Optional;
@@ -11,4 +13,6 @@ import java.util.Optional;
 public interface StripeWebhookPort {
 
     Optional<ApplyProviderPaymentResultCommand> verifyAndParse(String payload, String signatureHeader);
+
+    Optional<ObserveProviderRefundCommand> verifyAndParseRefund(String payload, String signatureHeader);
 }

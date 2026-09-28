@@ -19,6 +19,8 @@ public class CustomerRefundDataAccessMapper {
                 .reason(customerRefund.getReason())
                 .status(customerRefund.getStatus())
                 .failureReason(customerRefund.getFailureReason())
+                .resultVersion(customerRefund.getResultVersion())
+                .completedAt(customerRefund.getCompletedAt()).failedAt(customerRefund.getFailedAt())
                 .requestedAt(customerRefund.getRequestedAt())
                 .updatedAt(customerRefund.getUpdatedAt())
                 .build();
@@ -34,7 +36,7 @@ public class CustomerRefundDataAccessMapper {
                 entity.getStatus(),
                 entity.getFailureReason(),
                 entity.getRequestedAt(),
-                entity.getUpdatedAt()
+                entity.getUpdatedAt(), entity.getResultVersion(), entity.getCompletedAt(), entity.getFailedAt()
         );
     }
 }

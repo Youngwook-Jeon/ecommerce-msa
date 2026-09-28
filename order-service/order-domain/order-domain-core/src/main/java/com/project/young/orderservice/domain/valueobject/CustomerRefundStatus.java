@@ -8,6 +8,7 @@ package com.project.young.orderservice.domain.valueobject;
 public enum CustomerRefundStatus {
     REQUESTED,
     COMPLETED,
+    FAILED_AFTER_COMPLETION,
     FAILED,
     CLOSED
 }

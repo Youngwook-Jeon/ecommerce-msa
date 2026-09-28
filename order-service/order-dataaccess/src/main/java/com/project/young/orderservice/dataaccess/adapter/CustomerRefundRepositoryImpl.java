@@ -66,9 +66,7 @@ public class CustomerRefundRepositoryImpl implements CustomerRefundRepository {
 
     @Override
     @Transactional
-    public boolean updateIfRequested(CustomerRefund refund) {
-        return customerRefundJpaRepository.updateIfRequested(refund.getId().getValue(),
-                CustomerRefundStatus.REQUESTED, refund.getStatus(), refund.getFailureReason(),
-                refund.getUpdatedAt()) == 1;
+    public boolean updateResultIfVersion(CustomerRefund refund, long expectedVersion, CustomerRefundStatus expectedStatus) {
+        return customerRefundJpaRepository.updateResultIfVersion(refund, expectedVersion, expectedStatus) == 1;
     }
 }

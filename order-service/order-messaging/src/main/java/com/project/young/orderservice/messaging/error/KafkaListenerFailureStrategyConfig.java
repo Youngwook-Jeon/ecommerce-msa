@@ -3,6 +3,8 @@ package com.project.young.orderservice.messaging.error;
 import com.project.young.kafka.config.KafkaConfigData;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
+import org.apache.kafka.common.serialization.Serializer;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -12,9 +14,11 @@ import org.springframework.kafka.core.DefaultKafkaProducerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.serializer.JsonSerializer;
+import org.springframework.kafka.support.serializer.DelegatingByTypeSerializer;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.LinkedHashMap;
 
 /**
  * Wires the active {@link KafkaListenerFailureStrategy} selected by configuration.
@@ -54,9 +58,10 @@ public class KafkaListenerFailureStrategyConfig {
         Map<String, Object> props = new HashMap<>();
         props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaConfigData.getBootstrapServers());
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
-        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         props.put(ProducerConfig.ACKS_CONFIG, "all");
-        props.put(JsonSerializer.ADD_TYPE_INFO_HEADERS, false);
-        return new DefaultKafkaProducerFactory<>(props);
+        Map<Class<?>, Serializer<?>> serializers = new LinkedHashMap<>();
+        serializers.put(byte[].class, new ByteArraySerializer());
+        serializers.put(Object.class, new JsonSerializer<>().noTypeInfo());
+        return new DefaultKafkaProducerFactory<>(props, null, new DelegatingByTypeSerializer(serializers, true));
     }
 }

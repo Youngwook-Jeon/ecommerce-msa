@@ -1,5 +1,7 @@
 package com.project.young.orderservice.domain.repository;
 
+import com.project.young.orderservice.domain.valueobject.CustomerRefundStatus;
+
 import com.project.young.orderservice.domain.entity.CustomerRefund;
 import com.project.young.orderservice.domain.valueobject.CustomerRefundId;
 import com.project.young.orderservice.domain.valueobject.OrderId;
@@ -15,5 +17,6 @@ public interface CustomerRefundRepository {
 
     Optional<CustomerRefund> findByOrderId(OrderId orderId);
 
-    boolean updateIfRequested(CustomerRefund customerRefund);
+    boolean updateResultIfVersion(CustomerRefund refund, long expectedVersion,
+                                  CustomerRefundStatus expectedStatus);
 }

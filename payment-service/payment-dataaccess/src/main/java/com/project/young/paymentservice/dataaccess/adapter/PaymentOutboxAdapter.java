@@ -55,12 +55,14 @@ public class PaymentOutboxAdapter implements PaymentOutboxPort {
                 .eventId(event.eventId()).refundId(event.refundId()).paymentId(event.paymentId())
                 .orderId(event.orderId()).userId(event.userId())
                 .eventType(PaymentOutboxEventType.CUSTOMER_REFUND_COMPLETED.name())
+                .resultVersion(event.resultVersion()).refundCompletedAt(event.refundCompletedAt())
                 .amount(java.math.BigDecimal.ZERO).occurredAt(event.occurredAt()).build());
     }
 
     @Override
     public boolean enqueueCustomerRefundFailed(CustomerRefundFailedEvent event) {
         return paymentOutboxJpaRepository.insertCustomerRefundFailed(event.eventId(), event.refundId(),
-                event.paymentId(), event.orderId(), event.userId(), event.failureReason(), event.occurredAt()) == 1;
+                event.paymentId(), event.orderId(), event.userId(), event.failureReason(), event.occurredAt(),
+                event.resultVersion(), event.failedAfterCompletion(), event.refundCompletedAt(), event.refundFailedAt()) == 1;
     }
 }

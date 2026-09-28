@@ -1,5 +1,7 @@
 package com.project.young.paymentservice.application.port.output;
 
+import java.util.Optional;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -22,6 +24,12 @@ public interface PaymentRefundClaimPort {
     void recordProviderResult(UUID paymentId, UUID requestId, Kind kind, String providerRefundId, RefundState state);
 
     List<PendingRefund> findUnfinalized(int limit);
+
+    boolean isCustomerReviewEscalated(UUID paymentId, UUID requestId);
+
+    Optional<PendingRefund> findByProviderRefundId(String providerRefundId);
+
+    List<PendingRefund> findRecentCustomerSuccesses(Instant succeededSince, Instant checkedBefore, int limit);
 
     record PendingRefund(UUID paymentId, UUID requestId, Kind kind, String providerRefundId) {
     }

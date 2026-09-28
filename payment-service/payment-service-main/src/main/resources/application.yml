@@ -29,6 +29,8 @@ payment-service:
     refund-requested-dlt-consumer-group: payment-service-refund-requested-dlt
     customer-refund-requested-topic: customer.refund.requested
     customer-refund-requested-consumer-group: payment-service-customer-refund-requested
+    customer-refund-requested-dlt-topic: customer.refund.requested.DLT
+    customer-refund-dlt-consumer-group: payment-service-customer-refund-dlt
     consumer:
       retry:
         max-attempts: ${PAYMENT_SAGA_RETRY_MAX_ATTEMPTS:3}
@@ -58,6 +60,18 @@ payment-service:
     pending-age-ms: ${PAYMENT_PROVIDER_PAYMENT_RECONCILIATION_PENDING_AGE_MS:300000}
   provider-refund-reconciliation:
     fixed-delay-ms: ${PAYMENT_PROVIDER_REFUND_RECONCILIATION_DELAY_MS:60000}
+  provider-refund-webhook-inbox:
+    fixed-delay-ms: 1000
+    lease-ms: 300000
+    max-attempts: 20
+    retry-delay-ms: 30000
+  # Optional GET-only safety net for lost refund webhooks; this is not a finality window.
+  recent-refund-reconciliation:
+    enabled: false
+    lookback-days: 7
+    check-interval-ms: 21600000
+    fixed-delay-ms: 60000
+    batch-size: 100
 
 kafka-config:
   bootstrap-servers: localhost:19092, localhost:29092, localhost:39092

@@ -28,10 +28,9 @@ public class CustomerRefundRequestedListener {
             containerFactory = "customerRefundRequestedKafkaListenerContainerFactory"
     )
     public void onCustomerRefundRequested(CustomerRefundRequestedMessage message, Acknowledgment acknowledgment) {
-        if (message == null || message.refundId() == null || message.paymentId() == null || message.orderId() == null) {
-            log.warn("Skipping customer.refund.requested with missing refundId, paymentId, or orderId");
-            acknowledge(acknowledgment);
-            return;
+        if (message == null || message.refundId() == null || message.paymentId() == null || message.orderId() == null
+                || message.userId() == null || message.userId().isBlank()) {
+            throw new IllegalArgumentException("Customer refund request has missing identifiers");
         }
         log.info("Processing customer refund refundId={} paymentId={} orderId={}",
                 message.refundId(), message.paymentId(), message.orderId());

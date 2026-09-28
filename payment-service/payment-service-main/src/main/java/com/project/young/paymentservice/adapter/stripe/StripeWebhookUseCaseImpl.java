@@ -3,6 +3,7 @@ package com.project.young.paymentservice.adapter.stripe;
 import com.project.young.paymentservice.application.port.input.StripeWebhookUseCase;
 import com.project.young.paymentservice.application.port.output.ProviderWebhookInboxPort;
 import com.project.young.paymentservice.application.port.output.StripeWebhookPort;
+import com.project.young.paymentservice.application.port.output.ProviderRefundWebhookInboxPort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -19,13 +20,16 @@ public class StripeWebhookUseCaseImpl implements StripeWebhookUseCase {
 
     private final StripeWebhookPort stripeWebhookPort;
     private final ProviderWebhookInboxPort providerWebhookInboxPort;
+    private final ProviderRefundWebhookInboxPort refundInbox;
 
     public StripeWebhookUseCaseImpl(
             StripeWebhookPort stripeWebhookPort,
-            ProviderWebhookInboxPort providerWebhookInboxPort
+            ProviderWebhookInboxPort providerWebhookInboxPort,
+            ProviderRefundWebhookInboxPort refundInbox
     ) {
         this.stripeWebhookPort = stripeWebhookPort;
         this.providerWebhookInboxPort = providerWebhookInboxPort;
+        this.refundInbox = refundInbox;
     }
 
     @Override
@@ -36,6 +40,13 @@ public class StripeWebhookUseCaseImpl implements StripeWebhookUseCase {
 
         var command = stripeWebhookPort.verifyAndParse(payload, signatureHeader);
         if (command.isEmpty()) {
+            var refund = stripeWebhookPort.verifyAndParseRefund(payload, signatureHeader);
+            if (refund.isPresent()) {
+                boolean recorded = refundInbox.recordReceived(refund.get());
+                log.info("Recorded verified refund webhook eventId={} providerRefundId={} newlyRecorded={}",
+                        refund.get().eventId(), refund.get().providerRefundId(), recorded);
+                return;
+            }
             log.debug("Ignoring Stripe webhook (unsupported or empty parse result)");
             return;
         }

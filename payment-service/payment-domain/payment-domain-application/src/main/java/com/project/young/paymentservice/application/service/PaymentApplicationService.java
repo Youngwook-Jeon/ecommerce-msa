@@ -375,6 +375,11 @@ public class PaymentApplicationService {
         if (command.userId() == null || command.userId().isBlank()) {
             throw new IllegalArgumentException("userId must not be blank");
         }
+        if (paymentRefundClaimPort.isCustomerReviewEscalated(command.paymentId(), command.refundId())) {
+            log.info("Skipping customer refund under operator review refundId={} paymentId={}",
+                    command.refundId(), command.paymentId());
+            return false;
+        }
         if (customerRefundProcessingPort.isProcessed(command.refundId())) {
             log.info("Skipping already processed customer refund refundId={}", command.refundId());
             return false;
@@ -393,16 +398,7 @@ public class PaymentApplicationService {
             return false;
         }
         RefundResult result = refundAtProvider(payment, command.refundId(), PaymentRefundClaimPort.Kind.CUSTOMER);
-        if (result.state() == RefundState.FAILED) {
-            paymentRefundResultRecorder.recordCustomerRefundFailed(command, "PSP refund failed");
-            return false;
-        }
-        if (result.state() == RefundState.PENDING) {
-            log.info("Customer refund awaiting PSP settlement refundId={} paymentId={} providerRefundId={}",
-                    command.refundId(), command.paymentId(), result.providerRefundId());
-            return false;
-        }
-        return paymentRefundResultRecorder.recordCustomerRefund(command);
+        return paymentRefundResultRecorder.recordCustomerObservation(command, result, "PSP refund failed");
     }
 
     private RefundResult refundAtProvider(Payment payment, UUID requestId, PaymentRefundClaimPort.Kind kind) {
@@ -429,8 +425,10 @@ public class PaymentApplicationService {
 
     private RefundResult recordRefundResult(Payment payment, UUID requestId,
                                             PaymentRefundClaimPort.Kind kind, RefundResult result) {
-        paymentRefundClaimPort.recordProviderResult(payment.getId().getValue(), requestId, kind,
-                result.providerRefundId(), result.state());
+        if (kind == PaymentRefundClaimPort.Kind.COMPENSATION) {
+            paymentRefundClaimPort.recordProviderResult(payment.getId().getValue(), requestId, kind,
+                    result.providerRefundId(), result.state());
+        }
         if (result.state() == RefundState.FAILED && kind == PaymentRefundClaimPort.Kind.COMPENSATION) {
             throw new PaymentRefundRejectedException("PSP refund failed paymentId=" + payment.getId().getValue()
                     + " requestId=" + requestId + " providerRefundId=" + result.providerRefundId());

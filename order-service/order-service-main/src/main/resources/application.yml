@@ -35,6 +35,9 @@ order-service:
     customer-refund-completed-consumer-group: order-service-customer-refund-completed
     customer-refund-failed-topic: customer.refund.failed
     customer-refund-failed-consumer-group: order-service-customer-refund-failed
+    customer-refund-completed-dlt-topic: customer.refund.completed.DLT
+    customer-refund-failed-dlt-topic: customer.refund.failed.DLT
+    customer-refund-dlt-consumer-group: order-service-customer-refund-dlt
     payment-completed-consumer-group: order-service-payment-completed
     payment-failed-consumer-group: order-service-payment-failed
     payment-completed-dlt-topic: payment.completed.DLT

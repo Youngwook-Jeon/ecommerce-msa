@@ -14,6 +14,6 @@ public record CustomerRefundResponse(
         String status,
         String failureReason,
         Instant requestedAt,
-        Instant updatedAt
+        Instant updatedAt, long resultVersion, Instant completedAt, Instant failedAt
 ) {
 }

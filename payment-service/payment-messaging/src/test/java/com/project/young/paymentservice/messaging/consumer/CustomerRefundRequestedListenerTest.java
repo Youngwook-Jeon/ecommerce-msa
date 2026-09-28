@@ -1,5 +1,9 @@
 package com.project.young.paymentservice.messaging.consumer;
 
+import org.assertj.core.api.Assertions;
+import org.mockito.Mockito;
+import org.springframework.kafka.support.Acknowledgment;
+
 import com.project.young.kafka.saga.dto.CustomerRefundRequestedMessage;
 import com.project.young.paymentservice.application.dto.command.RefundCustomerPaymentCommand;
 import com.project.young.paymentservice.application.dto.command.RefundPaymentCommand;
@@ -41,5 +45,15 @@ class CustomerRefundRequestedListenerTest {
         verify(paymentApplicationService).refundCustomerPayment(command.capture());
         assertThat(command.getValue()).isEqualTo(new RefundCustomerPaymentCommand(refundId, paymentId, orderId, "user-1"));
         verify(paymentApplicationService, never()).refundPayment(any(RefundPaymentCommand.class));
+    }
+
+    @Test
+    void invalidRequest_throwsWithoutAcknowledgingSoDltCanPreserveIt() {
+        var ack = Mockito.mock(Acknowledgment.class);
+        Assertions.assertThatThrownBy(() ->
+                new CustomerRefundRequestedListener(paymentApplicationService).onCustomerRefundRequested(null, ack))
+                .isInstanceOf(IllegalArgumentException.class);
+        verify(ack, never()).acknowledge();
+        Mockito.verifyNoInteractions(paymentApplicationService);
     }
 }

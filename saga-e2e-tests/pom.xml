@@ -46,10 +46,60 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- Executable service jars must be packaged before this test starts. -->
+                    <excludes>
+                        <exclude>**/CustomerRefundCdcEndToEndTest.java</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.8.1</version>
+                <executions>
+                    <execution>
+                        <id>customer-refund-connect-scripting</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/connect-scripting</outputDirectory>
+                            <artifactItems>
+                                <artifactItem>
+                                    <groupId>io.debezium</groupId>
+                                    <artifactId>debezium-scripting</artifactId>
+                                    <version>3.0.8.Final</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.apache.groovy</groupId>
+                                    <artifactId>groovy</artifactId>
+                                    <version>4.0.24</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.apache.groovy</groupId>
+                                    <artifactId>groovy-jsr223</artifactId>
+                                    <version>4.0.24</version>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.apache.groovy</groupId>
+                                    <artifactId>groovy-json</artifactId>
+                                    <version>4.0.24</version>
+                                </artifactItem>
+                            </artifactItems>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration>
                     <includes>
                         <include>**/*IT.java</include>
+                        <include>**/CustomerRefundCdcEndToEndTest.java</include>
                     </includes>
                 </configuration>
                 <executions>

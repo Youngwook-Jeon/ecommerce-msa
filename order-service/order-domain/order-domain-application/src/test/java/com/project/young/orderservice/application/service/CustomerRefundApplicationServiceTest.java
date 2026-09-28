@@ -1,5 +1,7 @@
 package com.project.young.orderservice.application.service;
 
+import org.mockito.Mockito;
+
 import com.project.young.common.application.contract.payment.PaymentReconciliationStatus;
 import com.project.young.orderservice.application.dto.CustomerRefundView;
 import com.project.young.orderservice.application.dto.PaymentStatusSnapshot;
@@ -90,7 +92,7 @@ class CustomerRefundApplicationServiceTest {
                 idGenerator,
                 Clock.fixed(NOW, ZoneOffset.UTC)
         );
-        org.mockito.Mockito.lenient().doAnswer(invocation -> {
+        Mockito.lenient().doAnswer(invocation -> {
             Supplier<?> action = invocation.getArgument(0);
             return action.get();
         }).when(customerRefundTxExecutor).executeInNewTransaction(any());
@@ -102,14 +104,14 @@ class CustomerRefundApplicationServiceTest {
                 PAYMENT_ID, USER_ID, "no longer needed", NOW.minusSeconds(10));
         when(customerRefundRepository.findByIdAndUserId(new CustomerRefundId(REFUND_ID), USER_ID))
                 .thenReturn(Optional.of(refund));
-        when(customerRefundRepository.updateIfRequested(refund)).thenReturn(true);
+        when(customerRefundRepository.updateResultIfVersion(refund, 0, CustomerRefundStatus.REQUESTED)).thenReturn(true);
         ApplyCustomerRefundResultCommand result = new ApplyCustomerRefundResultCommand(
                 REFUND_ID, PAYMENT_ID, ORDER_ID_VALUE, USER_ID.value(), true, null);
 
         assertThat(service.applyResult(result)).isTrue();
         assertThat(refund.getStatus()).isEqualTo(CustomerRefundStatus.COMPLETED);
         assertThat(service.applyResult(result)).isFalse();
-        verify(customerRefundRepository).updateIfRequested(refund);
+        verify(customerRefundRepository).updateResultIfVersion(refund, 0, CustomerRefundStatus.REQUESTED);
     }
 
     @Test
@@ -118,7 +120,7 @@ class CustomerRefundApplicationServiceTest {
                 PAYMENT_ID, USER_ID, "no longer needed", NOW.minusSeconds(10));
         when(customerRefundRepository.findByIdAndUserId(new CustomerRefundId(REFUND_ID), USER_ID))
                 .thenReturn(Optional.of(refund));
-        when(customerRefundRepository.updateIfRequested(refund)).thenReturn(true);
+        when(customerRefundRepository.updateResultIfVersion(refund, 0, CustomerRefundStatus.REQUESTED)).thenReturn(true);
 
         assertThat(service.applyResult(new ApplyCustomerRefundResultCommand(
                 REFUND_ID, PAYMENT_ID, ORDER_ID_VALUE, USER_ID.value(), false, "PSP refund failed"))).isTrue();

@@ -1,7 +1,10 @@
 package com.project.young.paymentservice.dataaccess.entity;
 
+import com.project.young.paymentservice.application.port.output.PaymentRefundClaimPort.Kind;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.Getter;
@@ -22,7 +25,8 @@ public class PaymentRefundClaimEntity {
     private UUID requestId;
 
     @Column(name = "request_kind", nullable = false, length = 32)
-    private String requestKind;
+    @Enumerated(EnumType.STRING)
+    private Kind requestKind;
 
     @Column(name = "claimed_at", nullable = false)
     private Instant claimedAt;
@@ -38,6 +42,12 @@ public class PaymentRefundClaimEntity {
 
     @Column(name = "provider_refund_checked_at")
     private Instant providerRefundCheckedAt;
+
+    @Column(name = "provider_refund_succeeded_at")
+    private Instant providerRefundSucceededAt;
+
+    @Column(name = "provider_refund_failed_at")
+    private Instant providerRefundFailedAt;
 
     protected PaymentRefundClaimEntity() {
     }

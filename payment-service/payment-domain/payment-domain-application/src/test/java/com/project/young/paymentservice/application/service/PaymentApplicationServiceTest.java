@@ -1,5 +1,7 @@
 package com.project.young.paymentservice.application.service;
 
+import org.mockito.Mockito;
+
 import com.project.young.common.application.contract.payment.PaymentReconciliationStatus;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.paymentservice.application.dto.command.ApplyProviderPaymentResultCommand;
@@ -532,7 +534,7 @@ class PaymentApplicationServiceTest {
                 .thenReturn(new PaymentRefundClaimPort.RefundAttempt(true, FIXED_NOW, null));
         when(paymentProviderPort.refund(completed, refundId.toString())).thenReturn(
                 new PaymentProviderPort.RefundResult("re_1", PaymentProviderPort.RefundState.SUCCEEDED));
-        when(paymentRefundResultRecorder.recordCustomerRefund(any())).thenReturn(true);
+        when(paymentRefundResultRecorder.recordCustomerObservation(any(), any(), any())).thenReturn(true);
 
         assertThat(paymentApplicationService.refundCustomerPayment(
                 new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID))).isTrue();
@@ -541,8 +543,10 @@ class PaymentApplicationServiceTest {
         verify(paymentRefundClaimPort).markAttemptStarted(PAYMENT_ID, refundId,
                 PaymentRefundClaimPort.Kind.CUSTOMER, FIXED_NOW);
         verify(paymentProviderPort).refund(completed, refundId.toString());
-        verify(paymentRefundResultRecorder).recordCustomerRefund(
-                new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID));
+        verify(paymentRefundResultRecorder).recordCustomerObservation(
+                eq(new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID)),
+                eq(new PaymentProviderPort.RefundResult("re_1", PaymentProviderPort.RefundState.SUCCEEDED)),
+                eq("PSP refund failed"));
     }
 
     @Test
@@ -559,9 +563,19 @@ class PaymentApplicationServiceTest {
         assertThat(paymentApplicationService.refundCustomerPayment(
                 new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID))).isFalse();
 
-        verify(paymentRefundClaimPort).recordProviderResult(PAYMENT_ID, refundId,
-                PaymentRefundClaimPort.Kind.CUSTOMER, "re_pending", PaymentProviderPort.RefundState.PENDING);
-        verify(paymentRefundResultRecorder, never()).recordCustomerRefund(any());
+        verify(paymentRefundResultRecorder).recordCustomerObservation(any(),
+                eq(new PaymentProviderPort.RefundResult("re_pending", PaymentProviderPort.RefundState.PENDING)), any());
+    }
+
+    @Test
+    void refundCustomerPayment_whenEscalated_doesNotCallProviderOrEmitResult() {
+        UUID refundId = UUID.randomUUID();
+        when(paymentRefundClaimPort.isCustomerReviewEscalated(PAYMENT_ID, refundId)).thenReturn(true);
+
+        assertThat(paymentApplicationService.refundCustomerPayment(
+                new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID))).isFalse();
+
+        Mockito.verifyNoInteractions(paymentProviderPort, paymentRefundResultRecorder, paymentRepository);
     }
 
     @Test
@@ -574,15 +588,15 @@ class PaymentApplicationServiceTest {
                 .thenReturn(new PaymentRefundClaimPort.RefundAttempt(false, FIXED_NOW, "re_pending"));
         when(paymentProviderPort.retrieveRefund("re_pending")).thenReturn(
                 new PaymentProviderPort.RefundResult("re_pending", PaymentProviderPort.RefundState.SUCCEEDED));
-        when(paymentRefundResultRecorder.recordCustomerRefund(any())).thenReturn(true);
+        when(paymentRefundResultRecorder.recordCustomerObservation(any(), any(), any())).thenReturn(true);
 
         assertThat(paymentApplicationService.refundCustomerPayment(
                 new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID))).isTrue();
 
         verify(paymentProviderPort, never()).refund(any(), any());
-        verify(paymentRefundClaimPort).recordProviderResult(PAYMENT_ID, refundId,
-                PaymentRefundClaimPort.Kind.CUSTOMER, "re_pending", PaymentProviderPort.RefundState.SUCCEEDED);
-        verify(paymentRefundResultRecorder).recordCustomerRefund(any());
+        verify(paymentRefundResultRecorder).recordCustomerObservation(any(),
+                eq(new PaymentProviderPort.RefundResult("re_pending", PaymentProviderPort.RefundState.SUCCEEDED)), any());
+        verify(paymentRefundResultRecorder).recordCustomerObservation(any(), any(), any());
     }
 
     @Test
@@ -599,10 +613,8 @@ class PaymentApplicationServiceTest {
         assertThat(paymentApplicationService.refundCustomerPayment(
                 new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID))).isFalse();
 
-        verify(paymentRefundClaimPort).recordProviderResult(PAYMENT_ID, refundId,
-                PaymentRefundClaimPort.Kind.CUSTOMER, "re_failed", PaymentProviderPort.RefundState.FAILED);
-        verify(paymentRefundResultRecorder).recordCustomerRefundFailed(any(), eq("PSP refund failed"));
-        verify(paymentRefundResultRecorder, never()).recordCustomerRefund(any());
+        verify(paymentRefundResultRecorder).recordCustomerObservation(any(),
+                eq(new PaymentProviderPort.RefundResult("re_failed", PaymentProviderPort.RefundState.FAILED)), any());
     }
 
     @Test
@@ -621,7 +633,7 @@ class PaymentApplicationServiceTest {
     void refundCustomerPayment_whenPaymentClaimedByCompensation_doesNotCallProvider() {
         UUID refundId = UUID.randomUUID();
         when(paymentRepository.findById(new PaymentId(PAYMENT_ID))).thenReturn(Optional.of(completedPayment()));
-        org.mockito.Mockito.doThrow(new PaymentRefundClaimConflictException("claimed"))
+        Mockito.doThrow(new PaymentRefundClaimConflictException("claimed"))
                 .when(paymentRefundClaimPort).claimOrVerify(PAYMENT_ID, refundId, PaymentRefundClaimPort.Kind.CUSTOMER);
 
         assertThatThrownBy(() -> paymentApplicationService.refundCustomerPayment(
@@ -640,13 +652,13 @@ class PaymentApplicationServiceTest {
                 .thenReturn(new PaymentRefundClaimPort.RefundAttempt(false, FIXED_NOW.minus(Duration.ofHours(1)), null));
         when(paymentProviderPort.findFullRefund(completed)).thenReturn(Optional.of(
                 new PaymentProviderPort.RefundResult("re_existing", PaymentProviderPort.RefundState.SUCCEEDED)));
-        when(paymentRefundResultRecorder.recordCustomerRefund(any())).thenReturn(true);
+        when(paymentRefundResultRecorder.recordCustomerObservation(any(), any(), any())).thenReturn(true);
 
         assertThat(paymentApplicationService.refundCustomerPayment(
                 new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID))).isTrue();
 
         verify(paymentProviderPort, never()).refund(any(), any());
-        verify(paymentRefundResultRecorder).recordCustomerRefund(any());
+        verify(paymentRefundResultRecorder).recordCustomerObservation(any(), any(), any());
     }
 
     @Test
@@ -660,7 +672,7 @@ class PaymentApplicationServiceTest {
         when(paymentProviderPort.findFullRefund(completed)).thenReturn(Optional.empty());
         when(paymentProviderPort.refund(completed, refundId.toString())).thenReturn(
                 new PaymentProviderPort.RefundResult("re_1", PaymentProviderPort.RefundState.SUCCEEDED));
-        when(paymentRefundResultRecorder.recordCustomerRefund(any())).thenReturn(true);
+        when(paymentRefundResultRecorder.recordCustomerObservation(any(), any(), any())).thenReturn(true);
 
         assertThat(paymentApplicationService.refundCustomerPayment(
                 new RefundCustomerPaymentCommand(refundId, PAYMENT_ID, ORDER_ID, USER_ID))).isTrue();
@@ -685,7 +697,7 @@ class PaymentApplicationServiceTest {
 
         verify(paymentProviderPort).findFullRefund(completed);
         verify(paymentProviderPort, never()).refund(any(), any());
-        verify(paymentRefundResultRecorder, never()).recordCustomerRefund(any());
+        verify(paymentRefundResultRecorder, never()).recordCustomerObservation(any(), any(), any());
     }
 
     private static Payment pendingStripePayment() {

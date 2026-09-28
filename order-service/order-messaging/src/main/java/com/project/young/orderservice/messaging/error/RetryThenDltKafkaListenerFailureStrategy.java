@@ -55,6 +55,7 @@ public final class RetryThenDltKafkaListenerFailureStrategy implements KafkaList
                     return new TopicPartition(dltTopic, record.partition());
                 }
         );
+        recoverer.setFailIfSendResultIsError(true);
 
         // FixedBackOff maxAttempts = retries after the first failure; then recoverer publishes to DLT.
         DefaultErrorHandler errorHandler = new DefaultErrorHandler(

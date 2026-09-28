@@ -1,5 +1,14 @@
 package com.project.young.paymentservice.dataaccess.adapter;
 
+import com.project.young.paymentservice.application.dto.command.ObserveProviderRefundCommand;
+import com.project.young.paymentservice.application.dto.command.RecordCustomerRefundDltCommand;
+import com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundState;
+import com.project.young.paymentservice.application.port.output.PaymentRefundClaimPort.Kind;
+import com.project.young.paymentservice.dataaccess.repository.CustomerRefundDltJpaRepository;
+import com.project.young.paymentservice.dataaccess.repository.ProviderRefundWebhookInboxJpaRepository;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.paymentservice.dataaccess.config.PaymentDataAccessConfig;
 import com.project.young.paymentservice.dataaccess.mapper.PaymentAggregateMapper;
@@ -8,6 +17,7 @@ import com.project.young.paymentservice.dataaccess.repository.CustomerRefundProc
 import com.project.young.paymentservice.dataaccess.repository.PaymentJpaRepository;
 import com.project.young.paymentservice.dataaccess.repository.PaymentRefundClaimJpaRepository;
 import com.project.young.paymentservice.dataaccess.repository.PaymentOutboxJpaRepository;
+import com.project.young.paymentservice.dataaccess.repository.CustomerRefundReviewJpaRepository;
 import com.project.young.paymentservice.domain.entity.Payment;
 import com.project.young.paymentservice.domain.valueobject.OrderId;
 import com.project.young.paymentservice.domain.valueobject.PaymentId;
@@ -78,6 +88,15 @@ class PaymentRepositoryImplIntegrationTest {
     private PaymentOutboxJpaRepository paymentOutboxJpaRepository;
 
     @Autowired
+    private CustomerRefundReviewJpaRepository customerRefundReviewJpaRepository;
+
+    @Autowired
+    private CustomerRefundDltJpaRepository customerRefundDltJpaRepository;
+
+    @Autowired
+    private ProviderRefundWebhookInboxJpaRepository refundInboxRepository;
+
+    @Autowired
     private EntityManager entityManager;
 
     @BeforeEach
@@ -132,14 +151,14 @@ class PaymentRepositoryImplIntegrationTest {
         assertThat(paymentRefundClaimJpaRepository.insertIfAbsent(paymentId, requestId, "CUSTOMER")).isEqualTo(1);
         assertThat(paymentRefundClaimJpaRepository.insertIfAbsent(paymentId, UUID.randomUUID(), "COMPENSATION"))
                 .isZero();
-        java.time.Instant firstAttemptAt = java.time.Instant.parse("2026-09-27T00:00:00Z");
+        Instant firstAttemptAt = Instant.parse("2026-09-27T00:00:00Z");
         assertThat(paymentRefundClaimJpaRepository.markAttemptStarted(paymentId, firstAttemptAt)).isEqualTo(1);
         assertThat(paymentRefundClaimJpaRepository.markAttemptStarted(paymentId, firstAttemptAt.plusSeconds(60)))
                 .isZero();
         assertThat(paymentRefundClaimJpaRepository.findById(paymentId))
                 .hasValueSatisfying(claim -> {
                     assertThat(claim.getRequestId()).isEqualTo(requestId);
-                    assertThat(claim.getRequestKind()).isEqualTo("CUSTOMER");
+                    assertThat(claim.getRequestKind()).isEqualTo(Kind.CUSTOMER);
                     assertThat(claim.getFirstAttemptAt()).isEqualTo(firstAttemptAt);
                 });
     }
@@ -153,9 +172,9 @@ class PaymentRepositoryImplIntegrationTest {
                 new UserId("user-1"), new Money(new BigDecimal("25.00"))));
         entityManager.flush();
         paymentRefundClaimJpaRepository.insertIfAbsent(paymentId, refundId, "CUSTOMER");
-        paymentRefundClaimJpaRepository.markAttemptStarted(paymentId, java.time.Instant.now());
+        paymentRefundClaimJpaRepository.markAttemptStarted(paymentId, Instant.now());
         paymentRefundClaimJpaRepository.recordProviderResult(paymentId, refundId, "CUSTOMER",
-                "re_pending", "PENDING", java.time.Instant.now());
+                "re_pending", "PENDING", Instant.now());
         entityManager.flush();
         entityManager.clear();
 
@@ -163,8 +182,8 @@ class PaymentRepositoryImplIntegrationTest {
                 .extracting(claim -> claim.getPaymentId()).contains(paymentId);
 
         paymentRefundClaimJpaRepository.recordProviderResult(paymentId, refundId, "CUSTOMER",
-                "re_pending", "SUCCEEDED", java.time.Instant.now());
-        customerRefundProcessingJpaRepository.insert(refundId, paymentId, orderId, "user-1", java.time.Instant.now());
+                "re_pending", "SUCCEEDED", Instant.now());
+        customerRefundProcessingJpaRepository.insert(refundId, paymentId, orderId, "user-1", Instant.now());
         entityManager.flush();
         entityManager.clear();
         assertThat(paymentRefundClaimJpaRepository.findUnfinalized(PageRequest.of(0, 100))).isEmpty();
@@ -180,9 +199,48 @@ class PaymentRepositoryImplIntegrationTest {
         entityManager.flush();
 
         assertThat(paymentOutboxJpaRepository.insertCustomerRefundFailed(UUID.randomUUID(), refundId,
-                paymentId, orderId, "user-1", "PSP refund failed", java.time.Instant.now())).isEqualTo(1);
+                paymentId, orderId, "user-1", "PSP refund failed", Instant.now(),
+                2, false, null, Instant.now())).isEqualTo(1);
         assertThat(paymentOutboxJpaRepository.insertCustomerRefundFailed(UUID.randomUUID(), refundId,
-                paymentId, orderId, "user-1", "PSP refund failed", java.time.Instant.now())).isZero();
+                paymentId, orderId, "user-1", "PSP refund failed", Instant.now(),
+                2, false, null, Instant.now())).isZero();
+    }
+
+    @Test
+    void customerReview_isIdempotentAndExcludesOnlyCustomerClaimFromReconciliation() {
+        UUID paymentId = UUID.randomUUID();
+        UUID compensationPaymentId = UUID.randomUUID();
+        UUID refundId = UUID.randomUUID();
+        Instant now = Instant.now();
+        for (UUID id : java.util.List.of(paymentId, compensationPaymentId)) {
+            paymentRepository.insert(Payment.createPending(new PaymentId(id), new OrderId(UUID.randomUUID()),
+                    new UserId("user-1"), new Money(new BigDecimal("25.00"))));
+        }
+        entityManager.flush();
+        paymentRefundClaimJpaRepository.insertIfAbsent(paymentId, refundId, "CUSTOMER");
+        paymentRefundClaimJpaRepository.markAttemptStarted(paymentId, now);
+        paymentRefundClaimJpaRepository.recordProviderResult(paymentId, refundId, "CUSTOMER", "re_pending", "PENDING", now);
+        paymentRefundClaimJpaRepository.insertIfAbsent(compensationPaymentId, refundId, "COMPENSATION");
+        paymentRefundClaimJpaRepository.markAttemptStarted(compensationPaymentId, now);
+        assertThat(paymentRefundClaimJpaRepository.findUnfinalized(PageRequest.of(0, 100))).hasSize(2);
+
+        assertThat(customerRefundReviewJpaRepository.insertIfAbsent(refundId, paymentId, "re_pending",
+                "NeedsReview", "Unknown outcome", now)).isEqualTo(1);
+        assertThat(customerRefundReviewJpaRepository.insertIfAbsent(refundId, paymentId, "re_pending",
+                "NeedsReview", "Repeated observation", now)).isZero();
+        entityManager.clear();
+
+        assertThat(paymentRefundClaimJpaRepository.isCustomerReviewEscalated(paymentId, refundId)).isTrue();
+        assertThat(paymentRefundClaimJpaRepository.findUnfinalized(PageRequest.of(0, 100)))
+                .extracting(claim -> claim.getPaymentId()).containsExactly(compensationPaymentId);
+        assertThat(customerRefundReviewJpaRepository.findById(refundId)).hasValueSatisfying(review -> {
+            assertThat(review.getHandlingStatus().name()).isEqualTo("ESCALATED");
+            assertThat(review.getFailureMessage()).isEqualTo("Unknown outcome");
+        });
+        assertThat(paymentRefundClaimJpaRepository.findById(paymentId)).hasValueSatisfying(claim ->
+                assertThat(claim.getProviderRefundState()).isEqualTo("PENDING"));
+        assertThat(customerRefundProcessingJpaRepository.existsByRefundId(refundId)).isFalse();
+        assertThat(paymentOutboxJpaRepository.count()).isZero();
     }
 
     @Test
@@ -216,5 +274,86 @@ class PaymentRepositoryImplIntegrationTest {
             PaymentAggregateMapper.class
     })
     static class Config {
+    }
+
+    @Test
+    void customerObservation_failedIsAbsorbingAndRetainsSuccessfulHistory() {
+        UUID paymentId = UUID.randomUUID();
+        UUID refundId = UUID.randomUUID();
+        paymentRepository.insert(Payment.createPending(new PaymentId(paymentId), new OrderId(UUID.randomUUID()),
+                new UserId("user-1"), new Money(new BigDecimal("25.00"))));
+        entityManager.flush();
+        paymentRefundClaimJpaRepository.insertIfAbsent(paymentId, refundId, "CUSTOMER");
+        Instant completedAt = Instant.parse("2026-09-28T00:00:00Z");
+        Instant failedAt = completedAt.plusSeconds(60);
+        assertThat(paymentRefundClaimJpaRepository.recordCustomerObservation(paymentId, refundId,
+                "re_correction", "SUCCEEDED", completedAt)).isEqualTo(1);
+        assertThat(paymentRefundClaimJpaRepository.recordCustomerObservation(paymentId, refundId,
+                "re_correction", "FAILED", failedAt)).isEqualTo(1);
+        assertThat(paymentRefundClaimJpaRepository.recordCustomerObservation(paymentId, refundId,
+                "re_correction", "SUCCEEDED", failedAt.plusSeconds(60))).isZero();
+        assertThat(paymentRefundClaimJpaRepository.recordCustomerObservation(paymentId, refundId,
+                "re_correction", "PENDING", failedAt.plusSeconds(60))).isZero();
+        assertThat(paymentRefundClaimJpaRepository.findByProviderRefundId("re_correction")).hasValueSatisfying(claim -> {
+            assertThat(claim.getProviderRefundState()).isEqualTo("FAILED");
+            assertThat(claim.getProviderRefundSucceededAt()).isEqualTo(completedAt);
+            assertThat(claim.getProviderRefundFailedAt()).isEqualTo(failedAt);
+        });
+    }
+
+    @Test
+    void customerDlt_malformedPayloadIsStoredOnceWithoutPaymentForeignKey() {
+        var command = new RecordCustomerRefundDltCommand(
+                "customer.refund.requested.DLT", 0, 42, "unknown", "not-json",
+                "customer.refund.requested", 0, 17L, "InvalidPayload", "invalid");
+        assertThat(customerRefundDltJpaRepository.insertIfAbsent(command)).isEqualTo(1);
+        assertThat(customerRefundDltJpaRepository.insertIfAbsent(command)).isZero();
+        assertThat(customerRefundDltJpaRepository.findAll()).singleElement().satisfies(row -> {
+            assertThat(row.getPayload()).isEqualTo("not-json");
+            assertThat(row.getHandlingStatus().name()).isEqualTo("ESCALATED");
+            assertThat(row.getId()).isNotNull();
+        });
+    }
+
+    @Test
+    void refundInbox_reclaimsExpiredLeaseAndFencesOldWorker() {
+        var command = new ObserveProviderRefundCommand(
+                "evt_inbox", "re_inbox", "pi_inbox",
+                RefundState.FAILED, "bank rejected");
+        assertThat(refundInboxRepository.insertIfAbsent(command, command.failureReason())).isEqualTo(1);
+        assertThat(refundInboxRepository.insertIfAbsent(command, command.failureReason())).isZero();
+        Instant now = Instant.now().plusSeconds(1).truncatedTo(ChronoUnit.MICROS);
+        assertThat(refundInboxRepository.claim(command.eventId(), now, now.minusSeconds(300))).isEqualTo(1);
+        assertThat(refundInboxRepository.claim(command.eventId(), now, now.minusSeconds(300))).isZero();
+        Instant reclaimedAt = now.plusSeconds(600);
+        assertThat(refundInboxRepository.claim(command.eventId(), reclaimedAt, now.plusSeconds(300))).isEqualTo(1);
+        assertThat(refundInboxRepository.markApplied(command.eventId(), now)).isZero();
+        assertThat(refundInboxRepository.retryOrEscalate(command.eventId(), reclaimedAt, 2,
+                reclaimedAt.plusSeconds(30), "UnmatchedRefundClaim")).isEqualTo(1);
+        entityManager.clear();
+        assertThat(refundInboxRepository.findById(command.eventId())).hasValueSatisfying(row -> {
+            assertThat(row.getStatus().name()).isEqualTo("ESCALATED");
+            assertThat(row.getAttempts()).isEqualTo(2);
+        });
+    }
+
+    @Test
+    void confirmedLateFailure_retainsOriginalUncertainOutcomeDiagnostics() {
+        UUID paymentId = UUID.randomUUID();
+        UUID refundId = UUID.randomUUID();
+        paymentRepository.insert(Payment.createPending(new PaymentId(paymentId), new OrderId(UUID.randomUUID()),
+                new UserId("user-1"), new Money(new BigDecimal("25.00"))));
+        entityManager.flush();
+        customerRefundReviewJpaRepository.insertIfAbsent(refundId, paymentId, "re_review",
+                "UnknownOutcome", "Original diagnostic", Instant.now());
+        customerRefundReviewJpaRepository.recordConfirmedLateFailure(refundId, paymentId, "re_review", "bank rejected");
+        entityManager.clear();
+        assertThat(customerRefundReviewJpaRepository.findById(refundId)).hasValueSatisfying(review -> {
+            assertThat(review.getReviewReason().name()).isEqualTo("CONFIRMED_LATE_FAILURE");
+            assertThat(review.getFailureExceptionClass()).isEqualTo("UnknownOutcome");
+            assertThat(review.getFailureMessage()).isEqualTo("Original diagnostic");
+            assertThat(review.getConfirmedFailureReason()).isEqualTo("bank rejected");
+            assertThat(review.getConfirmedFailedAt()).isNotNull();
+        });
     }
 }

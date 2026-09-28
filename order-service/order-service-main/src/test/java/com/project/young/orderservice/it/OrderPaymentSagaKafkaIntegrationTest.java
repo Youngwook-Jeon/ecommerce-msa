@@ -1,5 +1,13 @@
 package com.project.young.orderservice.it;
 
+import com.project.young.orderservice.application.service.CustomerRefundApplicationService;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.common.application.contract.payment.PaymentReconciliationStatus;
 import com.project.young.orderservice.OrderServiceMain;
@@ -123,6 +131,9 @@ class OrderPaymentSagaKafkaIntegrationTest {
     @Autowired
     private OrderPaymentReconciliationExecutor reconciliationExecutor;
 
+    @MockitoSpyBean
+    private CustomerRefundApplicationService customerRefunds;
+
     private MockRestServiceServer catalogServer;
     private MockRestServiceServer inventoryServer;
 
@@ -131,6 +142,7 @@ class OrderPaymentSagaKafkaIntegrationTest {
         transactionTemplate.executeWithoutResult(status -> {
             entityManager.createNativeQuery("TRUNCATE TABLE orders RESTART IDENTITY CASCADE").executeUpdate();
             entityManager.createNativeQuery("TRUNCATE TABLE carts RESTART IDENTITY CASCADE").executeUpdate();
+            entityManager.createNativeQuery("TRUNCATE TABLE customer_refund_dlts, customer_refunds").executeUpdate();
             entityManager.flush();
             entityManager.clear();
         });
@@ -232,7 +244,7 @@ class OrderPaymentSagaKafkaIntegrationTest {
                             """)
                     .setParameter("orderId", orderId)
                     .getSingleResult());
-            org.assertj.core.api.Assertions.assertThat(compensationCount.longValue()).isEqualTo(1L);
+            Assertions.assertThat(compensationCount.longValue()).isEqualTo(1L);
         });
     }
 
@@ -272,7 +284,7 @@ class OrderPaymentSagaKafkaIntegrationTest {
                             """)
                     .setParameter("orderId", escalatedOrderId)
                     .getSingleResult());
-            org.assertj.core.api.Assertions.assertThat(handlingStatus).isEqualTo("ESCALATED");
+            Assertions.assertThat(handlingStatus).isEqualTo("ESCALATED");
         });
         inventoryServer.verify();
     }
@@ -289,6 +301,77 @@ class OrderPaymentSagaKafkaIntegrationTest {
                 .setParameter("orderId", orderId)
                 .executeUpdate());
         return orderId;
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"customer.refund.completed", "customer.refund.failed"})
+    void missingCustomerRefundResult_isStoredInDedicatedDltQueue(String topic) {
+        UUID refundId = UUID.randomUUID();
+        String json = customerResultJson(refundId, UUID.randomUUID(), UUID.randomUUID(), topic.endsWith("completed"));
+        KafkaJsonProducerSupport.send(kafkaContainer.getBootstrapServers(), topic, refundId.toString(), json);
+        await().atMost(KafkaJsonProducerSupport.awaitTimeout()).untilAsserted(() -> {
+            Object[] row = transactionTemplate.execute(status -> {
+                var rows = entityManager.createNativeQuery("""
+                        SELECT source_topic, handling_status FROM customer_refund_dlts WHERE message_key = :key
+                        """).setParameter("key", refundId.toString()).getResultList();
+                return rows.isEmpty() ? null : (Object[]) rows.getFirst();
+            });
+            Assertions.assertThat(row).containsExactly(topic, "ESCALATED");
+        });
+    }
+
+    @Test
+    void lateFailureBeforeCompletion_convergesWithoutChangingOrderStatus() throws Exception {
+        UUID orderId = placeStalePendingOrder();
+        UUID paymentId = UUID.randomUUID();
+        UUID refundId = UUID.randomUUID();
+        transactionTemplate.executeWithoutResult(status -> {
+            entityManager.createNativeQuery("UPDATE orders SET status = 'CONFIRMED' WHERE id = :id")
+                    .setParameter("id", orderId).executeUpdate();
+            entityManager.createNativeQuery("""
+                    INSERT INTO customer_refunds (refund_id, order_id, payment_id, user_id, reason, status, requested_at, updated_at)
+                    VALUES (:refundId, :orderId, :paymentId, :userId, 'no longer needed', 'REQUESTED',
+                        now() - interval '10 minutes', now() - interval '10 minutes')
+                    """).setParameter("refundId", refundId).setParameter("orderId", orderId)
+                    .setParameter("paymentId", paymentId).setParameter("userId", USER_SUBJECT).executeUpdate();
+        });
+        KafkaJsonProducerSupport.send(kafkaContainer.getBootstrapServers(), "customer.refund.failed", refundId.toString(),
+                customerResultJson(refundId, paymentId, orderId, false));
+        await().atMost(KafkaJsonProducerSupport.awaitTimeout()).untilAsserted(() ->
+                Assertions.assertThat(customerRefundState(refundId)).isEqualTo("FAILED_AFTER_COMPLETION"));
+        KafkaJsonProducerSupport.send(kafkaContainer.getBootstrapServers(), "customer.refund.completed", refundId.toString(),
+                customerResultJson(refundId, paymentId, orderId, true));
+        await().atMost(KafkaJsonProducerSupport.awaitTimeout()).untilAsserted(() -> {
+            Mockito.verify(customerRefunds, Mockito.atLeast(2)).applyResult(
+                    ArgumentMatchers.argThat(c -> refundId.equals(c.refundId())));
+            Assertions.assertThat(customerRefundState(refundId)).isEqualTo("FAILED_AFTER_COMPLETION");
+        });
+        mockMvc.perform(get("/refunds/" + refundId)
+                        .with(jwt().jwt(builder -> builder.subject(USER_SUBJECT))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("FAILED_AFTER_COMPLETION"))
+                .andExpect(jsonPath("$.resultVersion").value(2))
+                .andExpect(jsonPath("$.completedAt").isNotEmpty())
+                .andExpect(jsonPath("$.failedAt").isNotEmpty());
+        String orderStatus = transactionTemplate.execute(status -> (String)
+                entityManager.createNativeQuery("SELECT status FROM orders WHERE id = :id")
+                        .setParameter("id", orderId).getSingleResult());
+        Assertions.assertThat(orderStatus).isEqualTo("CONFIRMED");
+    }
+
+    private String customerRefundState(UUID refundId) {
+        return transactionTemplate.execute(status -> (String) entityManager.createNativeQuery(
+                "SELECT status FROM customer_refunds WHERE refund_id = :id").setParameter("id", refundId).getSingleResult());
+    }
+
+    private static String customerResultJson(UUID refundId, UUID paymentId, UUID orderId, boolean succeeded) {
+        Instant now = Instant.now();
+        return """
+                {"event_id":"%s", "refund_id":"%s", "payment_id":"%s", "order_id":"%s", "user_id":"%s",
+                 "result_version":%s, "failure_reason":"bank rejected", "failed_after_completion":%s,
+                 "refund_completed_at":"%s", "refund_failed_at":"%s", "occurred_at":"%s"}
+                """.formatted(UUID.randomUUID(), refundId, paymentId, orderId, USER_SUBJECT,
+                succeeded ? 1 : 2, !succeeded, now.minusSeconds(60), now, now);
     }
 
     private CatalogLineStub catalogLine() {

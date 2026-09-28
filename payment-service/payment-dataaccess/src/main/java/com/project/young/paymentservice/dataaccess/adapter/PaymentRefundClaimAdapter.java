@@ -1,5 +1,7 @@
 package com.project.young.paymentservice.dataaccess.adapter;
 
+import java.util.Optional;
+
 import com.project.young.paymentservice.application.port.output.PaymentRefundClaimPort;
 import com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundState;
 import com.project.young.paymentservice.dataaccess.entity.PaymentRefundClaimEntity;
@@ -77,8 +79,14 @@ public class PaymentRefundClaimAdapter implements PaymentRefundClaimPort {
     public List<PendingRefund> findUnfinalized(int limit) {
         return repository.findUnfinalized(PageRequest.of(0, limit)).stream()
                 .map(claim -> new PendingRefund(claim.getPaymentId(), claim.getRequestId(),
-                        Kind.valueOf(claim.getRequestKind()), claim.getProviderRefundId()))
+                        claim.getRequestKind(), claim.getProviderRefundId()))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isCustomerReviewEscalated(UUID paymentId, UUID requestId) {
+        return repository.isCustomerReviewEscalated(paymentId, requestId);
     }
 
     private PaymentRefundClaimEntity findOwnedClaim(UUID paymentId, UUID requestId, Kind kind) {
@@ -87,11 +95,27 @@ public class PaymentRefundClaimAdapter implements PaymentRefundClaimPort {
             return new IllegalStateException("Refund claim is missing for payment " + paymentId);
         });
         if (!requestId.equals(claim.getRequestId())
-                || !kind.name().equals(claim.getRequestKind())) {
+                || kind != claim.getRequestKind()) {
             log.warn("Rejecting conflicting payment refund claim paymentId={} requestId={} kind={}",
                     paymentId, requestId, kind);
             throw new PaymentRefundClaimConflictException("Payment is already claimed by another refund request: " + paymentId);
         }
         return claim;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<PendingRefund> findByProviderRefundId(String providerRefundId) {
+        return repository.findByProviderRefundId(providerRefundId).map(claim ->
+                new PendingRefund(claim.getPaymentId(), claim.getRequestId(),
+                        claim.getRequestKind(), claim.getProviderRefundId()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PendingRefund> findRecentCustomerSuccesses(Instant succeededSince, Instant checkedBefore, int limit) {
+        return repository.findRecentCustomerSuccesses(succeededSince, checkedBefore, PageRequest.of(0, limit)).stream()
+                .map(claim -> new PendingRefund(claim.getPaymentId(), claim.getRequestId(),
+                        Kind.CUSTOMER, claim.getProviderRefundId())).toList();
     }
 }

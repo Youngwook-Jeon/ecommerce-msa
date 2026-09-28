@@ -17,6 +17,8 @@ public class CustomerRefundResponseMapper {
                 .failureReason(customerRefund.failureReason())
                 .requestedAt(customerRefund.requestedAt())
                 .updatedAt(customerRefund.updatedAt())
+                .resultVersion(customerRefund.resultVersion())
+                .completedAt(customerRefund.completedAt()).failedAt(customerRefund.failedAt())
                 .build();
     }
 }

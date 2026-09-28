@@ -45,11 +45,20 @@ public class CustomerRefundEntity {
     private String reason;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 16)
+    @Column(name = "status", nullable = false, length = 32)
     private CustomerRefundStatus status;
 
     @Column(name = "failure_reason", length = 512)
     private String failureReason;
+
+    @Column(name = "result_version", nullable = false)
+    private long resultVersion;
+
+    @Column(name = "completed_at")
+    private Instant completedAt;
+
+    @Column(name = "failed_at")
+    private Instant failedAt;
 
     @CreatedDate
     @Column(name = "requested_at", nullable = false, updatable = false)

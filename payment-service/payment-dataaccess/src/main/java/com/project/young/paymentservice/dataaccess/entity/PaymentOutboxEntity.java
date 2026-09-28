@@ -38,6 +38,18 @@ public class PaymentOutboxEntity {
     @Column(name = "refund_id", columnDefinition = "UUID")
     private UUID refundId;
 
+    @Column(name = "result_version", nullable = false)
+    private long resultVersion;
+
+    @Column(name = "failed_after_completion", nullable = false)
+    private boolean failedAfterCompletion;
+
+    @Column(name = "refund_completed_at")
+    private Instant refundCompletedAt;
+
+    @Column(name = "refund_failed_at")
+    private Instant refundFailedAt;
+
     @Column(name = "payment_id", nullable = false, columnDefinition = "UUID")
     private UUID paymentId;
 

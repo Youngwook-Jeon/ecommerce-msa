@@ -1,5 +1,8 @@
 package com.project.young.paymentservice.adapter.stripe;
 
+import com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundState;
+import com.stripe.model.Refund;
+
 import com.project.young.paymentservice.application.dto.command.ApplyProviderPaymentResultCommand;
 import com.project.young.paymentservice.application.exception.InvalidStripeWebhookException;
 import com.project.young.paymentservice.application.provider.ProviderPaymentResultOutcome;
@@ -108,5 +111,32 @@ class StripeWebhookAdapterTest {
         if (!"charge.succeeded".equals(type)) {
             when(event.getId()).thenReturn(eventId);
         }
+    }
+
+    @Test
+    void refundFailed_mapsProviderRefundAndFailureReason() {
+        var refund = mock(Refund.class);
+        when(event.getType()).thenReturn("refund.failed");
+        when(event.getId()).thenReturn("evt_refund");
+        when(event.getDataObjectDeserializer()).thenReturn(deserializer);
+        when(deserializer.getObject()).thenReturn(Optional.of(refund));
+        when(refund.getId()).thenReturn("re_1");
+        when(refund.getPaymentIntent()).thenReturn("pi_1");
+        when(refund.getFailureReason()).thenReturn("lost_or_stolen_card");
+
+        assertThat(adapter.mapRefundEvent(event)).hasValueSatisfying(command -> {
+            assertThat(command.providerRefundId()).isEqualTo("re_1");
+            assertThat(command.state()).isEqualTo(
+                    RefundState.FAILED);
+            assertThat(command.failureReason()).isEqualTo("lost_or_stolen_card");
+        });
+    }
+
+    @Test
+    void supportedRefundWithoutDecodableObject_doesNotSilentlyDiscard() {
+        when(event.getType()).thenReturn("refund.updated");
+        when(event.getDataObjectDeserializer()).thenReturn(deserializer);
+        when(deserializer.getObject()).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> adapter.mapRefundEvent(event)).isInstanceOf(InvalidStripeWebhookException.class);
     }
 }

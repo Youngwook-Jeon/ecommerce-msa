@@ -158,6 +158,15 @@ GRANT CONNECT ON DATABASE ecodb_product
 - **Key:** `order_id`
 - **Value:** JSON (`ExtractNewRecordState`, snake_case)
 
+Customer refund result rows additionally carry `result_version`,
+`failed_after_completion`, `refund_completed_at`, and `refund_failed_at`.
+The existing customer-refund connectors relay these columns unchanged; no extra
+correction topic is required. Order applies failure with precedence over an older
+completion event, including when the two topics deliver out of order.
+`customer.refund.requested.DLT` is durably consumed by Payment, and the completed/
+failed result DLTs by Order, into separate `customer_refund_dlts` operational queues.
+See [refund reconciliation](../../payment-service/REFUND_RECONCILIATION.md).
+
 Payment connectors use Debezium **Filter SMT + Groovy** (`event_type`). The stock Connect image
 keeps scripting disabled; local compose sets `ENABLE_DEBEZIUM_SCRIPTING=true` and mounts JARs from
 `./scripts/prepare-connect-scripting-libs.sh` (`startup.sh` runs this automatically).

@@ -1,5 +1,9 @@
 package com.project.young.paymentservice.adapter.stripe;
 
+import com.project.young.paymentservice.application.dto.command.ObserveProviderRefundCommand;
+import com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundState;
+import com.project.young.paymentservice.application.port.output.ProviderRefundWebhookInboxPort;
+
 import com.project.young.paymentservice.application.dto.command.ApplyProviderPaymentResultCommand;
 import com.project.young.paymentservice.application.port.output.StripeWebhookPort;
 import com.project.young.paymentservice.application.port.output.ProviderWebhookInboxPort;
@@ -27,6 +31,9 @@ class StripeWebhookUseCaseImplTest {
     @Mock
     private ProviderWebhookInboxPort providerWebhookInboxPort;
 
+    @Mock
+    private ProviderRefundWebhookInboxPort refundInbox;
+
     @InjectMocks
     private StripeWebhookUseCaseImpl useCase;
 
@@ -51,6 +58,17 @@ class StripeWebhookUseCaseImplTest {
 
         useCase.handle("payload", "sig");
 
+        verify(providerWebhookInboxPort, never()).recordReceived(any());
+    }
+
+    @Test
+    void refundWebhook_isPersistedInSeparateInbox() {
+        var command = new ObserveProviderRefundCommand(
+                "evt_refund", "re_1", "pi_1",
+                RefundState.FAILED, "bank rejected");
+        when(stripeWebhookPort.verifyAndParseRefund("payload", "sig")).thenReturn(Optional.of(command));
+        useCase.handle("payload", "sig");
+        verify(refundInbox).recordReceived(command);
         verify(providerWebhookInboxPort, never()).recordReceived(any());
     }
 }

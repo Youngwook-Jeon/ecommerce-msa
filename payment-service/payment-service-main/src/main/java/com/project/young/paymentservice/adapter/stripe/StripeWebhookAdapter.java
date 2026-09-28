@@ -8,6 +8,9 @@ import com.project.young.paymentservice.domain.valueobject.PaymentProvider;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.Event;
 import com.stripe.model.PaymentIntent;
+import com.stripe.model.Refund;
+import com.project.young.paymentservice.application.dto.command.ObserveProviderRefundCommand;
+import com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundState;
 import com.stripe.model.StripeObject;
 import com.stripe.net.Webhook;
 import org.slf4j.Logger;
@@ -35,6 +38,15 @@ public class StripeWebhookAdapter implements StripeWebhookPort {
 
     @Override
     public Optional<ApplyProviderPaymentResultCommand> verifyAndParse(String payload, String signatureHeader) {
+        return mapEvent(verifyEvent(payload, signatureHeader));
+    }
+
+    @Override
+    public Optional<ObserveProviderRefundCommand> verifyAndParseRefund(String payload, String signatureHeader) {
+        return mapRefundEvent(verifyEvent(payload, signatureHeader));
+    }
+
+    private Event verifyEvent(String payload, String signatureHeader) {
         if (stripeProperties.webhookSecret() == null) {
             throw new InvalidStripeWebhookException(
                     "payment-service.stripe.webhook-secret must be set when provider=stripe");
@@ -49,7 +61,26 @@ public class StripeWebhookAdapter implements StripeWebhookPort {
             throw new InvalidStripeWebhookException("Failed to parse Stripe webhook payload", ex);
         }
 
-        return mapEvent(event);
+        return event;
+    }
+
+    Optional<ObserveProviderRefundCommand> mapRefundEvent(Event event) {
+        if (!"refund.updated".equals(event.getType()) && !"refund.failed".equals(event.getType())
+                && !"refund.created".equals(event.getType())) {
+            return Optional.empty();
+        }
+        StripeObject object = event.getDataObjectDeserializer().getObject().orElse(null);
+        if (!(object instanceof Refund refund)) {
+            throw new InvalidStripeWebhookException("Supported refund event has no decodable Refund object");
+        }
+        RefundState state = "refund.failed".equals(event.getType()) ? RefundState.FAILED : switch (refund.getStatus()) {
+            case "succeeded" -> RefundState.SUCCEEDED;
+            case "failed", "canceled" -> RefundState.FAILED;
+            case "pending", "requires_action" -> RefundState.PENDING;
+            default -> throw new InvalidStripeWebhookException("Unknown Stripe refund status");
+        };
+        return Optional.of(new ObserveProviderRefundCommand(event.getId(), refund.getId(),
+                refund.getPaymentIntent(), state, refund.getFailureReason()));
     }
 
     Optional<ApplyProviderPaymentResultCommand> mapEvent(Event event) {

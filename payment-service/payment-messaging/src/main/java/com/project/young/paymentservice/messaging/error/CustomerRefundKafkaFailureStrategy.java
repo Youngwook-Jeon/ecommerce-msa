@@ -36,15 +36,16 @@ public class CustomerRefundKafkaFailureStrategy {
                 dltKafkaTemplate,
                 (ConsumerRecord<?, ?> record, Exception exception) -> {
                     String dltTopic = record.topic() + properties.dlt().topicSuffix();
-                    log.error("Publishing customer refund to DLT topic={} partition={} offset={} cause={}",
-                            dltTopic, record.partition(), record.offset(), exception.toString());
+                    log.error("Publishing customer refund to DLT topic={} partition={} offset={} exceptionClass={}",
+                            dltTopic, record.partition(), record.offset(), exception.getClass().getName());
                     return new TopicPartition(dltTopic, record.partition());
                 }
         );
+        recoverer.setFailIfSendResultIsError(true);
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer,
                 new FixedBackOff(properties.retry().backoffIntervalMs(), properties.retry().maxAttempts()));
         handler.setCommitRecovered(true);
-        handler.addNotRetryableExceptions(PaymentRefundRejectedException.class);
+        handler.addNotRetryableExceptions(PaymentRefundRejectedException.class, IllegalArgumentException.class);
         factory.setCommonErrorHandler(handler);
     }
 }

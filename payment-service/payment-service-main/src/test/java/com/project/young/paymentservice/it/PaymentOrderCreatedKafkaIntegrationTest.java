@@ -1,5 +1,17 @@
 package com.project.young.paymentservice.it;
 
+import com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundResult;
+import com.project.young.paymentservice.application.port.output.PaymentProviderPort.RefundState;
+import com.project.young.paymentservice.application.service.PaymentRefundResultRecorder;
+import com.project.young.paymentservice.dataaccess.adapter.CustomerRefundReviewAdapter;
+import java.util.Objects;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+
 import com.project.young.paymentservice.PaymentServiceMain;
 import com.project.young.paymentservice.application.dto.command.RefundCustomerPaymentCommand;
 import com.project.young.paymentservice.application.service.PaymentApplicationService;
@@ -90,12 +102,19 @@ class PaymentOrderCreatedKafkaIntegrationTest {
     @Autowired
     private PaymentApplicationService paymentApplicationService;
 
+    @Autowired
+    private PaymentRefundResultRecorder refundResultRecorder;
+
+    @MockitoSpyBean
+    private CustomerRefundReviewAdapter customerReviews;
+
     @BeforeEach
     void setUp() {
         paymentProvider.reset();
         transactionTemplate.executeWithoutResult(status -> {
             entityManager.createNativeQuery("""
                     TRUNCATE TABLE payments.payment_refund_compensation_dlts, payments.payment_refund_compensations, payments.payment_provider_events,
+                    payments.customer_refund_dlts, payments.provider_refund_webhook_inbox,
                     payments.payment_outbox, payments.payments RESTART IDENTITY CASCADE
                     """)
                     .executeUpdate();
@@ -183,7 +202,7 @@ class PaymentOrderCreatedKafkaIntegrationTest {
                     .setParameter("orderId", orderId)
                     .getResultList();
             return paymentIds.isEmpty() ? null : UUID.fromString(paymentIds.getFirst().toString());
-        }), java.util.Objects::nonNull);
+        }), Objects::nonNull);
         awaitCompletedPayment(paymentId);
         UUID compensationEventId = UUID.randomUUID();
 
@@ -279,7 +298,7 @@ class PaymentOrderCreatedKafkaIntegrationTest {
                     .setParameter("orderId", orderId)
                     .getResultList();
             return paymentIds.isEmpty() ? null : UUID.fromString(paymentIds.getFirst().toString());
-        }), java.util.Objects::nonNull);
+        }), Objects::nonNull);
     }
 
     private void awaitCompletedPayment(UUID paymentId) {
@@ -319,6 +338,93 @@ class PaymentOrderCreatedKafkaIntegrationTest {
         } catch (Exception ex) {
             throw new IllegalStateException("Failed to publish order.created", ex);
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "not-json"})
+    void invalidCustomerRefundRequest_goesThroughDltToDurableQueueBeforeClaimExists(String payload) throws Exception {
+        String key = UUID.randomUUID().toString();
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaContainer.getBootstrapServers());
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        try (KafkaProducer<String, String> producer = new KafkaProducer<>(props)) {
+            producer.send(new ProducerRecord<>("customer.refund.requested", key, payload))
+                    .get(10, TimeUnit.SECONDS);
+        }
+        await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> {
+            Object[] row = transactionTemplate.execute(status -> {
+                var rows = entityManager.createNativeQuery("""
+                        SELECT source_topic, handling_status, payload FROM customer_refund_dlts WHERE message_key = :key
+                        """).setParameter("key", key).getResultList();
+                return rows.isEmpty() ? null : (Object[]) rows.getFirst();
+            });
+            assertThat(row).isNotNull();
+            assertThat(row[0]).isEqualTo("customer.refund.requested");
+            assertThat(row[1]).isEqualTo("ESCALATED");
+            if ("not-json".equals(payload)) {
+                assertThat(row[2]).isEqualTo(payload);
+            }
+        });
+        Long claimCount = transactionTemplate.execute(status -> ((Number) entityManager.createNativeQuery(
+                "SELECT COUNT(*) FROM payment_refund_claims").getSingleResult()).longValue());
+        assertThat(claimCount).isZero();
+    }
+
+    @Test
+    void lateFailureCorrection_isAtomicIdempotentAndDoesNotRepeatPspRefund() {
+        UUID orderId = UUID.randomUUID();
+        sendOrderCreated(orderId, "50.00");
+        UUID paymentId = awaitPaymentId(orderId);
+        awaitCompletedPayment(paymentId);
+        UUID refundId = UUID.randomUUID();
+        var command = new RefundCustomerPaymentCommand(refundId, paymentId, orderId, USER_ID);
+        assertThat(paymentApplicationService.refundCustomerPayment(command)).isTrue();
+        String providerRefundId = transactionTemplate.execute(status -> (String) entityManager.createNativeQuery(
+                "SELECT provider_refund_id FROM payment_refund_claims WHERE payment_id = :id")
+                .setParameter("id", paymentId).getSingleResult());
+        var failed = new RefundResult(
+                providerRefundId, RefundState.FAILED);
+        Mockito.doThrow(new IllegalStateException("review database unavailable")).when(customerReviews)
+                .recordConfirmedLateFailure(ArgumentMatchers.any(), ArgumentMatchers.any(),
+                        ArgumentMatchers.any(), ArgumentMatchers.any());
+        Assertions.assertThatThrownBy(() ->
+                refundResultRecorder.recordCustomerObservation(command, failed, "bank rejected"))
+                .isInstanceOf(RuntimeException.class).hasMessageContaining("review database unavailable");
+        String providerState = transactionTemplate.execute(status -> (String) entityManager.createNativeQuery(
+                "SELECT provider_refund_state FROM payment_refund_claims WHERE payment_id = :id")
+                .setParameter("id", paymentId).getSingleResult());
+        assertThat(providerState).isEqualTo("SUCCEEDED");
+        assertThat(failureOutboxCount(refundId)).isZero();
+        Mockito.doCallRealMethod().when(customerReviews).recordConfirmedLateFailure(
+                ArgumentMatchers.any(), ArgumentMatchers.any(),
+                ArgumentMatchers.any(), ArgumentMatchers.any());
+
+        refundResultRecorder.recordCustomerObservation(command, failed, "bank rejected");
+        refundResultRecorder.recordCustomerObservation(command, failed, "bank rejected");
+        refundResultRecorder.recordCustomerObservation(command,
+                new RefundResult(providerRefundId,
+                        RefundState.SUCCEEDED), null);
+        assertThat(failureOutboxCount(refundId)).isEqualTo(1);
+        Object[] state = transactionTemplate.execute(status -> (Object[]) entityManager.createNativeQuery("""
+                SELECT c.provider_refund_state, o.failed_after_completion, o.result_version, r.review_reason,
+                    (SELECT COUNT(*) FROM customer_refund_processings p WHERE p.refund_id = :refundId)
+                FROM payment_refund_claims c JOIN payment_outbox o ON o.refund_id = c.request_id
+                JOIN customer_refund_reviews r ON r.refund_id = c.request_id
+                WHERE c.request_id = :refundId AND o.event_type = 'CUSTOMER_REFUND_FAILED'
+                """).setParameter("refundId", refundId).getSingleResult());
+        assertThat(state[0]).isEqualTo("FAILED");
+        assertThat(state[1]).isEqualTo(true);
+        assertThat(((Number) state[2]).longValue()).isEqualTo(2);
+        assertThat(state[3]).isEqualTo("CONFIRMED_LATE_FAILURE");
+        assertThat(((Number) state[4]).longValue()).isEqualTo(1);
+        assertThat(paymentProvider.refundIdempotencyKeys()).containsExactly(refundId.toString());
+    }
+
+    private long failureOutboxCount(UUID refundId) {
+        return transactionTemplate.execute(status -> ((Number) entityManager.createNativeQuery("""
+                SELECT COUNT(*) FROM payment_outbox WHERE refund_id = :refundId AND event_type = 'CUSTOMER_REFUND_FAILED'
+                """).setParameter("refundId", refundId).getSingleResult()).longValue());
     }
 
     private static void sendPaymentRefundRequested(UUID compensationEventId, UUID paymentId, UUID orderId) {

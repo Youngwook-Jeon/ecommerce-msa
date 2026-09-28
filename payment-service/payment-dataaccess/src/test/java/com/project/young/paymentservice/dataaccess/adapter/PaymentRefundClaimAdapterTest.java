@@ -103,7 +103,7 @@ class PaymentRefundClaimAdapterTest {
     private static PaymentRefundClaimEntity claim(UUID requestId, Kind kind) {
         PaymentRefundClaimEntity claim = mock(PaymentRefundClaimEntity.class);
         when(claim.getRequestId()).thenReturn(requestId);
-        when(claim.getRequestKind()).thenReturn(kind.name());
+        when(claim.getRequestKind()).thenReturn(kind);
         return claim;
     }
 }
