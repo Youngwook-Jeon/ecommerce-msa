@@ -72,6 +72,30 @@ flowchart LR
 
 ## PostgreSQL 설정
 
+### 기동 준비 상태 확인
+
+`startup.sh`는 backing services 기동 후 `scripts/wait-postgres.sh`로 PostgreSQL의
+TCP 접속 준비 상태를 확인한 뒤 Connect 준비와 앱 기동 단계로 넘어갑니다.
+초기 데이터 생성 중의 임시 Unix 소켓 서버는 준비 완료로 간주하지 않습니다.
+컨테이너 종료·재시작·조회 실패 또는 대기 시간 초과 시 기동을 중단하고,
+컨테이너를 조회할 수 있는 경우 최근 PostgreSQL 로그를 출력합니다.
+
+기본 대기 시간은 120초이며, 필요하면 다음처럼 늘릴 수 있습니다.
+
+```sh
+POSTGRES_STARTUP_TIMEOUT_SECONDS=180 make up
+```
+
+이 확인은 서버 readiness 검사이며, 사용자 인증·서비스 DB 스키마 및 Flyway
+마이그레이션 성공 여부는 이후 각 애플리케이션 기동에서 검증합니다.
+기존 외장 디스크 bind mount와 데이터 보존 정책은 변경하지 않습니다.
+
+Docker를 실행하지 않는 스크립트 회귀 테스트:
+
+```sh
+bash ecommerce-msa/deployment/docker/scripts/tests/PostgresReadinessTest.sh
+```
+
 ### 필수 파라미터 (`backing_services.yml`)
 
 ```text
