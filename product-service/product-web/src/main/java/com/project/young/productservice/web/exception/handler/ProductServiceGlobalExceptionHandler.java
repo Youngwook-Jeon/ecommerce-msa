@@ -2,6 +2,7 @@ package com.project.young.productservice.web.exception.handler;
 
 import com.project.young.common.application.web.ErrorDTO;
 import com.project.young.common.application.web.GlobalExceptionHandler;
+import com.project.young.productservice.application.exception.ProductSearchRequestException;
 import com.project.young.productservice.domain.exception.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -16,6 +17,17 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @Slf4j
 @ControllerAdvice
 public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler {
+
+    @ResponseBody
+    @ExceptionHandler(ProductSearchRequestException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorDTO handleSearchRequestException(ProductSearchRequestException exception) {
+        log.debug("Invalid product search request: code={}", exception.code());
+        return ErrorDTO.builder()
+                .code(exception.code().name())
+                .message(exception.getMessage())
+                .build();
+    }
 
     @ResponseBody
     @ExceptionHandler(value = {ProductDomainException.class})
