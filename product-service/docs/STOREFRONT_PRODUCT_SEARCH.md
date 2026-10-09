@@ -214,5 +214,9 @@
 - web: `PublicProductSearchResponse`와 `PublicProductSearchFacetResponse`가 category 객체 및 `terms`/`range` JSON 구조를 표현한다.
 - 검증 실패는 `ProductSearchRequestException`과 전용 예외 처리 메서드로 계약의 400 오류 코드를 반환한다.
 - 단위 테스트와 테스트 전용 HTTP 바인딩 테스트로 기본값, Unicode 정규화/길이, 브랜드 중복, 가격/페이지 제한, 오류 코드, 응답 직렬화를 검증한다.
+- `PublicProductSearchController`가 `GET /public/products/search`를 제공하며, `ProductSearchService`에 요청을 전달한다. 서비스는 요청 검증 후 지정된 카테고리의 존재/활성 여부를 확인하고 `ProductSearchPort`를 호출한다. 전체 탐색에는 카테고리 존재 확인을 수행하지 않는다.
+- `ProductSearchResult`는 상품 목록과 정확한 총 개수, 브랜드/가격 집계를 표현한다. 서비스가 총 페이지를 계산하고 `PublicProductSearchResponseMapper`가 공개 응답으로 변환한다. 생성일은 응답에 포함하지 않는다.
+- 검색 전용 예외 처리로 `CATEGORY_NOT_FOUND`(404), `SEARCH_UNAVAILABLE`(503), `INTERNAL_ERROR`(500)를 반환한다. 검색 엔드포인트의 500 코드 정책은 다른 API에 적용하지 않는다.
+- OpenSearch 어댑터가 아직 없으므로 `ProductSearchConfiguration`은 검색 포트가 없는 경우에만 검색 불가 구현을 등록한다. 유효한 검색 요청은 현재 `503 SEARCH_UNAVAILABLE`을 반환하며, 빈 결과나 PostgreSQL 검색으로 대체하지 않는다. 실제 `ProductSearchPort` 구현이 등록되면 검색 불가 구현은 등록하지 않는다.
 
-실제 검색 엔드포인트는 아직 노출하지 않는다. 카테고리 존재/활성 여부 조회, 검색 포트/어댑터, 상품/집계 조회, 총 페이지 계산은 다음 검색 유스케이스 구현에서 연결한다. OpenSearch 인프라와 인덱싱 구현도 후속 작업이다.
+검색 엔드포인트는 이제 노출되지만 실제 상품 검색을 위해서는 OpenSearch 어댑터와 인프라/인덱싱 연결이 필요하다. 기존 목록/facets API와 프론트엔드의 제거/전환은 해당 연결 후 수행한다. 새 경로는 기존 Gateway의 공개 경로 규칙을 사용하며 포트/환경 변수/이벤트 토픽 변경은 없다.
