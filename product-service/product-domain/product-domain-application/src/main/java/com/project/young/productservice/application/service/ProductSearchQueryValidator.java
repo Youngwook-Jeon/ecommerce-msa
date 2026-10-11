@@ -4,6 +4,7 @@ import com.project.young.productservice.application.dto.condition.ProductSearchC
 import com.project.young.productservice.application.dto.query.ProductSearchQuery;
 import com.project.young.productservice.application.dto.query.PublicProductSort;
 import com.project.young.productservice.application.exception.ProductSearchRequestException;
+import com.project.young.productservice.application.support.ProductSearchBrandNormalizer;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -11,7 +12,6 @@ import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -42,9 +42,8 @@ public class ProductSearchQueryValidator {
 
         Set<String> brands = new LinkedHashSet<>();
         for (String brand : query.brands()) {
-            String normalized = normalize(brand);
+            String normalized = ProductSearchBrandNormalizer.normalizeKey(brand);
             if (normalized != null) {
-                normalized = normalize(normalized.toLowerCase(Locale.ROOT));
                 checkLength(normalized, 100, "brands");
                 brands.add(normalized);
             }

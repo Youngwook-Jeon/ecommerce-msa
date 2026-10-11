@@ -9,11 +9,13 @@ import com.project.young.productservice.dataaccess.config.OpenSearchProductConfi
 import com.project.young.productservice.dataaccess.search.CrossFieldsProductQueryBuilder;
 import com.project.young.productservice.dataaccess.search.OpenSearchProductQueryBuilder;
 import com.project.young.productservice.dataaccess.search.OpenSearchProductSearchAdapter;
+import com.project.young.productservice.dataaccess.search.ProductSearchIndexBatchReader;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 class ProductSearchConfigurationTest {
 
@@ -46,6 +48,7 @@ class ProductSearchConfigurationTest {
     @Test
     void enabledSearchRegistersExactlyOneRealAdapter() {
         new ApplicationContextRunner().withUserConfiguration(ProductSearchConfiguration.class, OpenSearchProductConfiguration.class)
+                .withBean(ProductSearchIndexBatchReader.class, () -> mock(ProductSearchIndexBatchReader.class))
                 .withBean(ObjectMapper.class, ObjectMapper::new).run(context -> {
                     assertThat(context).hasSingleBean(ProductSearchPort.class);
                     assertThat(context.getBean(ProductSearchPort.class)).isInstanceOf(OpenSearchProductSearchAdapter.class);
@@ -58,6 +61,7 @@ class ProductSearchConfigurationTest {
     void customQueryBuilderReplacesDefaultBean() {
         OpenSearchProductQueryBuilder customBuilder = new CrossFieldsProductQueryBuilder();
         new ApplicationContextRunner().withUserConfiguration(ProductSearchConfiguration.class, OpenSearchProductConfiguration.class)
+                .withBean(ProductSearchIndexBatchReader.class, () -> mock(ProductSearchIndexBatchReader.class))
                 .withBean(ObjectMapper.class, ObjectMapper::new)
                 .withBean("customQueryBuilder", OpenSearchProductQueryBuilder.class, () -> customBuilder)
                 .run(context -> {

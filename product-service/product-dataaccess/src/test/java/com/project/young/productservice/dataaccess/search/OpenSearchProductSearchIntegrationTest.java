@@ -5,6 +5,11 @@ import com.project.young.productservice.application.dto.query.ProductSearchQuery
 import com.project.young.productservice.application.exception.ProductSearchUnavailableException;
 import com.project.young.productservice.application.service.ProductSearchQueryValidator;
 import com.project.young.productservice.dataaccess.config.OpenSearchProductProperties;
+import com.project.young.productservice.dataaccess.entity.CategoryEntity;
+import com.project.young.productservice.dataaccess.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
+import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
+import com.project.young.productservice.dataaccess.mapper.OpenSearchProductDocumentMapper;
 import org.apache.hc.core5.http.HttpHost;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +28,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -71,6 +77,42 @@ class OpenSearchProductSearchIntegrationTest {
                 transport.close();
             }
         }
+    }
+
+    @Test
+    void bulkWriterOverwritesStableIdsAndRejectsAliasTargets() throws Exception {
+        var writer = new OpenSearchProductBulkWriter(client);
+        writer.verifyTarget(index);
+        var original = doc("이어폰", "Example", "example", "", "10.00", 12, "ACTIVE", "ACTIVE");
+        writer.write(index, List.of(original));
+        writer.write(index, List.of(original));
+        client.indices().refresh(r -> r.index(index));
+        assertThat(search(null, null, List.of(), null, null, null, 0, 24).totalElements()).isEqualTo(1);
+        String alias = index + "-read";
+        client.indices().putAlias(r -> r.index(index).name(alias));
+        assertThatThrownBy(() -> writer.verifyTarget(alias)).isInstanceOf(ProductSearchIndexingException.class)
+                .hasMessageContaining("physical index");
+        assertThatThrownBy(() -> writer.verifyTarget(index + "-missing"))
+                .isInstanceOf(ProductSearchIndexingException.class);
+    }
+
+    @Test
+    void searchesMappedEntityWithNormalizedBrandAndCatalogFields() throws Exception {
+        var entity = ProductEntity.builder().id(UUID.randomUUID())
+                .category(CategoryEntity.builder().id(12L).name("최신 카테고리").status(CategoryStatusEntity.ACTIVE).build())
+                .name("이어폰").description("방수 지원").brand("\u00a0가 Example\u2003")
+                .basePrice(new BigDecimal("1.2000")).status(ProductStatusEntity.ACTIVE)
+                .createdAt(Instant.parse("2026-10-11T00:00:00.123Z")).build();
+        index(List.of(new OpenSearchProductDocumentMapper().toDocument(entity)));
+        var result = search("방수", 12L, List.of(" 가 EXAMPLE "), "1.20", "1.20", "newest", 0, 24);
+        assertThat(result.totalElements()).isEqualTo(1);
+        assertThat(result.content().getFirst().id()).isEqualTo(entity.getId());
+        assertThat(result.content().getFirst().categoryName()).isEqualTo("최신 카테고리");
+        assertThat(result.content().getFirst().brand()).isEqualTo("가 Example");
+        assertThat(result.brands().getFirst().value()).isEqualTo("가 example");
+        assertThat(result.brands().getFirst().label()).isEqualTo("가 Example");
+        assertThat(result.minPrice()).isEqualByComparingTo("1.20");
+        assertThat(result.maxPrice()).isEqualByComparingTo("1.20");
     }
 
     @Test

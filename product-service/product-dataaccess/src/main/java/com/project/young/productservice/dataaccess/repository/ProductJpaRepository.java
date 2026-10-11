@@ -4,6 +4,7 @@ import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,6 +15,12 @@ import java.util.Collection;
 import java.util.UUID;
 
 public interface ProductJpaRepository extends JpaRepository<ProductEntity, UUID> {
+    @Query("SELECT p FROM ProductEntity p LEFT JOIN FETCH p.category ORDER BY p.id ASC")
+    List<ProductEntity> findFirstSearchIndexBatch(Pageable pageable);
+
+    @Query("SELECT p FROM ProductEntity p LEFT JOIN FETCH p.category WHERE p.id > :afterId ORDER BY p.id ASC")
+    List<ProductEntity> findNextSearchIndexBatch(@Param("afterId") UUID afterId, Pageable pageable);
+
     @EntityGraph(attributePaths = {
             "optionGroups",
             "optionGroups.optionValues",

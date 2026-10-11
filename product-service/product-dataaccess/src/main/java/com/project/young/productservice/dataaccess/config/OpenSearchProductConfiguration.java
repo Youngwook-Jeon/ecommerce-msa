@@ -5,6 +5,9 @@ import com.project.young.productservice.application.port.output.ProductSearchPor
 import com.project.young.productservice.dataaccess.search.CrossFieldsProductQueryBuilder;
 import com.project.young.productservice.dataaccess.search.OpenSearchProductQueryBuilder;
 import com.project.young.productservice.dataaccess.search.OpenSearchProductSearchAdapter;
+import com.project.young.productservice.dataaccess.search.OpenSearchProductBulkWriter;
+import com.project.young.productservice.dataaccess.search.ProductSearchIndexBatchReader;
+import com.project.young.productservice.dataaccess.search.ProductSearchInitialLoader;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.util.Timeout;
 import org.opensearch.client.json.jackson.JacksonJsonpMapper;
@@ -40,6 +43,17 @@ public class OpenSearchProductConfiguration {
     @ConditionalOnMissingBean(OpenSearchProductQueryBuilder.class)
     OpenSearchProductQueryBuilder productSearchQueryBuilder() {
         return new CrossFieldsProductQueryBuilder();
+    }
+
+    @Bean
+    OpenSearchProductBulkWriter productSearchBulkWriter(OpenSearchClient productSearchClient) {
+        return new OpenSearchProductBulkWriter(productSearchClient);
+    }
+
+    @Bean
+    ProductSearchInitialLoader productSearchInitialLoader(ProductSearchIndexBatchReader reader,
+                                                         OpenSearchProductBulkWriter writer) {
+        return new ProductSearchInitialLoader(reader, writer);
     }
 
     @Bean
