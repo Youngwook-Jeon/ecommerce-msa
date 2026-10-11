@@ -82,11 +82,14 @@ public class ProductSearchQueryValidator {
     }
 
     private static String normalize(String value) {
+        return value == null ? null : trimUnicodeWhitespace(Normalizer.normalize(value, Normalizer.Form.NFC));
+    }
+
+    private static String trimUnicodeWhitespace(String value) {
         if (value == null) {
             return null;
         }
-        String normalized = Normalizer.normalize(value, Normalizer.Form.NFC);
-        normalized = EDGE_WHITESPACE.matcher(normalized).replaceAll("");
+        String normalized = EDGE_WHITESPACE.matcher(value).replaceAll("");
         return normalized.isEmpty() ? null : normalized;
     }
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "Shutdown backing services"
-docker compose -f common.yml -f backing_services.yml down
+docker compose -f common.yml -f backing_services.yml -f opensearch.yml down
 
 echo "Shutdown Kafka Connect"
 docker compose -f common.yml -f kafka_cluster.yml -f kafka_connect.yml down
@@ -30,5 +30,7 @@ yes | rm -r ./volumes/zookeeper/*
 yes | rm -r ./volumes/redis/data/*
 
 yes | rm -r ./volumes/postgresql/data/*
+
+yes | rm -r ./volumes/opensearch/data/*
 
 echo "All services have shut down."

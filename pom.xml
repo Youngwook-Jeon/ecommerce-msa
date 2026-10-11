@@ -31,6 +31,7 @@
         <spring-kafka.version>3.3.1</spring-kafka.version>
         <kafka-avro-serializer.version>7.8.0</kafka-avro-serializer.version>
         <avro.version>1.12.0</avro.version>
+        <opensearch.version>3.9.0</opensearch.version>
         <querydsl.version>5.0.0</querydsl.version>
         <flyway.version>11.10.2</flyway.version>
         <uuid-generator.version>5.2.0</uuid-generator.version>
@@ -158,6 +159,11 @@
                 <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.opensearch.client</groupId>
+                <artifactId>opensearch-java</artifactId>
+                <version>${opensearch.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.querydsl</groupId>

@@ -17,6 +17,7 @@ docker compose \
   -f common.yml \
   -f init_kafka.yml \
   -f backing_services.yml \
+  -f opensearch.yml \
   stop
 
 echo "All services have been stopped."

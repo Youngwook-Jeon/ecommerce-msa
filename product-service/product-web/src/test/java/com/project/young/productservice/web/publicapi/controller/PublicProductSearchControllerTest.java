@@ -68,7 +68,7 @@ class PublicProductSearchControllerTest {
                     new BigDecimal("89.99"), new BigDecimal("199.99"));
         });
         mockMvc.perform(get("/public/products/search").param("q", " 무선\t이어폰 ")
-                        .param("brands", "EXAMPLE", "Example"))
+                        .param("brands", "Example", " EXAMPLE "))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.query.q").value("무선 이어폰"))
                 .andExpect(jsonPath("$.query.sort").value("relevance"))

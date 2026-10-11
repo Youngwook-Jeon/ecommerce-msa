@@ -44,7 +44,7 @@ class ProductSearchServiceTest {
     @Test
     void searchesAllCategoriesWithNormalizedCriteria() {
         when(searchPort.search(any())).thenReturn(result(25));
-        var page = service.search(new ProductSearchQuery(" 무선\t이어폰 ", null, List.of("APPLE", "Apple"),
+        var page = service.search(new ProductSearchQuery(" 무선\t이어폰 ", null, List.of("Apple", " APPLE "),
                 null, null, null, null, null));
         var captor = ArgumentCaptor.forClass(ProductSearchCriteria.class);
         verify(searchPort).search(captor.capture());

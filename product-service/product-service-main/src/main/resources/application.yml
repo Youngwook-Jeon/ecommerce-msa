@@ -40,6 +40,14 @@ product-service:
     # NAME_BRAND (default, combined name+brand pg_trgm GIN) | NAME_DESCRIPTION_LEGACY (benchmark / legacy)
     keyword-search:
       strategy: NAME_BRAND
+  search:
+    enabled: ${PRODUCT_SEARCH_ENABLED:true}
+    endpoint: ${PRODUCT_SEARCH_ENDPOINT:http://localhost:9200}
+    index: ${PRODUCT_SEARCH_INDEX:products-read}
+    connect-timeout-millis: ${PRODUCT_SEARCH_CONNECT_TIMEOUT_MILLIS:1000}
+    response-timeout-millis: ${PRODUCT_SEARCH_RESPONSE_TIMEOUT_MILLIS:5000}
+    query-timeout-seconds: ${PRODUCT_SEARCH_QUERY_TIMEOUT_SECONDS:3}
+    request-budget-millis: ${PRODUCT_SEARCH_REQUEST_BUDGET_MILLIS:10000}
 
 schema:
   name: product

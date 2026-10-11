@@ -55,6 +55,8 @@ echo "Kafka topics are created"
 docker compose -f common.yml -f backing_services.yml up -d
 bash "${SCRIPT_DIR}/scripts/wait-postgres.sh"
 
+bash "${SCRIPT_DIR}/scripts/start-opensearch.sh"
+
 echo "Preparing Kafka Connect scripting libs (Debezium Filter SMT / Groovy)"
 
 bash "${SCRIPT_DIR}/scripts/prepare-connect-scripting-libs.sh"

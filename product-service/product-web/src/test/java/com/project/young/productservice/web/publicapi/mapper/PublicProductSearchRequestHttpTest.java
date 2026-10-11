@@ -24,7 +24,7 @@ class PublicProductSearchRequestHttpTest {
     @Test
     void bindsAllRepeatedValuesBeforeApplicationValidation() throws Exception {
         mockMvc.perform(get("/test-search").param("q", " 이어폰 ")
-                        .param("brands", "APPLE", "Samsung").param("categoryId", "12"))
+                        .param("brands", "Apple", "Samsung").param("categoryId", "12"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.q").value("이어폰"))
                 .andExpect(jsonPath("$.brands[0]").value("apple"))

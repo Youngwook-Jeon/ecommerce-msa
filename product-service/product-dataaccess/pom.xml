@@ -19,6 +19,10 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.opensearch.client</groupId>
+            <artifactId>opensearch-java</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.project.young</groupId>
             <artifactId>product-domain-application</artifactId>
         </dependency>

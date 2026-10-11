@@ -23,8 +23,8 @@ class PublicProductSearchRequestMapperTest {
         var params = new LinkedMultiValueMap<String, String>();
         params.add("q", " 이어폰 ");
         params.add("categoryId", "12");
-        params.add("brands", "Apple, Samsung");
-        params.add("brands", "Example");
+        params.add("brands", "Apple,Samsung");
+        params.add("brands", "Other");
         params.add("minPrice", "50.00");
         params.add("maxPrice", "200.00");
         params.add("sort", "price_asc");
@@ -32,7 +32,7 @@ class PublicProductSearchRequestMapperTest {
         params.add("size", "24");
         var query = mapper.toQuery(mapper.fromParameters(params));
         params.get("brands").clear();
-        assertThat(query.brands()).containsExactly("Apple, Samsung", "Example");
+        assertThat(query.brands()).containsExactly("Apple,Samsung", "Other");
         assertThat(query.minPrice()).isEqualTo(new BigDecimal("50.00"));
         var criteria = new ProductSearchQueryValidator().validate(query);
         assertThat(criteria.q()).isEqualTo("이어폰");
