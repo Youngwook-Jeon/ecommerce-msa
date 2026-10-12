@@ -2,7 +2,7 @@
 
 ## 이번 단계의 범위
 
-인덱스 버전/적재 작업의 application 상태 모델, JPA 엔티티·repository·변환 매퍼, PostgreSQL 스키마(V11), HTTP 요청·응답 DTO와 검증 규칙을 정의한다. 실제 controller/use case, 작업 등록/claim·실행기, 로더 진행률 반영, OpenSearch 인덱스 생성·검증·alias 전환·복구는 후속 구현이다. 이 문서의 엔드포인트는 아직 배포되는 API가 아니다.
+상태 모델·스키마·DTO에 더해 적재 요청 등록(POST /index-builds), 작업 조회(GET /index-builds/{jobId}), 버전 목록(GET /index-versions)을 controller → application service → PostgreSQL adapter로 연결한다. 작업 claim·실행기, 로더 진행률 반영, OpenSearch 인덱스 생성·검증·alias 전환·복구는 후속이다. 활성화 라우트는 아직 구현하지 않는다. 등록된 작업은 실행기를 연결하기 전까지 QUEUED에 머문다.
 
 첫 버전은 적재 시작부터 검증과 활성화 완료까지 상품·카테고리 쓰기가 멈춰 있어야 한다. catalogWritesPaused=true는 관리자의 확인이며 실제 쓰기 차단 장치를 대신하지 않는다. 변경 이벤트 동기화와 온라인 재색인 조정은 후속이다.
 
@@ -14,7 +14,7 @@
 
 `ProductSearchIndexVersion`은 UUID id와 단조 증가하는 versionNumber를 분리한다. versionNumber는 PostgreSQL sequence에서 발급하고 실제 이름은 서버가 products-v{versionNumber}로 생성한다. 순번에 빈 번호가 생길 수 있다. 요청이 실제 인덱스 이름/매핑 내용을 지정하지 않는다.
 
-mappingVersion은 저장소에서 관리하는 매핑 정의의 버전이며 mappingHash는 사용한 매핑 JSON 파일 바이트의 SHA-256 소문자 hex(64자)다. 같은 매핑으로 여러 물리 인덱스를 만들 수 있다. requestedBy는 인증 주체의 subject이며 요청 body에서 받지 않는다.
+mappingVersion은 저장소에서 관리하는 매핑 정의의 버전이며 mappingHash는 사용한 매핑 JSON 파일 바이트의 SHA-256 소문자 hex(64자)다. 같은 매핑으로 여러 물리 인덱스를 만들 수 있다. requestedBy는 JWT의 sub이며 요청 body에서 받지 않는다. 기존 인증 converter의 principal name은 preferred_username이므로 Authentication.getName() 대신 JWT subject를 직접 사용한다.
 
 | 상태 | 의미 | 다음 상태 |
 |---|---|---|
