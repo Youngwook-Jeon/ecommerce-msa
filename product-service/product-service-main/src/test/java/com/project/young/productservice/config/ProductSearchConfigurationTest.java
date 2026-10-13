@@ -6,6 +6,10 @@ import com.project.young.productservice.application.port.output.ProductSearchPor
 import com.project.young.productservice.application.service.ProductSearchQueryValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.productservice.dataaccess.config.OpenSearchProductConfiguration;
+import com.project.young.productservice.dataaccess.config.ProductSearchIndexBuildConfiguration;
+import com.project.young.productservice.application.port.output.ProductSearchIndexBuildWorkPort;
+import com.project.young.productservice.application.service.ProductSearchIndexBuildExecutor;
+import com.project.young.productservice.dataaccess.search.ProductSearchIndexVerificationReader;
 import com.project.young.productservice.dataaccess.search.CrossFieldsProductQueryBuilder;
 import com.project.young.productservice.dataaccess.search.OpenSearchProductQueryBuilder;
 import com.project.young.productservice.dataaccess.search.OpenSearchProductSearchAdapter;
@@ -77,5 +81,21 @@ class ProductSearchConfigurationTest {
             assertThat(context).hasSingleBean(ProductSearchPort.class);
             assertThat(context).doesNotHaveBean("productSearchClient");
         });
+    }    @Test
+    void enabledWorker_registersExecutorWithDefaultIntervals() {
+        new ApplicationContextRunner().withUserConfiguration(OpenSearchProductConfiguration.class, ProductSearchIndexBuildConfiguration.class)
+                .withBean(ObjectMapper.class, ObjectMapper::new)
+                .withBean(ProductSearchIndexBatchReader.class, () -> mock(ProductSearchIndexBatchReader.class))
+                .withBean(ProductSearchIndexVerificationReader.class, () -> mock(ProductSearchIndexVerificationReader.class))
+                .withBean(ProductSearchIndexBuildWorkPort.class, () -> mock(ProductSearchIndexBuildWorkPort.class))
+                .run(context -> assertThat(context).hasSingleBean(ProductSearchIndexBuildExecutor.class));
     }
+
+    @Test
+    void disabledWorker_doesNotRegisterExecutor() {
+        new ApplicationContextRunner().withUserConfiguration(ProductSearchIndexBuildConfiguration.class)
+                .withPropertyValues("product-service.search.worker.enabled=false")
+                .run(context -> assertThat(context).doesNotHaveBean(ProductSearchIndexBuildExecutor.class));
+    }
+
 }

@@ -15,6 +15,14 @@ import java.util.Collection;
 import java.util.UUID;
 
 public interface ProductJpaRepository extends JpaRepository<ProductEntity, UUID> {
+    @Query("""
+            SELECT p FROM ProductEntity p JOIN FETCH p.category c
+            WHERE p.status = :productStatus AND c.status = :categoryStatus
+            ORDER BY p.createdAt DESC, p.id DESC
+            """)
+    List<ProductEntity> findIndexVerificationSample(@Param("productStatus") ProductStatusEntity productStatus,
+            @Param("categoryStatus") CategoryStatusEntity categoryStatus, Pageable pageable);
+
     @Query("SELECT p FROM ProductEntity p LEFT JOIN FETCH p.category ORDER BY p.id ASC")
     List<ProductEntity> findFirstSearchIndexBatch(Pageable pageable);
 

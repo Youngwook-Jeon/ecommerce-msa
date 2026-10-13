@@ -20,7 +20,7 @@ Spring 시작 시 네트워크 연결이나 인덱스 자동 생성은 수행하
 
 ## 인덱스와 문서
 
-명시적인 매핑은 [products-index.json](../product-dataaccess/src/main/resources/opensearch/products-index.json)을 사용한다. 로컬 Nori 이미지가 필요하다. 기본 매핑은 primary shards 2개, replicas 0개이며 운영 배치 시 조정한다.
+매핑 JSON 위치는 `product-service.search.mapping.resource`(환경 변수 `PRODUCT_SEARCH_MAPPING_RESOURCE`)로 설정하며 기본값은 `classpath:opensearch/products-index.json`이다. 명시적인 매핑은 [products-index.json](../product-dataaccess/src/main/resources/opensearch/products-index.json)을 사용한다. 로컬 Nori 이미지가 필요하다. 기본 매핑은 primary shards 2개, replicas 0개이며 운영 배치 시 조정한다.
 
 새 클러스터에서 초기 인덱스를 준비하려면 **ecommerce-msa 디렉터리**에서 다음 명령을 실행한다. 이미 존재하는 인덱스를 삭제/재생성하지 않는다. 이미 alias를 사용하는 경우 새 버전의 전환 절차를 별도로 정한다.
 
@@ -54,11 +54,11 @@ curl --fail -X PUT http://localhost:9200/products-v1/_alias/products-read
 - 상품명, 카테고리명, 설명, 이미지 URL은 원본을 유지한다. 설명과 이미지 URL은 null 가능하다. 생성 시각은 저장된 Instant를 ISO-8601 문자열로 변환한다.
 - 비활성/삭제 등 상태도 원래 enum 이름으로 보존한다. 문서 생성 단계에서 상품을 제외하지 않으며 검색 쿼리가 활성 상품/카테고리만 노출한다. 물리 삭제 문서 제거는 후속 동기화에서 처리한다.
 
-매퍼는 원본 엔티티를 수정하거나 OpenSearch에 쓰지 않는다. 초기 적재, Bulk 전송, outbox 동기화는 아직 후속 작업이다.
+매퍼는 원본 엔티티를 수정하거나 OpenSearch에 쓰지 않는다. 초기 적재와 Bulk 전송은 아래 파이프라인에서 수행한다. outbox 변경 동기화는 후속 작업이다.
 
 ## 초기 적재 파이프라인
 
-`ProductSearchInitialLoader.load(targetIndex, batchSize)`가 배치 조회 → 매퍼 → Bulk 저장을 연결한다. search.enabled=true일 때 Spring bean으로 등록하며 자동 실행하지 않는다. 기본 배치 크기 상수는 500이며 허용 범위는 1~1000이다. 실행 명령/인덱스 생성/최종 refresh·개수 검증/alias 전환은 후속 작업이다.
+`ProductSearchInitialLoader.load(targetIndex, batchSize)`가 배치 조회 → 매퍼 → Bulk 저장을 연결한다. search.enabled=true일 때 Spring bean으로 등록하며 자동 실행하지 않는다. 기본 배치 크기 상수는 500이며 허용 범위는 1~1000이다. 어드민 등록 작업의 실행기가 인덱스 생성과 최종 refresh·검증까지 수행한다. alias 전환은 후속 작업이다. 실행 조건과 lease는 [어드민 인덱스 관리](ADMIN_PRODUCT_SEARCH_INDEX_MANAGEMENT.md)를 참고한다.
 
 - 상품·카테고리 쓰기를 멈춘 상태에서 실행해야 한다. 배치마다 새 트랜잭션을 사용하므로 전체 적재가 하나의 스냅샷은 아니다.
 - 대상은 사전에 매핑을 적용해 생성한 실제 인덱스 이름이다. alias, wildcard, 존재하지 않는 대상은 시작 전에 거부한다. 읽기 alias를 그대로 대상으로 사용하지 않는다.

@@ -12,6 +12,8 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import com.project.young.productservice.application.exception.ProductSearchIndexOwnershipLostException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -74,6 +76,28 @@ class OpenSearchProductBulkWriterTest {
     void emptyBatchDoesNotCallOpenSearch() {
         writer.write("products-v1", List.of());
         verifyNoInteractions(client);
+    }
+
+    @Test
+    void bulk_afterOwnershipLoss_doesNotSendRequest() {
+        var document = ProductSearchInitialLoaderTest.document();
+        assertThatThrownBy(() -> writer.write("products-v1", List.of(document), () -> {
+            throw new ProductSearchIndexOwnershipLostException();
+        })).isInstanceOf(ProductSearchIndexOwnershipLostException.class);
+        verifyNoInteractions(client);
+    }
+
+    @Test
+    void retry_afterOwnershipLoss_doesNotResendFailedDocument() throws Exception {
+        var document = ProductSearchInitialLoaderTest.document();
+        when(client.bulk(any(BulkRequest.class))).thenReturn(response(true, item(document, 429)));
+        var attempts = new AtomicInteger();
+        assertThatThrownBy(() -> writer.write("products-v1", List.of(document), () -> {
+            if (attempts.incrementAndGet() > 1) {
+                throw new ProductSearchIndexOwnershipLostException();
+            }
+        })).isInstanceOf(ProductSearchIndexOwnershipLostException.class);
+        verify(client).bulk(any(BulkRequest.class));
     }
 
     private static BulkResponseItem item(OpenSearchProductDocument document, int status) {

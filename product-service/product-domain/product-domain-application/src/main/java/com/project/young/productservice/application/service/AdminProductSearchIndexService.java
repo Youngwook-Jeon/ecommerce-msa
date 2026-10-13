@@ -21,12 +21,7 @@ public class AdminProductSearchIndexService {
     }
 
     public ProductSearchIndexBuildJob register(RegisterProductSearchIndexBuildCommand command) {
-        if (command == null || command.requestedBy() == null || command.requestedBy().isBlank()
-                || command.requestedBy().length() > 255 || command.idempotencyKey() == null
-                || !command.idempotencyKey().matches("[A-Za-z0-9._:-]{1,128}")
-                || command.batchSize() < 1 || command.batchSize() > 1000 || !command.catalogWritesPaused()) {
-            throw new ProductSearchIndexManagementException(INVALID_INDEX_MANAGEMENT_REQUEST, "Invalid index build request");
-        }
+        validateRegistration(command);
         return metadata.register(command);
     }
 
@@ -44,4 +39,43 @@ public class AdminProductSearchIndexService {
         }
         return metadata.listVersions(page, size);
     }
+
+    private static void validateRegistration(RegisterProductSearchIndexBuildCommand command) {
+        if (command == null) {
+            throw invalidRequest("Index build request is required");
+        }
+        validateRequestedBy(command.requestedBy());
+        validateIdempotencyKey(command.idempotencyKey());
+        validateBatchSize(command.batchSize());
+        validateCatalogWritesPaused(command.catalogWritesPaused());
+    }
+
+    private static void validateRequestedBy(String requestedBy) {
+        if (requestedBy == null || requestedBy.isBlank() || requestedBy.length() > 255) {
+            throw invalidRequest("requestedBy must be nonblank and at most 255 characters");
+        }
+    }
+
+    private static void validateIdempotencyKey(String idempotencyKey) {
+        if (idempotencyKey == null || !idempotencyKey.matches("[A-Za-z0-9._:-]{1,128}")) {
+            throw invalidRequest("idempotencyKey must contain 1 to 128 permitted ASCII characters");
+        }
+    }
+
+    private static void validateBatchSize(int batchSize) {
+        if (batchSize < 1 || batchSize > 1000) {
+            throw invalidRequest("batchSize must be between 1 and 1000");
+        }
+    }
+
+    private static void validateCatalogWritesPaused(boolean catalogWritesPaused) {
+        if (!catalogWritesPaused) {
+            throw invalidRequest("Catalog writes must be paused before registering an index build");
+        }
+    }
+
+    private static ProductSearchIndexManagementException invalidRequest(String message) {
+        return new ProductSearchIndexManagementException(INVALID_INDEX_MANAGEMENT_REQUEST, message);
+    }
+
 }

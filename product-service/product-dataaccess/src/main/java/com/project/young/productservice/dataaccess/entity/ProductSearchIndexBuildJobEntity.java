@@ -73,6 +73,12 @@ public class ProductSearchIndexBuildJobEntity {
     @Column(name = "failure_message", nullable = true, length = 500)
     private String failureMessage;
 
+    @Column(name = "owner_token")
+    private UUID ownerToken;
+
+    @Column(name = "lease_until")
+    private Instant leaseUntil;
+
     @Version
     @Column(name = "lock_version", nullable = false)
     private long lockVersion;

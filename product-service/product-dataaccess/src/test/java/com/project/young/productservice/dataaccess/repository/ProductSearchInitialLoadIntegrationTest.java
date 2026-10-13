@@ -107,7 +107,7 @@ class ProductSearchInitialLoadIntegrationTest {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             written.addAll(invocation.<List<OpenSearchProductDocument>>getArgument(1));
             return null;
-        }).when(writer).write(anyString(), anyList());
+        }).when(writer).write(anyString(), anyList(), org.mockito.ArgumentMatchers.any(Runnable.class));
         transaction.executeWithoutResult(s -> {
             assertThat(loader.load("products-v1", 2)).isEqualTo(new ProductSearchInitialLoader.Result(3, 2));
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();

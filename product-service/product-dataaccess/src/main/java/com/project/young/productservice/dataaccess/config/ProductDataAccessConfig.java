@@ -14,7 +14,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EnableJpaAuditing
 @EnableJpaRepositories(basePackages = "com.project.young.productservice.dataaccess")
 @EntityScan(basePackages = "com.project.young.productservice.dataaccess")
-@EnableConfigurationProperties(PublicProductSearchProperties.class)
+@EnableConfigurationProperties({PublicProductSearchProperties.class, ProductSearchIndexMappingProperties.class})
 public class ProductDataAccessConfig {
 
     @PersistenceContext

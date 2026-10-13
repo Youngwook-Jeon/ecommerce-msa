@@ -12,7 +12,7 @@ import com.project.young.productservice.dataaccess.mapper.ProductSearchIndexMeta
 import com.project.young.productservice.dataaccess.repository.ProductSearchIndexBuildJobJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductSearchIndexVersionJpaRepository;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
+import com.project.young.productservice.dataaccess.config.ProductSearchIndexMappingProperties;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -25,7 +25,6 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
@@ -40,19 +39,21 @@ import static com.project.young.productservice.application.exception.ProductSear
 @Component
 public class ProductSearchIndexMetadataAdapter implements ProductSearchIndexMetadataPort {
     // Future activation registration must take the same transaction lock before checking build state.
-    private static final long MANAGEMENT_LOCK = 704239001L;
     private static final int MAPPING_VERSION = 1;
     private final ProductSearchIndexVersionJpaRepository versions;
     private final ProductSearchIndexBuildJobJpaRepository jobs;
     private final ProductSearchIndexMetadataMapper mapper;
     private final JdbcTemplate jdbc;
+    private final ProductSearchIndexMappingProperties mappingProperties;
 
     public ProductSearchIndexMetadataAdapter(ProductSearchIndexVersionJpaRepository versions,
-            ProductSearchIndexBuildJobJpaRepository jobs, ProductSearchIndexMetadataMapper mapper, JdbcTemplate jdbc) {
+            ProductSearchIndexBuildJobJpaRepository jobs, ProductSearchIndexMetadataMapper mapper, JdbcTemplate jdbc,
+            ProductSearchIndexMappingProperties mappingProperties) {
         this.versions = versions;
         this.jobs = jobs;
         this.mapper = mapper;
         this.jdbc = jdbc;
+        this.mappingProperties = mappingProperties;
     }
 
     @Override
@@ -77,7 +78,7 @@ public class ProductSearchIndexMetadataAdapter implements ProductSearchIndexMeta
             long number = nextVersionNumber();
             UUID versionId = newMetadataId();
             UUID jobId = newMetadataId();
-            Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+            Instant now = registrationTime();
             var version = ProductSearchIndexVersion.register(versionId, number, MAPPING_VERSION, mappingHash(), command.requestedBy(), now);
             var job = ProductSearchIndexBuildJob.queue(jobId, versionId, command.requestedBy(), command.idempotencyKey(), command.batchSize(), now);
             versions.saveAndFlush(mapper.toEntity(version, 0));
@@ -112,7 +113,7 @@ public class ProductSearchIndexMetadataAdapter implements ProductSearchIndexMeta
     }
 
     private void acquireManagementLock() {
-        jdbc.queryForObject("SELECT pg_advisory_xact_lock(?)", (rs, row) -> true, MANAGEMENT_LOCK);
+        jdbc.queryForObject("SELECT pg_advisory_xact_lock(?)", (rs, row) -> true, ProductSearchIndexManagementLock.KEY);
     }
 
     private long nextVersionNumber() {
@@ -123,8 +124,12 @@ public class ProductSearchIndexMetadataAdapter implements ProductSearchIndexMeta
         return jdbc.queryForObject("SELECT uuidv7()", UUID.class);
     }
 
-    private static String mappingHash() {
-        try (var input = new ClassPathResource("opensearch/products-index.json").getInputStream()) {
+    private Instant registrationTime() {
+        return jdbc.queryForObject("SELECT clock_timestamp()", (rs, row) -> rs.getTimestamp(1).toInstant());
+    }
+
+    private String mappingHash() {
+        try (var input = mappingProperties.resource().getInputStream()) {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.readAllBytes()));
         } catch (IOException | NoSuchAlgorithmException exception) {
             throw unavailable(exception);

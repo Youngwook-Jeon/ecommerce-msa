@@ -37,8 +37,13 @@ public class OpenSearchProductBulkWriter {
     }
 
     public void write(String index, List<OpenSearchProductDocument> documents) {
+        write(index, documents, () -> { });
+    }
+
+    public void write(String index, List<OpenSearchProductDocument> documents, Runnable beforeAttempt) {
         List<OpenSearchProductDocument> pending = List.copyOf(documents);
         for (int attempt = 1; !pending.isEmpty(); attempt++) {
+            beforeAttempt.run();
             List<OpenSearchProductDocument> retry;
             try {
                 var request = new BulkRequest.Builder().refresh(Refresh.False);

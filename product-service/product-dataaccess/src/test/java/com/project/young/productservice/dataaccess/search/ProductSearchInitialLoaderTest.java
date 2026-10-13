@@ -28,9 +28,9 @@ class ProductSearchInitialLoaderTest {
         InOrder order = inOrder(reader, writer);
         order.verify(writer).verifyTarget("products-v1");
         order.verify(reader).read(null, 1);
-        order.verify(writer).write("products-v1", List.of(first));
+        order.verify(writer).write(org.mockito.ArgumentMatchers.eq("products-v1"), org.mockito.ArgumentMatchers.eq(List.of(first)), any(Runnable.class));
         order.verify(reader).read(UUID.fromString(first.id()), 1);
-        order.verify(writer).write("products-v1", List.of(second));
+        order.verify(writer).write(org.mockito.ArgumentMatchers.eq("products-v1"), org.mockito.ArgumentMatchers.eq(List.of(second)), any(Runnable.class));
         order.verify(reader).read(UUID.fromString(second.id()), 1);
     }
 
@@ -38,14 +38,14 @@ class ProductSearchInitialLoaderTest {
     void emptyCatalogDoesNotSendBulk() {
         when(reader.read(null, 500)).thenReturn(List.of());
         assertThat(loader.load("products-v1", 500)).isEqualTo(new ProductSearchInitialLoader.Result(0, 0));
-        verify(writer, never()).write(anyString(), anyList());
+        verify(writer, never()).write(anyString(), anyList(), any(Runnable.class));
     }
 
     @Test
     void failedBatchStopsBeforeReadingAnotherBatch() {
         var document = document();
         when(reader.read(null, 1)).thenReturn(List.of(document));
-        doThrow(new ProductSearchIndexingException("failed")).when(writer).write(anyString(), anyList());
+        doThrow(new ProductSearchIndexingException("failed")).when(writer).write(anyString(), anyList(), any(Runnable.class));
         assertThatThrownBy(() -> loader.load("products-v1", 1)).isInstanceOf(ProductSearchIndexingException.class);
         verify(reader, times(1)).read(any(), anyInt());
     }
@@ -54,7 +54,7 @@ class ProductSearchInitialLoaderTest {
     void badDocumentStopsBeforeBulk() {
         when(reader.read(null, 1)).thenThrow(new IllegalArgumentException("bad price"));
         assertThatThrownBy(() -> loader.load("products-v1", 1)).isInstanceOf(IllegalArgumentException.class);
-        verify(writer, never()).write(anyString(), anyList());
+        verify(writer, never()).write(anyString(), anyList(), any(Runnable.class));
     }
 
     @Test

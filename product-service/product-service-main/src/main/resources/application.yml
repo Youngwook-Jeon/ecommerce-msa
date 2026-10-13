@@ -48,6 +48,13 @@ product-service:
     response-timeout-millis: ${PRODUCT_SEARCH_RESPONSE_TIMEOUT_MILLIS:5000}
     query-timeout-seconds: ${PRODUCT_SEARCH_QUERY_TIMEOUT_SECONDS:3}
     request-budget-millis: ${PRODUCT_SEARCH_REQUEST_BUDGET_MILLIS:10000}
+    mapping:
+      resource: ${PRODUCT_SEARCH_MAPPING_RESOURCE:classpath:opensearch/products-index.json}
+    worker:
+      enabled: ${PRODUCT_SEARCH_WORKER_ENABLED:true}
+      poll-interval-millis: ${PRODUCT_SEARCH_WORKER_POLL_INTERVAL_MILLIS:2000}
+      lease-millis: ${PRODUCT_SEARCH_WORKER_LEASE_MILLIS:60000}
+      heartbeat-interval-millis: ${PRODUCT_SEARCH_WORKER_HEARTBEAT_INTERVAL_MILLIS:10000}
 
 schema:
   name: product

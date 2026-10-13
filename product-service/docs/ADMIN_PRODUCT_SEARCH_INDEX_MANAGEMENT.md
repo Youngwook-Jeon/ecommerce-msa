@@ -2,7 +2,7 @@
 
 ## 이번 단계의 범위
 
-상태 모델·스키마·DTO에 더해 적재 요청 등록(POST /index-builds), 작업 조회(GET /index-builds/{jobId}), 버전 목록(GET /index-versions)을 controller → application service → PostgreSQL adapter로 연결한다. 작업 claim·실행기, 로더 진행률 반영, OpenSearch 인덱스 생성·검증·alias 전환·복구는 후속이다. 활성화 라우트는 아직 구현하지 않는다. 등록된 작업은 실행기를 연결하기 전까지 QUEUED에 머문다.
+상태 모델·스키마·DTO에 더해 적재 요청 등록(POST /index-builds), 작업 조회(GET /index-builds/{jobId}), 버전 목록(GET /index-versions)을 controller → application service → PostgreSQL adapter로 연결한다. DB 작업 선점·lease·실행기, 로더 진행률 반영, OpenSearch 인덱스 생성과 검증까지 연결한다. 활성화 라우트와 alias 전환·조정은 아직 구현하지 않는다. 실행기가 켜져 있으면 QUEUED 작업을 처리해 SUCCEEDED/READY까지 진행한다.
 
 첫 버전은 적재 시작부터 검증과 활성화 완료까지 상품·카테고리 쓰기가 멈춰 있어야 한다. catalogWritesPaused=true는 관리자의 확인이며 실제 쓰기 차단 장치를 대신하지 않는다. 변경 이벤트 동기화와 온라인 재색인 조정은 후속이다.
 
@@ -13,6 +13,8 @@
 ### 인덱스 버전
 
 `ProductSearchIndexVersion`은 UUID id와 단조 증가하는 versionNumber를 분리한다. versionNumber는 PostgreSQL sequence에서 발급하고 실제 이름은 서버가 products-v{versionNumber}로 생성한다. 순번에 빈 번호가 생길 수 있다. 요청이 실제 인덱스 이름/매핑 내용을 지정하지 않는다.
+
+`product-service.search.mapping.resource` 설정(환경 변수 `PRODUCT_SEARCH_MAPPING_RESOURCE`, 기본값 `classpath:opensearch/products-index.json`)으로 매핑 JSON 위치를 지정한다. 등록 시 해시 계산과 실행기의 인덱스 생성은 같은 설정을 사용한다. `classpath:` 또는 `file:` 리소스를 사용할 수 있다. 등록 이후 파일 내용이나 설정이 달라져 해시가 일치하지 않으면 실행기는 인덱스를 생성하지 않고 작업을 실패 처리한다.
 
 mappingVersion은 저장소에서 관리하는 매핑 정의의 버전이며 mappingHash는 사용한 매핑 JSON 파일 바이트의 SHA-256 소문자 hex(64자)다. 같은 매핑으로 여러 물리 인덱스를 만들 수 있다. requestedBy는 JWT의 sub이며 요청 body에서 받지 않는다. 기존 인증 converter의 principal name은 preferred_username이므로 Authentication.getName() 대신 JWT subject를 직접 사용한다.
 
@@ -136,3 +138,21 @@ READY/INACTIVE만 요청 가능하며 진행 중 적재 작업이 있으면 거�
 | 503 | INDEX_MANAGEMENT_UNAVAILABLE | DB/실행기 등 관리 기능 사용 불가 |
 
 OpenSearch 작업 중 발생하는 오류는 이미 202로 수락한 요청의 HTTP 결과를 바꾸지 않고 작업 상태에 기록한다. 작업 실패와 API 통신 실패를 구분한다.
+
+## 실행기와 lease
+
+V12 migration은 적재 작업에 owner_token/lease_until과 만료 조회 인덱스를 추가한다. 소유권 메타데이터는 HTTP DTO에 노출하지 않는다. 등록·선점은 공통 advisory lock 키를 사용하며 작업 행을 잠근 뒤 RUNNING/BUILDING 상태와 sourceProductCount, DB에서 발급한 소유 토큰·lease를 한 트랜잭션에 기록한다.
+
+실행은 전용 단일 worker thread에서 수행하고 heartbeat는 별도 스레드에서 갱신한다. @Scheduled는 작업을 제출하고 즉시 반환하므로 기존 재고 만료 스케줄러를 적재 동안 막지 않는다. DB 작업 선점·갱신은 REQUIRES_NEW의 짧은 트랜잭션이며 OpenSearch 생성/전송/검증 중에는 DB 트랜잭션을 유지하지 않는다.
+
+- worker.enabled 기본 true, poll-interval-millis 2000, lease-millis 60000, heartbeat-interval-millis 10000. lease는 heartbeat 간격의 두 배보다 커야 한다. PRODUCT_SEARCH_WORKER_ENABLED=false 또는 PRODUCT_SEARCH_ENABLED=false이면 자동 실행하지 않는다.
+- 등록·lease 시각은 DB clock_timestamp()를 사용한다. 서버 간 애플리케이션 시계 차이에 의존하지 않는다.
+- 생성 전에 현재 매핑 버전과 SHA-256이 등록 당시와 일치하는지 검사한다. 기존 물리 인덱스를 덮어쓰거나 삭제하지 않는다.
+- Bulk 시도 전(재시도 포함), 다음 배치 조회 전, 진행률 기록 전 소유권을 확인한다. 성공한 Bulk 배치만 진행률에 반영한다.
+- VERIFYING 전환 후 refresh/전체 문서 수, 공개 상품 수·가격 범위, 표본 문서와 카테고리·브랜드·가격 필터, 분석 가능한 설명의 토큰 검색을 확인한다. 최종 DB 상품 수도 다시 비교한 후 SUCCEEDED/READY를 함께 기록한다. alias는 변경하지 않는다.
+- 생성·적재·검증 오류는 작업 FAILED와 인덱스 FAILED를 함께 기록한다. 안전한 failureCode/failureMessage만 공개하고 실제 원인은 식별자와 예외 타입으로 로깅한다.
+- 만료된 RUNNING/VERIFYING은 행 잠금으로 선점해 INTERRUPTED/FAILED로 종료한다. lease 없는 기존 실행 상태도 중단 대상으로 본다. 같은 인덱스를 재선점하지 않으며 재시도는 새 버전·작업으로 한다.
+- 만료·잘못된 소유 토큰·terminal 상태의 실행기는 heartbeat와 진행률/성공/실패 갱신이 거부된다. heartbeat 오류가 나면 새 요청을 중단하고, 갱신되지 않는 lease가 만료된 뒤 다른 poll이 중단을 기록한다.
+- 이미 전송한 OpenSearch 요청은 소유권 상실 이후에도 완료될 수 있다. DB lease와 OpenSearch 쓰기는 원자적이지 않다. 따라서 중단 인덱스는 READY로 승격하거나 같은 인덱스에 새 실행기를 투입하지 않는다. 해당 인덱스의 정리는 별도 관리 작업이다.
+
+상품·카테고리 쓰기 중단은 여전히 운영 전제다. 같은 문서 수를 유지하는 수정까지 탐지하거나 온라인 변경을 따라잡는 동기화 기능은 포함하지 않는다.
