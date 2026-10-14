@@ -22,7 +22,7 @@ class ProductSearchIndexVersionTest {
     }
 
     @Test
-    void lifecycle_afterBuildAndAliasConfirmation_canActivateAndReactivate() {
+    void lifecycle_afterBuildAndAliasConfirmation_preservesHistoryAndRejectsReactivation() {
         var ready = version(1).beginBuild(now).markReady(now.plusSeconds(1));
         assertThat(ready.status()).isEqualTo(ProductSearchIndexStatus.READY);
         var activating = ready.beginActivation(now.plusSeconds(2));
@@ -32,8 +32,8 @@ class ProductSearchIndexVersionTest {
         assertThat(active.status()).isEqualTo(ProductSearchIndexStatus.ACTIVE);
         var inactive = active.deactivate(now.plusSeconds(4));
         assertThat(inactive.activatedAt()).isEqualTo(active.activatedAt());
-        assertThat(inactive.beginActivation(now.plusSeconds(5)).confirmActive(now.plusSeconds(6)).status())
-                .isEqualTo(ProductSearchIndexStatus.ACTIVE);
+        assertThatThrownBy(() -> inactive.beginActivation(now.plusSeconds(5)))
+                .isInstanceOf(IllegalStateException.class);
     }
 
     @Test

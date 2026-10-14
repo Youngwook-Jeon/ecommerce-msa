@@ -78,8 +78,8 @@ public record ProductSearchIndexVersion(UUID id, long versionNumber, String inde
     }
 
     public ProductSearchIndexVersion beginActivation(Instant now) {
-        if (status != ProductSearchIndexStatus.READY && status != ProductSearchIndexStatus.INACTIVE) {
-            throw new IllegalStateException("Only a validated index can be activated");
+        if (status != ProductSearchIndexStatus.READY) {
+            throw new IllegalStateException("Only a READY index can be activated");
         }
         return transition(status, ProductSearchIndexStatus.ACTIVATING, now, activatedAt);
     }

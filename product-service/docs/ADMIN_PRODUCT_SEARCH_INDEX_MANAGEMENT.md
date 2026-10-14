@@ -2,13 +2,13 @@
 
 ## 이번 단계의 범위
 
-상태 모델·스키마·DTO에 더해 적재 요청 등록(POST /index-builds), 작업 조회(GET /index-builds/{jobId}), 버전 목록(GET /index-versions)을 controller → application service → PostgreSQL adapter로 연결한다. DB 작업 선점·lease·실행기, 로더 진행률 반영, OpenSearch 인덱스 생성과 검증까지 연결한다. 활성화 라우트와 alias 전환·조정은 아직 구현하지 않는다. 실행기가 켜져 있으면 QUEUED 작업을 처리해 SUCCEEDED/READY까지 진행한다.
+상태 모델·스키마·DTO에 더해 적재 요청 등록(POST /index-builds), 작업 조회(GET /index-builds/{jobId}), 버전 목록(GET /index-versions)을 controller → application service → PostgreSQL adapter로 연결한다. DB 작업 선점·lease·실행기, 로더 진행률 반영, OpenSearch 인덱스 생성과 검증까지 연결한다. 활성화 작업 모델·영속 엔티티·V13 스키마도 추가한다. 활성화 라우트와 alias 전환·조정은 아직 구현하지 않는다. 실행기가 켜져 있으면 QUEUED 작업을 처리해 SUCCEEDED/READY까지 진행한다.
 
 첫 버전은 적재 시작부터 검증과 활성화 완료까지 상품·카테고리 쓰기가 멈춰 있어야 한다. catalogWritesPaused=true는 관리자의 확인이며 실제 쓰기 차단 장치를 대신하지 않는다. 변경 이벤트 동기화와 온라인 재색인 조정은 후속이다.
 
 ## 모델과 상태
 
-두 모델과 상태 enum은 product-domain-application의 `application.searchindex.model`에 둔다. 검색 인덱스 운영 생명주기는 상품 domain-core의 비즈니스 애그리거트와 분리한다. JPA 엔티티와 repository는 product-dataaccess에 유지하며 모델에는 Spring/JPA/OpenSearch 타입을 사용하지 않는다.
+인덱스 버전·적재 작업·활성화 작업 모델과 상태 enum은 product-domain-application의 `application.searchindex.model`에 둔다. 검색 인덱스 운영 생명주기는 상품 domain-core의 비즈니스 애그리거트와 분리한다. JPA 엔티티와 repository는 product-dataaccess에 유지하며 모델에는 Spring/JPA/OpenSearch 타입을 사용하지 않는다.
 
 ### 인덱스 버전
 
@@ -25,10 +25,10 @@ mappingVersion은 저장소에서 관리하는 매핑 정의의 버전이며 map
 | READY | 적재와 검증 완료, 공개 검색 연결 전 | ACTIVATING |
 | ACTIVATING | 활성화 의도 기록, 실제 alias 결과 확인 중 | ACTIVE |
 | ACTIVE | products-read가 이 인덱스 하나를 가리킨다고 확인 | INACTIVE |
-| INACTIVE | 과거 검증된 활성 버전, 재활성화 후보 | ACTIVATING |
+| INACTIVE | 과거 활성 버전, 이력 보관(첫 버전은 재활성화하지 않음) | — |
 | FAILED | 생성/적재/검증 실패 | 없음 |
 
-OpenSearch 호출 타임아웃으로 alias 결과가 불명확하면 ACTIVATING을 유지한다. 임의로 ACTIVE/FAILED로 바꾸지 않고 실제 alias 확인·조정으로 해소해야 한다. 재활성화 후보의 존재·매핑 호환성과 데이터 시점은 활성화 구현에서 다시 검증한다. 기존 ACTIVE를 INACTIVE로 바꾸고 새 버전을 ACTIVE로 바꾸는 DB 기록은 한 트랜잭션에서 수행한다.
+OpenSearch 호출 타임아웃으로 alias 결과가 불명확하면 ACTIVATING을 유지한다. 임의로 ACTIVE/FAILED로 바꾸지 않고 실제 alias 확인·조정으로 해소해야 한다. 변경 동기화가 없는 첫 버전은 READY만 활성화하며 INACTIVE 재활성화는 허용하지 않는다. 기존 ACTIVE를 INACTIVE로 바꾸고 새 버전을 ACTIVE로 바꾸는 DB 기록은 한 트랜잭션에서 수행한다.
 
 ### 적재 작업
 
@@ -116,9 +116,28 @@ page 기본 0, size 기본 20(1~100). createdAt 내림차순 → id 내림차순
 
 expectedActiveVersionId는 관리자가 조회한 현재 활성 버전 UUID다. null은 현재 활성 버전이 없어야 한다는 조건이며 조건 검사를 생략하는 의미가 아니다. 실제 alias와 DB 기록이 기대 상태와 다르면 409 ACTIVE_INDEX_CHANGED 또는 INDEX_STATE_UNCONFIRMED다.
 
-READY/INACTIVE만 요청 가능하며 진행 중 적재 작업이 있으면 거부한다. 동일 활성화 요청의 멱등성은 적재 요청과 별도로 관리해야 한다. 활성화 요청 키·기대 버전·관리자·실행 의도를 영속적으로 기록하는 실행 모델은 다음 단계에서 추가한다.
+READY만 요청 가능하며 진행 중 적재 작업이나 미완료 활성화 작업이 있으면 거부한다. 동일 활성화 요청의 멱등성은 적재 요청과 별도로 관리한다. 활성화 요청 키·기대 버전·관리자·alias 이름·실행 의도는 ProductSearchIndexActivationJob에 영속적으로 기록한다. 등록 서비스와 실제 전환 실행기는 다음 단계에서 연결한다.
 
 응답 202는 활성화 의도를 수락했다는 의미다. 예: {"indexVersionId":"01940000-0000-7000-8000-000000000002","expectedActiveVersionId":null,"status":"ACTIVATING"}. ACTIVE 확인은 버전 목록 조회로 한다. 별도 작업 없이 DB 상태만 ACTIVE로 변경하는 API가 아니다.
+
+## 활성화 작업 모델
+
+ProductSearchIndexActivationJob은 application.searchindex.model에 위치한 프레임워크 독립 모델이다. 대상 indexVersionId, nullable expectedActiveVersionId, aliasName, requestedBy, idempotencyKey, 상태, 생성·갱신·시작·전환 시작·완료 시각, 안전한 failureCode/failureMessage를 기록한다. aliasName은 등록 당시 설정을 보존해 실행 시 설정 변경으로 다른 alias를 전환하지 않게 한다. expectedActiveVersionId=null은 초기 활성화 조건이며 기대 상태 검사를 생략하지 않는다. 대상과 기대 활성 버전이 같으면 생성할 수 없다.
+
+| 작업 상태 | 의미 | 허용 전이 |
+|---|---|---|
+| QUEUED | 활성화 의도 등록, 실행 전 | RUNNING / FAILED |
+| RUNNING | 실행 선점 및 전환 전 조건 확인 | SWITCHING / FAILED |
+| SWITCHING | 전환 요청을 보낼 수 있다는 의도를 DB에 먼저 기록 | SUCCEEDED / UNCONFIRMED |
+| UNCONFIRMED | 전환 결과 확인 필요, 미완료 상태 | 실제 alias 확인 후 SUCCEEDED |
+| SUCCEEDED | alias가 대상 버전 하나만 가리킨다고 확인 | — |
+| FAILED | alias 전환 요청 전에 종료된 실패 | — |
+
+beginSwitch() 상태를 영속적으로 저장한 뒤에만 alias 변경 요청을 전송해야 한다. confirmActivation()은 확인한 활성 버전 ID가 대상과 일치할 때만 성공하며, alias가 여러 인덱스를 가리키는지 확인하는 일은 추후 어댑터의 책임이다. SWITCHING 이후에는 failBeforeSwitch()를 사용할 수 없다. 타임아웃·실행기 중단·DB 기록 실패로 결과가 불확실하면 UNCONFIRMED 또는 아직 저장된 SWITCHING 상태를 유지하고, 인덱스 버전은 ACTIVATING에 둔다. 이전 인덱스를 가리키는 alias를 한 번 관측한 것만으로는 지연 중인 전환 요청이 없다고 보장할 수 없으므로 미확정 작업을 자동 실패 처리하거나 재전송하는 기능은 포함하지 않는다. 전체 조정 기능도 후속 작업이다.
+
+V13의 product_search_index_activation_jobs는 UUID 기본값 uuidv7(), 대상·기대 버전에 대한 FK, 관리자별 멱등성 키 UNIQUE, 낙관적 락 버전을 사용한다. 활성화 멱등성 키는 적재 작업과 별도 공간이며, 완료 후에도 같은 관리자·키를 재사용하지 않는다. 같은 대상에 대한 재시도는 이전 작업이 전환 전 FAILED로 확정된 경우 새 키로 별도 작업을 만든다.
+
+QUEUED/RUNNING/SWITCHING/UNCONFIRMED를 포함하는 부분 UNIQUE 인덱스로 전역 미완료 활성화 작업을 하나로 제한한다. 상태·시간·실패 정보의 비즈니스 규칙은 생성자와 전이 메서드에서 검증하며 DB CHECK로 중복하지 않는다. 적재 작업과의 상호 배제 및 인덱스 버전과의 동시 갱신은 다음 단계의 서비스·어댑터에서 공통 advisory lock과 트랜잭션으로 구현한다. 이번 단계에서는 요청 등록이나 실제 alias 변경을 실행하지 않는다.
 
 ## 오류 계약
 

@@ -5,6 +5,11 @@ import com.project.young.productservice.dataaccess.mapper.ProductSearchIndexMeta
 import com.project.young.productservice.application.searchindex.model.ProductSearchIndexBuildJob;
 import com.project.young.productservice.application.searchindex.model.ProductSearchIndexVersion;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexActivationJob;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexActivationStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -50,6 +55,8 @@ class ProductSearchIndexMetadataRepositoryTest {
     @Autowired
     private ProductSearchIndexBuildJobJpaRepository jobs;
     @Autowired
+    private ProductSearchIndexActivationJobJpaRepository activations;
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     private final ProductSearchIndexMetadataMapper mapper = new ProductSearchIndexMetadataMapper();
@@ -82,7 +89,8 @@ class ProductSearchIndexMetadataRepositoryTest {
                 SELECT count(*) FROM pg_constraint
                 WHERE contype = 'c' AND conrelid IN (
                     'product_search_index_versions'::regclass,
-                    'product_search_index_build_jobs'::regclass)
+                    'product_search_index_build_jobs'::regclass,
+                    'product_search_index_activation_jobs'::regclass)
                 """, Long.class);
         assertThat(checks).isZero();
     }
@@ -136,6 +144,102 @@ class ProductSearchIndexMetadataRepositoryTest {
         versions.saveAndFlush(mapper.toEntity(first, 0));
         assertThatThrownBy(() -> versions.saveAndFlush(mapper.toEntity(second, 0)))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void activation_withoutExplicitId_generatesUuidV7() {
+        var version = registered(1);
+        versions.saveAndFlush(mapper.toEntity(version, 0));
+        UUID id = jdbcTemplate.queryForObject("""
+                INSERT INTO product_search_index_activation_jobs
+                    (index_version_id, alias_name, requested_by, idempotency_key, status, created_at, updated_at)
+                VALUES (?, 'products-read', 'admin-sub', 'activate-1', 'QUEUED', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                RETURNING id
+                """, UUID.class, version.id());
+        assertThat(id.version()).isEqualTo(7);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void activation_roundTrip_preservesExpectedVersionAndOptimisticLock(boolean hasPrevious) {
+        var target = registered(1);
+        versions.saveAndFlush(mapper.toEntity(target, 0));
+        UUID previous = null;
+        if (hasPrevious) {
+            var version = registered(2);
+            versions.saveAndFlush(mapper.toEntity(version, 0));
+            previous = version.id();
+        }
+        var job = ProductSearchIndexActivationJob.queue(UUID.randomUUID(), target.id(), previous,
+                "products-read", "admin-sub", "activate-1", now);
+        var entity = activations.saveAndFlush(mapper.toEntity(job, 0));
+        assertThat(mapper.toDomain(activations.findById(job.id()).orElseThrow())).isEqualTo(job);
+        assertThat(activations.findByRequestedByAndIdempotencyKey("admin-sub", "activate-1")).isPresent();
+        entity.setStatus(job.start(now).status());
+        entity.setStartedAt(now);
+        activations.saveAndFlush(entity);
+        assertThat(entity.getLockVersion()).isEqualTo(1);
+        assertThat(mapper.toDomain(entity)).isEqualTo(job.start(now));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ProductSearchIndexActivationStatus.class, names = {"QUEUED", "RUNNING", "SWITCHING", "UNCONFIRMED"})
+    void activation_unfinishedIncludingUnconfirmed_blocksAnotherActivation(ProductSearchIndexActivationStatus status) {
+        var first = registered(1);
+        var second = registered(2);
+        versions.saveAndFlush(mapper.toEntity(first, 0));
+        versions.saveAndFlush(mapper.toEntity(second, 0));
+        var job = activation(first, "activate-1");
+        if (status != ProductSearchIndexActivationStatus.QUEUED) {
+            job = job.start(now);
+        }
+        if (status == ProductSearchIndexActivationStatus.SWITCHING || status == ProductSearchIndexActivationStatus.UNCONFIRMED) {
+            job = job.beginSwitch(now);
+        }
+        if (status == ProductSearchIndexActivationStatus.UNCONFIRMED) {
+            job = job.markUnconfirmed("UNKNOWN", "확인 필요", now);
+        }
+        activations.saveAndFlush(mapper.toEntity(job, 0));
+        assertThatThrownBy(() -> activations.saveAndFlush(mapper.toEntity(activation(second, "activate-2"), 0)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void activation_afterTerminalFailure_allowsNewAttemptWithDifferentKey() {
+        var version = registered(1);
+        versions.saveAndFlush(mapper.toEntity(version, 0));
+        var failed = activation(version, "activate-1").failBeforeSwitch("PRECONDITION_FAILED", "조건 불일치", now);
+        activations.saveAndFlush(mapper.toEntity(failed, 0));
+        var next = activation(version, "activate-2");
+        activations.saveAndFlush(mapper.toEntity(next, 0));
+        assertThat(activations.count()).isEqualTo(2);
+    }
+
+    @Test
+    void activation_idempotencyKey_isSeparateFromBuildAndCannotBeReusedAfterFailure() {
+        var version = registered(1);
+        versions.saveAndFlush(mapper.toEntity(version, 0));
+        jobs.saveAndFlush(mapper.toEntity(queued(version, "shared-key"), 0));
+        activations.saveAndFlush(mapper.toEntity(activation(version, "shared-key")
+                .failBeforeSwitch("PRECONDITION_FAILED", "조건 불일치", now), 0));
+        assertThatThrownBy(() -> activations.saveAndFlush(mapper.toEntity(activation(version, "shared-key"), 0)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void activation_missingTargetOrExpectedVersion_rejectsForeignKeyViolation(boolean missingPrevious) {
+        var version = registered(1);
+        versions.saveAndFlush(mapper.toEntity(version, 0));
+        var job = ProductSearchIndexActivationJob.queue(UUID.randomUUID(), missingPrevious ? version.id() : UUID.randomUUID(),
+                missingPrevious ? UUID.randomUUID() : null, "products-read", "admin-sub", "activate-1", now);
+        assertThatThrownBy(() -> activations.saveAndFlush(mapper.toEntity(job, 0)))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private ProductSearchIndexActivationJob activation(ProductSearchIndexVersion version, String key) {
+        return ProductSearchIndexActivationJob.queue(UUID.randomUUID(), version.id(), null,
+                "products-read", "admin-sub", key, now);
     }
 
     private ProductSearchIndexVersion registered(long number) {

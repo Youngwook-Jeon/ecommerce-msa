@@ -1,6 +1,8 @@
 package com.project.young.productservice.dataaccess.mapper;
 
 import com.project.young.productservice.dataaccess.entity.ProductSearchIndexBuildJobEntity;
+import com.project.young.productservice.dataaccess.entity.ProductSearchIndexActivationJobEntity;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexActivationJob;
 import com.project.young.productservice.dataaccess.entity.ProductSearchIndexVersionEntity;
 import com.project.young.productservice.application.searchindex.model.ProductSearchIndexBuildJob;
 import com.project.young.productservice.application.searchindex.model.ProductSearchIndexVersion;
@@ -51,6 +53,32 @@ public class ProductSearchIndexMetadataMapper {
                 .createdAt(job.createdAt())
                 .updatedAt(job.updatedAt())
                 .startedAt(job.startedAt())
+                .finishedAt(job.finishedAt())
+                .failureCode(job.failureCode())
+                .failureMessage(job.failureMessage())
+                .lockVersion(lockVersion).build();
+    }
+
+    public ProductSearchIndexActivationJob toDomain(ProductSearchIndexActivationJobEntity entity) {
+        return new ProductSearchIndexActivationJob(entity.getId(), entity.getIndexVersionId(), entity.getExpectedActiveVersionId(),
+                entity.getAliasName(), entity.getRequestedBy(), entity.getIdempotencyKey(), entity.getStatus(),
+                entity.getCreatedAt(), entity.getUpdatedAt(), entity.getStartedAt(), entity.getSwitchStartedAt(),
+                entity.getFinishedAt(), entity.getFailureCode(), entity.getFailureMessage());
+    }
+
+    public ProductSearchIndexActivationJobEntity toEntity(ProductSearchIndexActivationJob job, long lockVersion) {
+        return ProductSearchIndexActivationJobEntity.builder()
+                .id(job.id())
+                .indexVersionId(job.indexVersionId())
+                .expectedActiveVersionId(job.expectedActiveVersionId())
+                .aliasName(job.aliasName())
+                .requestedBy(job.requestedBy())
+                .idempotencyKey(job.idempotencyKey())
+                .status(job.status())
+                .createdAt(job.createdAt())
+                .updatedAt(job.updatedAt())
+                .startedAt(job.startedAt())
+                .switchStartedAt(job.switchStartedAt())
                 .finishedAt(job.finishedAt())
                 .failureCode(job.failureCode())
                 .failureMessage(job.failureMessage())
