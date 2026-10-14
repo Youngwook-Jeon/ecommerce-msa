@@ -59,7 +59,7 @@ public class ProductSearchInitialLoader {
             return new Result(indexed, batches);
         } catch (RuntimeException exception) {
             log.error("Product initial load failed: index={}, batches={}, indexed={}, afterId={}, exceptionType={}",
-                    targetIndex, batches, indexed, afterId, exception.getClass().getSimpleName());
+                    targetIndex, batches, indexed, afterId, exception.getClass().getSimpleName(), exception);
             throw exception;
         }
     }

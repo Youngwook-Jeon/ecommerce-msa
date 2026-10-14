@@ -27,6 +27,10 @@ public class ProductSearchIndexBuildExecutor {
         this.heartbeatInterval = heartbeatInterval;
     }
 
+    private enum Phase {
+        CREATE_INDEX, LOAD_PRODUCTS, BEGIN_VERIFICATION, VERIFY_INDEX, COMPLETE_BUILD
+    }
+
     public void runOnce() {
         store.recoverExpired();
         var candidate = store.claim(lease);
@@ -40,7 +44,8 @@ public class ProductSearchIndexBuildExecutor {
                 store.renew(work, lease);
             } catch (RuntimeException exception) {
                 lost.set(true);
-                log.warn("Index build heartbeat failed: jobId={}, exceptionType={}", work.job().id(), exception.getClass().getSimpleName());
+                log.warn("Index build heartbeat failed: jobId={}, indexVersionId={}, index={}, phase=HEARTBEAT, exceptionType={}",
+                        work.job().id(), work.version().id(), work.version().indexName(), exception.getClass().getSimpleName(), exception);
             }
         }, heartbeatInterval.toMillis(), heartbeatInterval.toMillis(), TimeUnit.MILLISECONDS);
         Runnable checkpoint = () -> {
@@ -49,28 +54,39 @@ public class ProductSearchIndexBuildExecutor {
             }
             store.renew(work, lease);
         };
+        Phase phase = Phase.CREATE_INDEX;
         try {
             checkpoint.run();
             execution.create(work);
+            phase = Phase.LOAD_PRODUCTS;
             execution.load(work, checkpoint, products -> {
                 checkpoint.run();
                 store.recordBatch(work, products);
             });
             checkpoint.run();
+            phase = Phase.BEGIN_VERIFICATION;
             store.beginVerification(work);
+            phase = Phase.VERIFY_INDEX;
             long count = execution.verify(work, checkpoint);
             checkpoint.run();
+            phase = Phase.COMPLETE_BUILD;
             store.succeed(work, count);
         } catch (ProductSearchIndexOwnershipLostException exception) {
-            log.warn("Index build stopped after ownership loss: jobId={}", work.job().id());
+            log.warn("Index build stopped after ownership loss: jobId={}, indexVersionId={}, index={}, phase={}",
+                    work.job().id(), work.version().id(), work.version().indexName(), phase, exception);
         } catch (RuntimeException exception) {
-            log.warn("Index build execution failed: jobId={}, indexVersionId={}, exceptionType={}",
-                    work.job().id(), work.version().id(), exception.getClass().getSimpleName());
+            log.warn("Index build execution failed: jobId={}, indexVersionId={}, index={}, phase={}, exceptionType={}",
+                    work.job().id(), work.version().id(), work.version().indexName(), phase, exception.getClass().getSimpleName(), exception);
             if (!lost.get()) {
                 try {
                     store.fail(work);
                 } catch (ProductSearchIndexOwnershipLostException ownershipLost) {
-                    log.warn("Failed build no longer owned: jobId={}", work.job().id());
+                    log.warn("Failed build no longer owned: jobId={}, indexVersionId={}, index={}, phase=RECORD_FAILURE",
+                            work.job().id(), work.version().id(), work.version().indexName(), ownershipLost);
+                } catch (RuntimeException failureWrite) {
+                    log.error("Index build failure could not be recorded: jobId={}, indexVersionId={}, index={}, phase=RECORD_FAILURE",
+                            work.job().id(), work.version().id(), work.version().indexName(), failureWrite);
+                    throw failureWrite;
                 }
             }
         } finally {

@@ -149,8 +149,8 @@ V12 migration은 적재 작업에 owner_token/lease_until과 만료 조회 인�
 - 등록·lease 시각은 DB clock_timestamp()를 사용한다. 서버 간 애플리케이션 시계 차이에 의존하지 않는다.
 - 생성 전에 현재 매핑 버전과 SHA-256이 등록 당시와 일치하는지 검사한다. 기존 물리 인덱스를 덮어쓰거나 삭제하지 않는다.
 - Bulk 시도 전(재시도 포함), 다음 배치 조회 전, 진행률 기록 전 소유권을 확인한다. 성공한 Bulk 배치만 진행률에 반영한다.
-- VERIFYING 전환 후 refresh/전체 문서 수, 공개 상품 수·가격 범위, 표본 문서와 카테고리·브랜드·가격 필터, 분석 가능한 설명의 토큰 검색을 확인한다. 최종 DB 상품 수도 다시 비교한 후 SUCCEEDED/READY를 함께 기록한다. alias는 변경하지 않는다.
-- 생성·적재·검증 오류는 작업 FAILED와 인덱스 FAILED를 함께 기록한다. 안전한 failureCode/failureMessage만 공개하고 실제 원인은 식별자와 예외 타입으로 로깅한다.
+- VERIFYING 전환 후 refresh/전체 문서 수, 공개 상품 수·가격 범위, 표본 문서와 카테고리·브랜드·가격 필터(공개 검색과 동일한 조건에 표본 ID를 추가해 해당 상품이 정확히 1건 검색되는지 확인), 분석 가능한 설명의 토큰 검색을 확인한다. 최종 DB 상품 수도 다시 비교한 후 SUCCEEDED/READY를 함께 기록한다. alias는 변경하지 않는다.
+- 생성·적재·검증 오류는 작업 FAILED와 인덱스 FAILED를 함께 기록한다. 안전한 failureCode/failureMessage만 공개하고 내부 실패 로그에는 jobId/indexVersionId/물리 인덱스명, 실행 단계(CREATE_INDEX/LOAD_PRODUCTS/BEGIN_VERIFICATION/VERIFY_INDEX/COMPLETE_BUILD), 예외 타입과 원인 체인을 포함한 스택 트레이스를 남긴다. heartbeat와 실패 상태 기록 오류는 HEARTBEAT/RECORD_FAILURE로 구분한다. 초기 적재 로그에는 완료 배치 수·적재 수·커서가, Bulk 오류 로그에는 시도 횟수·문서 수 또는 상품 ID·HTTP 상태·오류 타입이 포함된다. Bulk item의 reason이나 상품 문서 전체는 별도로 출력하지 않는다.
 - 만료된 RUNNING/VERIFYING은 행 잠금으로 선점해 INTERRUPTED/FAILED로 종료한다. lease 없는 기존 실행 상태도 중단 대상으로 본다. 같은 인덱스를 재선점하지 않으며 재시도는 새 버전·작업으로 한다.
 - 만료·잘못된 소유 토큰·terminal 상태의 실행기는 heartbeat와 진행률/성공/실패 갱신이 거부된다. heartbeat 오류가 나면 새 요청을 중단하고, 갱신되지 않는 lease가 만료된 뒤 다른 poll이 중단을 기록한다.
 - 이미 전송한 OpenSearch 요청은 소유권 상실 이후에도 완료될 수 있다. DB lease와 OpenSearch 쓰기는 원자적이지 않다. 따라서 중단 인덱스는 READY로 승격하거나 같은 인덱스에 새 실행기를 투입하지 않는다. 해당 인덱스의 정리는 별도 관리 작업이다.

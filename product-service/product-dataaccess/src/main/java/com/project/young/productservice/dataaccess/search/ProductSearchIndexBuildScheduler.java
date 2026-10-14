@@ -28,7 +28,7 @@ public class ProductSearchIndexBuildScheduler {
                 try {
                     worker.runOnce();
                 } catch (RuntimeException exception) {
-                    log.warn("Index build worker poll failed: exceptionType={}", exception.getClass().getSimpleName());
+                    log.warn("Index build worker poll failed: exceptionType={}", exception.getClass().getSimpleName(), exception);
                 } finally {
                     running.set(false);
                 }

@@ -23,6 +23,37 @@ public abstract class OpenSearchProductQueryBuilder {
 
     public final SearchRequest build(ProductSearchCriteria criteria, String pitId, int timeoutSeconds,
                                Map<String, FieldValue> after, boolean includeProductsAndPrice) {
+        CompositeAggregation.Builder composite = new CompositeAggregation.Builder().size(BRAND_BATCH_SIZE)
+                .sources(List.of(Map.of("brand", CompositeAggregationSource.of(s -> s.terms(t -> t.field("brandKey"))))));
+        if (!after.isEmpty()) {
+            composite.after(after);
+        }
+        SearchRequest.Builder request = new SearchRequest.Builder()
+                .pit(Pit.of(p -> p.id(pitId).keepAlive("1m")))
+                .allowPartialSearchResults(false).timeout(timeoutSeconds + "s")
+                .query(buildQuery(criteria))
+                .from(includeProductsAndPrice ? Math.toIntExact(criteria.offset()) : 0)
+                .size(includeProductsAndPrice ? criteria.size() : 0)
+                .trackTotalHits(t -> t.enabled(true))
+                .aggregations(BRANDS, a -> a.composite(composite.build())
+                        .aggregations(LABEL, label -> label.terms(t -> t.field("brandLabel").size(1)
+                                .order(List.of(Map.of("_key", SortOrder.Asc))))));
+        if (includeProductsAndPrice) {
+            request.aggregations("price", a -> a.stats(s -> s.field("basePrice")));
+            switch (criteria.sort()) {
+                case RELEVANCE -> request.sort(s -> s.score(score -> score.order(SortOrder.Desc)))
+                        .sort(s -> s.field(f -> f.field("createdAt").order(SortOrder.Desc)));
+                case NEWEST -> request.sort(s -> s.field(f -> f.field("createdAt").order(SortOrder.Desc)));
+                case PRICE_ASC -> request.sort(s -> s.field(f -> f.field("basePrice").order(SortOrder.Asc)));
+                case PRICE_DESC -> request.sort(s -> s.field(f -> f.field("basePrice").order(SortOrder.Desc)));
+            }
+            request.sort(s -> s.field(f -> f.field("id").order(SortOrder.Desc)));
+        }
+        return request.build();
+    }
+
+    /** Common matching rules shared by public search and index verification. */
+    public final Query buildQuery(ProductSearchCriteria criteria) {
         BoolQuery.Builder bool = new BoolQuery.Builder()
                 .filter(q -> q.term(t -> t.field("productStatus").value(FieldValue.of("ACTIVE"))))
                 .filter(q -> q.term(t -> t.field("categoryStatus").value(FieldValue.of("ACTIVE"))));
@@ -48,33 +79,7 @@ public abstract class OpenSearchProductQueryBuilder {
         if (criteria.q() != null) {
             bool.must(buildTextQuery(criteria.q()));
         }
-        CompositeAggregation.Builder composite = new CompositeAggregation.Builder().size(BRAND_BATCH_SIZE)
-                .sources(List.of(Map.of("brand", CompositeAggregationSource.of(s -> s.terms(t -> t.field("brandKey"))))));
-        if (!after.isEmpty()) {
-            composite.after(after);
-        }
-        SearchRequest.Builder request = new SearchRequest.Builder()
-                .pit(Pit.of(p -> p.id(pitId).keepAlive("1m")))
-                .allowPartialSearchResults(false).timeout(timeoutSeconds + "s")
-                .query(Query.of(q -> q.bool(bool.build())))
-                .from(includeProductsAndPrice ? Math.toIntExact(criteria.offset()) : 0)
-                .size(includeProductsAndPrice ? criteria.size() : 0)
-                .trackTotalHits(t -> t.enabled(true))
-                .aggregations(BRANDS, a -> a.composite(composite.build())
-                        .aggregations(LABEL, label -> label.terms(t -> t.field("brandLabel").size(1)
-                                .order(List.of(Map.of("_key", SortOrder.Asc))))));
-        if (includeProductsAndPrice) {
-            request.aggregations("price", a -> a.stats(s -> s.field("basePrice")));
-            switch (criteria.sort()) {
-                case RELEVANCE -> request.sort(s -> s.score(score -> score.order(SortOrder.Desc)))
-                        .sort(s -> s.field(f -> f.field("createdAt").order(SortOrder.Desc)));
-                case NEWEST -> request.sort(s -> s.field(f -> f.field("createdAt").order(SortOrder.Desc)));
-                case PRICE_ASC -> request.sort(s -> s.field(f -> f.field("basePrice").order(SortOrder.Asc)));
-                case PRICE_DESC -> request.sort(s -> s.field(f -> f.field("basePrice").order(SortOrder.Desc)));
-            }
-            request.sort(s -> s.field(f -> f.field("id").order(SortOrder.Desc)));
-        }
-        return request.build();
+        return Query.of(q -> q.bool(bool.build()));
     }
 
     protected abstract Query buildTextQuery(String keyword);

@@ -1,6 +1,9 @@
 package com.project.young.productservice.dataaccess.search;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.opensearch.client.opensearch.OpenSearchClient;
@@ -20,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(OutputCaptureExtension.class)
 class OpenSearchProductBulkWriterTest {
 
     private final OpenSearchClient client = mock(OpenSearchClient.class);
@@ -98,6 +102,21 @@ class OpenSearchProductBulkWriterTest {
             }
         })).isInstanceOf(ProductSearchIndexOwnershipLostException.class);
         verify(client).bulk(any(BulkRequest.class));
+    }
+
+    @Test
+    void permanentItemFailure_logsDiagnosticTypesWithoutDocumentOrReason(CapturedOutput output) throws Exception {
+        var document = ProductSearchInitialLoaderTest.document();
+        var failed = BulkResponseItem.of(i -> i.operationType(OperationType.Index).id(document.id())
+                .index("products-v1").status(400).error(e -> e.type("mapper_parsing_exception")
+                        .reason("private product value must not be logged")
+                        .causedBy(c -> c.type("number_format_exception").reason("private nested value"))));
+        when(client.bulk(any(BulkRequest.class))).thenReturn(response(true, failed));
+        assertThatThrownBy(() -> writer.write("products-v1", List.of(document)))
+                .hasMessage("Nonretryable bulk item failure");
+        assertThat(output.getAll()).contains("index=products-v1", "productId=" + document.id(), "attempt=1", "status=400",
+                "errorType=mapper_parsing_exception", "causeType=number_format_exception")
+                .doesNotContain("private product value", "private nested value", document.toString());
     }
 
     private static BulkResponseItem item(OpenSearchProductDocument document, int status) {

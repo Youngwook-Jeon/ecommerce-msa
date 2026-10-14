@@ -49,13 +49,17 @@ public class OpenSearchProductBulkWriter {
                 var request = new BulkRequest.Builder().refresh(Refresh.False);
                 pending.forEach(document -> request.operations(o -> o.index(i -> i.index(index)
                         .id(document.id()).document(document))));
-                retry = failedDocuments(index, pending, client.bulk(request.build()));
+                retry = failedDocuments(index, pending, client.bulk(request.build()), attempt);
             } catch (IOException exception) {
+                log.warn("Product bulk transport failed: index={}, attempt={}, documentCount={}",
+                        index, attempt, pending.size(), exception);
                 if (attempt == MAX_ATTEMPTS) {
                     throw new ProductSearchIndexingException("Bulk transport retries exhausted", exception);
                 }
                 retry = pending;
             } catch (OpenSearchException exception) {
+                log.warn("Product bulk request failed: index={}, attempt={}, documentCount={}, status={}",
+                        index, attempt, pending.size(), exception.status(), exception);
                 if (!retryable(exception.status()) || attempt == MAX_ATTEMPTS) {
                     throw new ProductSearchIndexingException("Bulk request failed", exception);
                 }
@@ -74,7 +78,7 @@ public class OpenSearchProductBulkWriter {
     }
 
     private static List<OpenSearchProductDocument> failedDocuments(String index,
-            List<OpenSearchProductDocument> documents, BulkResponse response) {
+            List<OpenSearchProductDocument> documents, BulkResponse response, int attempt) {
         if (response.items().size() != documents.size()) {
             throw new ProductSearchIndexingException("Incomplete bulk response");
         }
@@ -88,10 +92,15 @@ public class OpenSearchProductBulkWriter {
             if (item.status() >= 200 && item.status() < 300 && item.error() == null) {
                 continue;
             }
+            String errorType = item.error() == null ? null : item.error().type();
+            String causeType = item.error() == null || item.error().causedBy() == null ? null : item.error().causedBy().type();
             if (!retryable(item.status())) {
-                log.error("Product bulk item failed: index={}, productId={}, status={}", index, document.id(), item.status());
+                log.error("Product bulk item failed: index={}, productId={}, attempt={}, status={}, errorType={}, causeType={}",
+                        index, document.id(), attempt, item.status(), errorType, causeType);
                 throw new ProductSearchIndexingException("Nonretryable bulk item failure");
             }
+            log.warn("Product bulk item will retry: index={}, productId={}, attempt={}, status={}, errorType={}, causeType={}",
+                    index, document.id(), attempt, item.status(), errorType, causeType);
             retry.add(document);
         }
         if (response.errors() && retry.isEmpty()) {

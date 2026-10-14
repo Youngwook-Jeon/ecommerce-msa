@@ -108,12 +108,20 @@ public class OpenSearchProductIndexBuildExecutionAdapter implements ProductSearc
                     throw new IllegalStateException("Catalog sample document validation failed");
                 }
                 checkpoint.run();
-                var filtered = search.search(new ProductSearchCriteria(null, sample.categoryId(),
+                var filterCriteria = new ProductSearchCriteria(null, sample.categoryId(),
                         sample.brandKey() == null ? List.of() : List.of(sample.brandKey()), sample.basePrice(), sample.basePrice(),
-                        PublicProductSort.NEWEST, 0, 1));
+                        PublicProductSort.NEWEST, 0, 1);
+                var filtered = search.search(filterCriteria);
                 if (filtered.totalElements() == 0
                         || (sample.brandKey() != null && filtered.brands().stream().noneMatch(b -> b.value().equals(sample.brandKey())))) {
                     throw new IllegalStateException("Category, brand or price filter validation failed");
+                }
+                checkpoint.run();
+                var sampleMatch = client.count(c -> c.index(index).query(q -> q.bool(b -> b
+                        .filter(queries.buildQuery(filterCriteria))
+                        .filter(f -> f.term(t -> t.field("id").value(FieldValue.of(sample.id())))))));
+                if (sampleMatch.shards().failed() > 0 || sampleMatch.count() != 1) {
+                    throw new IllegalStateException("Catalog sample does not match category, brand or price filters");
                 }
                 if (sample.description() != null && !sample.description().isBlank()) {
                     checkpoint.run();
