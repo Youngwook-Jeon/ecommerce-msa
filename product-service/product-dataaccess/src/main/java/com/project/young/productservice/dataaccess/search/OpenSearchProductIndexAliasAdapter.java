@@ -1,5 +1,6 @@
 package com.project.young.productservice.dataaccess.search;
 
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexAliasState;
 import com.project.young.productservice.application.exception.ProductSearchIndexManagementException;
 import com.project.young.productservice.application.port.output.ProductSearchIndexAliasPort;
 import com.project.young.productservice.application.port.output.ProductSearchIndexActivationWorkPort.Work;
@@ -28,7 +29,7 @@ public class OpenSearchProductIndexAliasAdapter implements ProductSearchIndexAli
     }
 
     @Override
-    public AliasState readAlias(String aliasName) {
+    public ProductSearchIndexAliasState readAlias(String aliasName) {
         try {
             var result = client.indices().getAlias(GetAliasRequest.of(r -> r.name(aliasName))).result();
             boolean plain = !result.isEmpty() && result.values().stream().allMatch(index -> {
@@ -36,12 +37,12 @@ public class OpenSearchProductIndexAliasAdapter implements ProductSearchIndexAli
                 return alias != null && alias.filter() == null && alias.routing() == null
                         && alias.searchRouting() == null && alias.indexRouting() == null;
             });
-            return new AliasState(result.keySet(), plain);
+            return new ProductSearchIndexAliasState(result.keySet(), plain);
         } catch (OpenSearchException exception) {
             if (exception.status() == 404) {
                 try {
                     // An index occupying the alias name is not an empty alias state.
-                    return new AliasState(Set.of(), !client.indices().exists(r -> r.index(aliasName)).value());
+                    return new ProductSearchIndexAliasState(Set.of(), !client.indices().exists(r -> r.index(aliasName)).value());
                 } catch (Exception failure) {
                     throw unavailable(aliasName, failure);
                 }
@@ -69,8 +70,7 @@ public class OpenSearchProductIndexAliasAdapter implements ProductSearchIndexAli
         } catch (Exception exception) {
             throw new ProductSearchIndexingException("Activation target verification failed", exception);
         }
-        var expected = work.expectedIndexName() == null ? Set.<String>of() : Set.of(work.expectedIndexName());
-        requireAlias(work.job().aliasName(), expected);
+        requireAlias(work.job().aliasName(), work.expectedIndexName());
     }
 
     @Override
@@ -95,12 +95,12 @@ public class OpenSearchProductIndexAliasAdapter implements ProductSearchIndexAli
 
     @Override
     public void verifyAfterSwitch(Work work) {
-        requireAlias(work.job().aliasName(), Set.of(work.version().indexName()));
+        requireAlias(work.job().aliasName(), work.version().indexName());
     }
 
-    private void requireAlias(String aliasName, Set<String> expected) {
+    private void requireAlias(String aliasName, String expected) {
         var actual = readAlias(aliasName);
-        if (!actual.plain() || !actual.indices().equals(expected)) {
+        if (!actual.matches(expected)) {
             throw new ProductSearchIndexManagementException(INDEX_STATE_UNCONFIRMED, "Actual alias does not match the expected index");
         }
     }

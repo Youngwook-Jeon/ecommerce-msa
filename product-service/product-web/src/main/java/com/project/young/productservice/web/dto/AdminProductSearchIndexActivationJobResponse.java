@@ -6,6 +6,7 @@ import java.util.UUID;
 
 public record AdminProductSearchIndexActivationJobResponse(UUID id, UUID indexVersionId, UUID expectedActiveVersionId,
         String aliasName, ProductSearchIndexActivationStatus status, String requestedBy, Instant createdAt, Instant updatedAt,
-        Instant startedAt, Instant switchStartedAt, Instant finishedAt, Failure failure) {
+        Instant startedAt, Instant switchStartedAt, Instant finishedAt, Failure failure,
+        AdminProductSearchIndexReconciliationResponse latestReconciliation) {
     public record Failure(String code, String message) { }
 }

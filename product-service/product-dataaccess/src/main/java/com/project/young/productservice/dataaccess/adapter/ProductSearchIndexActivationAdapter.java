@@ -182,25 +182,9 @@ public class ProductSearchIndexActivationAdapter implements ProductSearchIndexAc
         acquireManagementLock();
         var entity = owned(work);
         ensureExpectedActive(entity.getExpectedActiveVersionId());
-        Instant now = now();
-        var job = mapper.toDomain(entity).confirmActivation(work.version().id(), now);
-        // Flush the old ACTIVE first so the partial UNIQUE constraint never sees two ACTIVE rows.
-        if (entity.getExpectedActiveVersionId() != null) {
-            var previous = target(entity.getExpectedActiveVersionId());
-            var inactive = mapper.toDomain(previous).deactivate(now);
-            previous.setStatus(inactive.status());
-            previous.setUpdatedAt(now);
-            versions.flush();
-        }
-        var target = target(entity.getIndexVersionId());
-        var active = mapper.toDomain(target).confirmActive(now);
-        target.setStatus(active.status());
-        target.setUpdatedAt(now);
-        target.setActivatedAt(active.activatedAt());
-        apply(entity, job);
-        clearOwner(entity);
+        ProductSearchIndexActivationCompletion.complete(entity, versions, mapper, now());
         log.info("Index activation confirmed: jobId={}, indexVersionId={}, alias={}, previousVersionId={}",
-                job.id(), job.indexVersionId(), job.aliasName(), job.expectedActiveVersionId());
+                entity.getId(), entity.getIndexVersionId(), entity.getAliasName(), entity.getExpectedActiveVersionId());
     }
 
     @Override

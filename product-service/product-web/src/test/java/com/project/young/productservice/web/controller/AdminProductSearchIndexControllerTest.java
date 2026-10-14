@@ -19,6 +19,10 @@ import org.springframework.transaction.CannotCreateTransactionException;
 
 import com.project.young.productservice.application.dto.command.RegisterProductSearchIndexActivationCommand;
 import com.project.young.productservice.application.searchindex.model.ProductSearchIndexActivationJob;
+import com.project.young.productservice.application.service.ProductSearchIndexActivationReconciler;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexReconciliationAttempt;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexReconciliationStatus;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexAliasObservation;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -43,8 +47,57 @@ class AdminProductSearchIndexControllerTest {
     private AdminProductSearchIndexService service;
     @MockitoBean
     private AdminProductSearchIndexActivationService activations;
+    @MockitoBean
+    private ProductSearchIndexActivationReconciler reconciler;
 
     private static final String PREFIX = "/admin/product-search";
+
+    @Test
+    void reconcile_asAdmin_returnsObservationAndUsesJwtSubject() throws Exception {
+        var attempt = attempt();
+        when(reconciler.recheck(attempt.jobId(), "admin-sub")).thenReturn(attempt);
+        mvc.perform(post(PREFIX + "/index-activations/" + attempt.jobId() + "/reconcile")
+                        .with(jwt().jwt(j -> j.subject("admin-sub")).authorities(new SimpleGrantedAuthority("ADMIN"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.trigger").value("MANUAL"))
+                .andExpect(jsonPath("$.status").value("UNRESOLVED"))
+                .andExpect(jsonPath("$.observation").value("PREVIOUS_OBSERVED"))
+                .andExpect(jsonPath("$.observedIndices[0]").value("products-v1"))
+                .andExpect(jsonPath("$.leaseUntil").doesNotExist());
+        verify(reconciler).recheck(attempt.jobId(), "admin-sub");
+    }
+
+    @Test
+    void reconciliationRoutes_requireAdminAndReturnSpecificConflict() throws Exception {
+        UUID id = UUID.randomUUID();
+        mvc.perform(post(PREFIX + "/index-activations/" + id + "/reconcile")).andExpect(status().isUnauthorized());
+        mvc.perform(post(PREFIX + "/index-activations/" + id + "/reconcile")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("CUSTOMER"))))
+                .andExpect(status().isForbidden());
+        when(reconciler.recheck(id, "admin-sub")).thenThrow(new ProductSearchIndexManagementException(
+                ProductSearchIndexManagementException.Code.INDEX_RECONCILIATION_IN_PROGRESS, "Already running"));
+        mvc.perform(post(PREFIX + "/index-activations/" + id + "/reconcile")
+                        .with(jwt().jwt(j -> j.subject("admin-sub")).authorities(new SimpleGrantedAuthority("ADMIN"))))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("INDEX_RECONCILIATION_IN_PROGRESS"));
+    }
+
+    @Test
+    void activationLookup_includesLatestReconciliation() throws Exception {
+        var attempt = attempt();
+        var job = ProductSearchIndexActivationJob.queue(attempt.jobId(), UUID.randomUUID(), null,
+                "products-read", "admin-sub", "activate-1", Instant.now());
+        when(activations.getJob(job.id())).thenReturn(job);
+        when(reconciler.latest(job.id())).thenReturn(java.util.Optional.of(attempt));
+        mvc.perform(get(PREFIX + "/index-activations/" + job.id()).with(jwt().authorities(new SimpleGrantedAuthority("ADMIN"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.latestReconciliation.observation").value("PREVIOUS_OBSERVED"));
+    }
+
+    private static ProductSearchIndexReconciliationAttempt attempt() {
+        Instant now = Instant.now();
+        return new ProductSearchIndexReconciliationAttempt(UUID.randomUUID(), UUID.randomUUID(), "admin-sub",
+                ProductSearchIndexReconciliationStatus.UNRESOLVED, now, now.plusSeconds(60), now,
+                ProductSearchIndexAliasObservation.PREVIOUS_OBSERVED, List.of("products-v1"), true, null, null);
+    }
 
     @Test
     void activate_asAdmin_registersIntentAndReturnsJobLocation() throws Exception {

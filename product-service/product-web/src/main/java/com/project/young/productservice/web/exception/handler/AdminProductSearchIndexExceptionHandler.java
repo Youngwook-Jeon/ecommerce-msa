@@ -4,6 +4,7 @@ import com.project.young.common.application.web.ErrorDTO;
 import com.project.young.productservice.application.exception.ProductSearchIndexManagementException;
 import com.project.young.productservice.web.controller.AdminProductSearchIndexController;
 import lombok.extern.slf4j.Slf4j;
+import com.project.young.productservice.application.exception.ProductSearchIndexOwnershipLostException;
 import org.springframework.dao.DataAccessException;
 import org.springframework.transaction.TransactionException;
 import org.springframework.core.Ordered;
@@ -27,10 +28,17 @@ public class AdminProductSearchIndexExceptionHandler {
             case INVALID_INDEX_MANAGEMENT_REQUEST -> HttpStatus.BAD_REQUEST;
             case INDEX_BUILD_NOT_FOUND, INDEX_VERSION_NOT_FOUND, INDEX_ACTIVATION_NOT_FOUND -> HttpStatus.NOT_FOUND;
             case INDEX_BUILD_IN_PROGRESS, IDEMPOTENCY_KEY_CONFLICT, INDEX_ACTIVATION_IN_PROGRESS,
-                    INDEX_NOT_READY, ACTIVE_INDEX_CHANGED, INDEX_STATE_UNCONFIRMED -> HttpStatus.CONFLICT;
+                    INDEX_NOT_READY, ACTIVE_INDEX_CHANGED, INDEX_STATE_UNCONFIRMED,
+                    INDEX_ACTIVATION_NOT_UNCONFIRMED, INDEX_RECONCILIATION_IN_PROGRESS -> HttpStatus.CONFLICT;
             case INDEX_MANAGEMENT_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
         };
         return ResponseEntity.status(status).body(ErrorDTO.builder().code(exception.code().name()).message(exception.getMessage()).build());
+    }
+
+    @ExceptionHandler(ProductSearchIndexOwnershipLostException.class)
+    public ResponseEntity<ErrorDTO> handleReconciliationOwnershipLost(ProductSearchIndexOwnershipLostException exception) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorDTO.builder()
+                .code("INDEX_RECONCILIATION_LEASE_EXPIRED").message("Reconciliation ownership expired; recheck the job state").build());
     }
 
     @ExceptionHandler({DataAccessException.class, TransactionException.class})

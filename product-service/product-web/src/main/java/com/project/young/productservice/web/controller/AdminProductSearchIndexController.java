@@ -13,6 +13,8 @@ import com.project.young.productservice.web.dto.AdminProductSearchIndexBuildRequ
 import com.project.young.productservice.web.dto.AdminProductSearchIndexVersionPageResponse;
 import com.project.young.productservice.web.mapper.AdminProductSearchIndexResponseMapper;
 import jakarta.validation.Valid;
+import com.project.young.productservice.application.service.ProductSearchIndexActivationReconciler;
+import com.project.young.productservice.web.dto.AdminProductSearchIndexReconciliationResponse;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -37,12 +39,14 @@ public class AdminProductSearchIndexController {
     private final AdminProductSearchIndexService service;
     private final AdminProductSearchIndexResponseMapper mapper;
     private final AdminProductSearchIndexActivationService activations;
+    private final ProductSearchIndexActivationReconciler reconciler;
 
     public AdminProductSearchIndexController(AdminProductSearchIndexService service, AdminProductSearchIndexResponseMapper mapper,
-                                             AdminProductSearchIndexActivationService activations) {
+                                             AdminProductSearchIndexActivationService activations, ProductSearchIndexActivationReconciler reconciler) {
         this.service = service;
         this.mapper = mapper;
         this.activations = activations;
+        this.reconciler = reconciler;
     }
 
     @PostMapping("/index-builds")
@@ -60,8 +64,8 @@ public class AdminProductSearchIndexController {
 
     @PostMapping("/index-versions/{versionId}/activate")
     public ResponseEntity<AdminProductSearchIndexActivationResponse> activate(@PathVariable UUID versionId,
-            @AuthenticationPrincipal Jwt jwt, @RequestHeader("Idempotency-Key") String key,
-            @Valid @RequestBody AdminProductSearchIndexActivationRequest request) {
+                                                                              @AuthenticationPrincipal Jwt jwt, @RequestHeader("Idempotency-Key") String key,
+                                                                              @Valid @RequestBody AdminProductSearchIndexActivationRequest request) {
         if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
             throw new AccessDeniedException("Authenticated administrator subject is required");
         }
@@ -73,7 +77,15 @@ public class AdminProductSearchIndexController {
 
     @GetMapping("/index-activations/{jobId}")
     public AdminProductSearchIndexActivationJobResponse getActivation(@PathVariable UUID jobId) {
-        return mapper.toActivationResponse(activations.getJob(jobId));
+        return mapper.toActivationResponse(activations.getJob(jobId), reconciler.latest(jobId).orElse(null));
+    }
+
+    @PostMapping("/index-activations/{jobId}/reconcile")
+    public AdminProductSearchIndexReconciliationResponse reconcile(@PathVariable UUID jobId, @AuthenticationPrincipal Jwt jwt) {
+        if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
+            throw new AccessDeniedException("Authenticated administrator subject is required");
+        }
+        return mapper.toReconciliationResponse(reconciler.recheck(jobId, jwt.getSubject()));
     }
 
     @GetMapping("/index-builds/{jobId}")

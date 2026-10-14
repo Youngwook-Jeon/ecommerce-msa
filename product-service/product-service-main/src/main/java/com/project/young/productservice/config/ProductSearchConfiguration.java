@@ -1,5 +1,6 @@
 package com.project.young.productservice.config;
 
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexAliasState;
 import com.project.young.productservice.application.exception.ProductSearchUnavailableException;
 import com.project.young.productservice.application.port.output.ProductSearchPort;
 import com.project.young.productservice.application.port.output.ProductSearchIndexAliasPort;
@@ -32,7 +33,7 @@ public class ProductSearchConfiguration {
                 return new ProductSearchIndexManagementException(ProductSearchIndexManagementException.Code.INDEX_MANAGEMENT_UNAVAILABLE,
                         "Product search adapter is not configured");
             }
-            public AliasState readAlias(String aliasName) { throw unavailable(); }
+            public ProductSearchIndexAliasState readAlias(String aliasName) { throw unavailable(); }
             public void verifyBeforeSwitch(Work work) { throw unavailable(); }
             public void switchAlias(Work work) { throw unavailable(); }
             public void verifyAfterSwitch(Work work) { throw unavailable(); }

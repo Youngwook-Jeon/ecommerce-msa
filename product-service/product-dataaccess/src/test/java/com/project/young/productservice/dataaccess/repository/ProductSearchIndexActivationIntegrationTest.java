@@ -1,5 +1,7 @@
 package com.project.young.productservice.dataaccess.repository;
 
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexAliasState;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexActivationJob;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.productservice.application.dto.command.RegisterProductSearchIndexActivationCommand;
 import com.project.young.productservice.application.dto.command.RegisterProductSearchIndexBuildCommand;
@@ -51,6 +53,14 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import com.project.young.productservice.application.port.output.ProductSearchIndexReconciliationPort;
+import com.project.young.productservice.application.service.ProductSearchIndexActivationReconciler;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexAliasObservation;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexReconciliationStatus;
+import com.project.young.productservice.dataaccess.adapter.ProductSearchIndexReconciliationAdapter;
+import com.project.young.productservice.dataaccess.mapper.ProductSearchIndexReconciliationMapper;
+import com.project.young.productservice.dataaccess.config.ProductSearchIndexReconciliationConfiguration;
+import org.junit.jupiter.params.provider.EnumSource;
 import java.net.URI;
 import java.security.MessageDigest;
 import java.time.Duration;
@@ -105,6 +115,12 @@ class ProductSearchIndexActivationIntegrationTest {
     private PlatformTransactionManager transactions;
     @Autowired
     private ProductSearchIndexMappingProperties mapping;
+    @Autowired
+    private ProductSearchIndexReconciliationPort reconciliation;
+    @Autowired
+    private ProductSearchIndexReconciliationAttemptJpaRepository attempts;
+    @Autowired
+    private ProductSearchIndexActivationReconciler reconciler;
     private final ProductSearchIndexMetadataMapper mapper = new ProductSearchIndexMetadataMapper();
 
     @BeforeEach
@@ -248,9 +264,157 @@ class ProductSearchIndexActivationIntegrationTest {
         assertThat(versions.findById(target.id()).orElseThrow().getStatus()).isEqualTo(ProductSearchIndexStatus.READY);
     }
 
+    @ParameterizedTest
+    @EnumSource(value = ProductSearchIndexAliasObservation.class, names = {"PREVIOUS_OBSERVED", "ALIAS_ABSENT", "MULTIPLE_INDICES", "UNEXPECTED_INDEX", "ALIAS_OPTIONS_MISMATCH", "LOOKUP_FAILED"})
+    void reconciliation_nonTargetObservation_keepsBlockAndAuditsResult(ProductSearchIndexAliasObservation observation) throws Exception {
+        var old = ready(1).beginActivation(Instant.now()).confirmActive(Instant.now());
+        versions.saveAndFlush(mapper.toEntity(old, 0));
+        var target = ready(2);
+        var job = unconfirmed(target, old.id());
+        var work = reconciliation.claim(job.id(), "operator", Duration.ofSeconds(60));
+        ProductSearchIndexAliasState state = switch (observation) {
+            case PREVIOUS_OBSERVED -> new ProductSearchIndexAliasState(Set.of(old.indexName()), true);
+            case ALIAS_ABSENT -> new ProductSearchIndexAliasState(Set.of(), true);
+            case MULTIPLE_INDICES -> new ProductSearchIndexAliasState(Set.of(old.indexName(), target.indexName()), true);
+            case UNEXPECTED_INDEX -> new ProductSearchIndexAliasState(Set.of("other-index"), true);
+            case ALIAS_OPTIONS_MISMATCH -> new ProductSearchIndexAliasState(Set.of(target.indexName()), false);
+            case LOOKUP_FAILED -> null;
+            default -> throw new IllegalArgumentException("Unexpected test observation");
+        };
+        var result = reconciliation.finish(work, state);
+        assertThat(result.observation()).isEqualTo(observation);
+        assertThat(result.status()).isEqualTo(state == null ? ProductSearchIndexReconciliationStatus.FAILED : ProductSearchIndexReconciliationStatus.UNRESOLVED);
+        assertThat(result.requestedBy()).isEqualTo("operator");
+        assertThat(reconciliation.latest(job.id())).contains(result);
+        assertThat(service.getJob(job.id()).status()).isEqualTo(ProductSearchIndexActivationStatus.UNCONFIRMED);
+        assertThat(versions.findById(target.id()).orElseThrow().getStatus()).isEqualTo(ProductSearchIndexStatus.ACTIVATING);
+        assertThat(reconciliation.claimNext(Duration.ofSeconds(60), Duration.ofSeconds(60))).isEmpty();
+        assertCode(() -> builds.register(new RegisterProductSearchIndexBuildCommand("admin", "build-new", 500, true)), "INDEX_ACTIVATION_IN_PROGRESS");
+        assertThat(reconciliation.claim(job.id(), "operator", Duration.ofSeconds(60)).attemptId()).isNotEqualTo(work.attemptId());
+    }
+
+    @Test
+    void reconciliation_targetConfirmed_updatesJobVersionsAndAuditAtomically() throws Exception {
+        var old = ready(1).beginActivation(Instant.now()).confirmActive(Instant.now());
+        versions.saveAndFlush(mapper.toEntity(old, 0));
+        var target = ready(2);
+        var job = unconfirmed(target, old.id());
+        var work = reconciliation.claimNext(Duration.ofSeconds(60), Duration.ofSeconds(60)).orElseThrow();
+        assertThat(work.attemptId().version()).isEqualTo(7);
+        var result = reconciliation.finish(work, new ProductSearchIndexAliasState(Set.of(target.indexName()), true));
+        assertThat(result.status()).isEqualTo(ProductSearchIndexReconciliationStatus.SUCCEEDED);
+        assertThat(result.requestedBy()).isNull();
+        assertThat(service.getJob(job.id()).status()).isEqualTo(ProductSearchIndexActivationStatus.SUCCEEDED);
+        assertThat(service.getJob(job.id()).failureCode()).isNull();
+        assertThat(versions.findById(old.id()).orElseThrow().getStatus()).isEqualTo(ProductSearchIndexStatus.INACTIVE);
+        assertThat(versions.findById(target.id()).orElseThrow().getStatus()).isEqualTo(ProductSearchIndexStatus.ACTIVE);
+        assertThat(reconciliation.claimNext(Duration.ofSeconds(60), Duration.ofSeconds(60))).isEmpty();
+    }
+
+    @Test
+    void reconciliation_expiredIndependentOwnership_rejectsLateResultAndAllowsNewClaim() throws Exception {
+        var target = ready(1);
+        var job = unconfirmed(target, null);
+        var work = reconciliation.claim(job.id(), "operator", Duration.ofSeconds(60));
+        jdbc.update("UPDATE product_search_index_reconciliation_attempts SET created_at = clock_timestamp() - interval '2 minutes', lease_until = clock_timestamp() - interval '1 minute' WHERE id = ?", work.attemptId());
+        assertThatThrownBy(() -> reconciliation.finish(work, new ProductSearchIndexAliasState(Set.of(target.indexName()), true)))
+                .isInstanceOf(ProductSearchIndexOwnershipLostException.class);
+        reconciliation.recoverExpired();
+        assertThat(reconciliation.latest(job.id()).orElseThrow().status()).isEqualTo(ProductSearchIndexReconciliationStatus.EXPIRED);
+        assertThat(reconciliation.claim(job.id(), "operator", Duration.ofSeconds(60)).attemptId()).isNotEqualTo(work.attemptId());
+    }
+
+    @Test
+    void reconciliation_stateChangedDuringLookup_auditsStaleWithoutActivating() throws Exception {
+        var target = ready(1);
+        var job = unconfirmed(target, null);
+        var work = reconciliation.claim(job.id(), "operator", Duration.ofSeconds(60));
+        jdbc.update("UPDATE product_search_index_activation_jobs SET lock_version = lock_version + 1 WHERE id = ?", job.id());
+        var result = reconciliation.finish(work, new ProductSearchIndexAliasState(Set.of(target.indexName()), true));
+        assertThat(result.status()).isEqualTo(ProductSearchIndexReconciliationStatus.STALE);
+        assertThat(service.getJob(job.id()).status()).isEqualTo(ProductSearchIndexActivationStatus.UNCONFIRMED);
+        assertThat(versions.findById(target.id()).orElseThrow().getStatus()).isEqualTo(ProductSearchIndexStatus.ACTIVATING);
+    }
+
+    @Test
+    void reconciliation_commitFailure_rollsBackJobVersionsAndObservation() throws Exception {
+        var old = ready(1).beginActivation(Instant.now()).confirmActive(Instant.now());
+        versions.saveAndFlush(mapper.toEntity(old, 0));
+        var target = ready(2);
+        var job = unconfirmed(target, old.id());
+        var work = reconciliation.claim(job.id(), "operator", Duration.ofSeconds(60));
+        jdbc.execute("ALTER TABLE product_search_index_versions ADD CONSTRAINT test_rejected_reconciliation CHECK (status <> 'ACTIVE' OR version_number <> 2)");
+        try {
+            assertThatThrownBy(() -> reconciliation.finish(work, new ProductSearchIndexAliasState(Set.of(target.indexName()), true)))
+                    .isInstanceOf(RuntimeException.class);
+            assertThat(versions.findById(old.id()).orElseThrow().getStatus()).isEqualTo(ProductSearchIndexStatus.ACTIVE);
+            assertThat(versions.findById(target.id()).orElseThrow().getStatus()).isEqualTo(ProductSearchIndexStatus.ACTIVATING);
+            assertThat(service.getJob(job.id()).status()).isEqualTo(ProductSearchIndexActivationStatus.UNCONFIRMED);
+            var attempt = reconciliation.latest(job.id()).orElseThrow();
+            assertThat(attempt.status()).isEqualTo(ProductSearchIndexReconciliationStatus.RUNNING);
+            assertThat(attempt.observation()).isNull();
+        } finally {
+            jdbc.execute("ALTER TABLE product_search_index_versions DROP CONSTRAINT test_rejected_reconciliation");
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void manualReconciliation_validActivationLease_isNotTouched(boolean switching) throws Exception {
+        var target = ready(1);
+        var job = service.register(command(target, null, "activate-1"));
+        var work = store.claim(Duration.ofSeconds(60)).orElseThrow();
+        if (switching) { store.beginSwitch(work); }
+        assertCode(() -> reconciler.recheck(job.id(), "operator"), "INDEX_ACTIVATION_NOT_UNCONFIRMED");
+        assertThat(attempts.count()).isZero();
+        store.renew(work, Duration.ofSeconds(60));
+    }
+
+    @Test
+    void manualReconciliation_insideOuterTransaction_observesOutsideTransaction() throws Exception {
+        var target = ready(1);
+        var job = unconfirmed(target, null);
+        new TransactionTemplate(transactions).executeWithoutResult(status -> {
+            var result = reconciler.recheck(job.id(), "operator");
+            assertThat(result.observation()).isEqualTo(ProductSearchIndexAliasObservation.ALIAS_ABSENT);
+            assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+            status.setRollbackOnly();
+        });
+        assertThat(reconciliation.latest(job.id())).isPresent();
+    }
+
+    @Test
+    void concurrentReconciliationClaims_onlyOneObserverOwnsTheJob() throws Exception {
+        var target = ready(1);
+        var job = unconfirmed(target, null);
+        var start = new CountDownLatch(1);
+        try (var threads = Executors.newFixedThreadPool(2)) {
+            var first = threads.submit(() -> { start.await(); return claimReconciliationOrConflict(job.id()); });
+            var other = threads.submit(() -> { start.await(); return claimReconciliationOrConflict(job.id()); });
+            start.countDown();
+            var results = List.of(first.get(10, TimeUnit.SECONDS), other.get(10, TimeUnit.SECONDS));
+            assertThat(results.stream().filter(UUID.class::isInstance)).hasSize(1);
+            assertThat(results).contains("INDEX_RECONCILIATION_IN_PROGRESS");
+            assertThat(attempts.count()).isEqualTo(1);
+        }
+    }
+
+    private Object claimReconciliationOrConflict(UUID jobId) {
+        try { return reconciliation.claim(jobId, "operator", Duration.ofSeconds(60)).attemptId(); }
+        catch (ProductSearchIndexManagementException exception) { return exception.code().name(); }
+    }
+
+    private ProductSearchIndexActivationJob unconfirmed(ProductSearchIndexVersion target, UUID previous) {
+        var job = service.register(command(target, previous, "activate-1"));
+        var work = store.claim(Duration.ofSeconds(60)).orElseThrow();
+        store.beginSwitch(work);
+        store.failOrUnconfirm(work);
+        return service.getJob(job.id());
+    }
+
     @Test
     @EnabledIfEnvironmentVariable(named = "OPENSEARCH_TEST_ENDPOINT", matches = ".+")
-    void realOpenSearch_initialActivationThenReplacement_confirmsAliasAndDatabase() throws Exception {
+    void realOpenSearch_lostReplacementResponse_reconcilesAliasAndDatabase() throws Exception {
         var first = ready(1);
         var second = ready(2);
         URI endpoint = URI.create(System.getenv("OPENSEARCH_TEST_ENDPOINT"));
@@ -270,7 +434,16 @@ class ProductSearchIndexActivationIntegrationTest {
                 worker.runOnce();
                 assertThat(actualService.getJob(firstJob.id()).status()).isEqualTo(ProductSearchIndexActivationStatus.SUCCEEDED);
                 var secondJob = actualService.register(command(second, first.id(), "activate-2"));
-                worker.runOnce();
+                var activationWork = store.claim(Duration.ofSeconds(60)).orElseThrow();
+                aliases.verifyBeforeSwitch(activationWork);
+                store.beginSwitch(activationWork);
+                aliases.switchAlias(activationWork);
+                // Simulate a lost response after the actual switch was applied.
+                store.failOrUnconfirm(activationWork);
+                var actualReconciler = new ProductSearchIndexActivationReconciler(reconciliation, store, aliases,
+                        Duration.ofSeconds(60), Duration.ofSeconds(60));
+                assertThat(actualReconciler.recheck(secondJob.id(), "operator").status())
+                        .isEqualTo(ProductSearchIndexReconciliationStatus.SUCCEEDED);
                 assertThat(actualService.getJob(secondJob.id()).status()).isEqualTo(ProductSearchIndexActivationStatus.SUCCEEDED);
                 assertThat(aliases.readAlias(ALIAS).indices()).containsExactly(second.indexName());
                 assertThat(versions.findById(first.id()).orElseThrow().getStatus()).isEqualTo(ProductSearchIndexStatus.INACTIVE);
@@ -319,14 +492,15 @@ class ProductSearchIndexActivationIntegrationTest {
 
     @Configuration
     @Import({ProductDataAccessConfig.class, ProductSearchIndexActivationAdapter.class, ProductSearchIndexMetadataAdapter.class,
-            ProductSearchIndexMetadataMapper.class, AdminProductSearchIndexActivationService.class})
+            ProductSearchIndexMetadataMapper.class, AdminProductSearchIndexActivationService.class,
+            ProductSearchIndexReconciliationAdapter.class, ProductSearchIndexReconciliationMapper.class, ProductSearchIndexReconciliationConfiguration.class})
     static class Config {
         @Bean
         ProductSearchIndexAliasPort aliases(ProductSearchIndexVersionJpaRepository versions) {
             return new ProductSearchIndexAliasPort() {
-                public AliasState readAlias(String aliasName) {
+                public ProductSearchIndexAliasState readAlias(String aliasName) {
                     assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
-                    return new AliasState(versions.findByStatus(ProductSearchIndexStatus.ACTIVE)
+                    return new ProductSearchIndexAliasState(versions.findByStatus(ProductSearchIndexStatus.ACTIVE)
                             .map(v -> Set.of(v.getIndexName())).orElse(Set.of()), true);
                 }
                 public void verifyBeforeSwitch(ProductSearchIndexActivationWorkPort.Work work) { throw new UnsupportedOperationException(); }

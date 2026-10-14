@@ -7,6 +7,8 @@ import com.project.young.productservice.application.searchindex.model.ProductSea
 import com.project.young.productservice.web.dto.AdminProductSearchIndexBuildJobResponse;
 import com.project.young.productservice.web.dto.AdminProductSearchIndexVersionResponse;
 import org.springframework.stereotype.Component;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexReconciliationAttempt;
+import com.project.young.productservice.web.dto.AdminProductSearchIndexReconciliationResponse;
 
 @Component
 public class AdminProductSearchIndexResponseMapper {
@@ -26,10 +28,17 @@ public class AdminProductSearchIndexResponseMapper {
                 job.startedAt(), job.finishedAt(), failure);
     }
 
-    public AdminProductSearchIndexActivationJobResponse toActivationResponse(ProductSearchIndexActivationJob job) {
+    public AdminProductSearchIndexActivationJobResponse toActivationResponse(ProductSearchIndexActivationJob job, ProductSearchIndexReconciliationAttempt latest) {
         var failure = job.failureCode() == null ? null : new AdminProductSearchIndexActivationJobResponse.Failure(job.failureCode(), job.failureMessage());
         return new AdminProductSearchIndexActivationJobResponse(job.id(), job.indexVersionId(), job.expectedActiveVersionId(),
                 job.aliasName(), job.status(), job.requestedBy(), job.createdAt(), job.updatedAt(), job.startedAt(),
-                job.switchStartedAt(), job.finishedAt(), failure);
+                job.switchStartedAt(), job.finishedAt(), failure, latest == null ? null : toReconciliationResponse(latest));
+    }
+
+    public AdminProductSearchIndexReconciliationResponse toReconciliationResponse(ProductSearchIndexReconciliationAttempt attempt) {
+        var failure = attempt.failureCode() == null ? null : new AdminProductSearchIndexReconciliationResponse.Failure(attempt.failureCode(), attempt.failureMessage());
+        return new AdminProductSearchIndexReconciliationResponse(attempt.id(), attempt.jobId(), attempt.requestedBy() == null ? "AUTOMATIC" : "MANUAL",
+                attempt.requestedBy(), attempt.status(), attempt.createdAt(), attempt.finishedAt(), attempt.observation(),
+                attempt.observedIndices(), attempt.aliasPlain(), failure);
     }
 }

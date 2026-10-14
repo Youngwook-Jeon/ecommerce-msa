@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import static com.project.young.productservice.application.exception.ProductSearchIndexManagementException.Code.INVALID_INDEX_MANAGEMENT_REQUEST;
 import static com.project.young.productservice.application.exception.ProductSearchIndexManagementException.Code.INDEX_NOT_READY;
@@ -45,8 +44,8 @@ public class AdminProductSearchIndexActivationService {
                 throw new ProductSearchIndexManagementException(ACTIVE_INDEX_CHANGED, "Active index version changed");
             }
             var actual = aliases.readAlias(context.aliasName());
-            var expected = context.active() == null ? Set.<String>of() : Set.of(context.active().indexName());
-            if (!actual.plain() || !actual.indices().equals(expected)) {
+            String expected = context.active() == null ? null : context.active().indexName();
+            if (!actual.matches(expected)) {
                 throw new ProductSearchIndexManagementException(INDEX_STATE_UNCONFIRMED, "Alias and index metadata do not agree");
             }
         } catch (ProductSearchIndexManagementException failure) {

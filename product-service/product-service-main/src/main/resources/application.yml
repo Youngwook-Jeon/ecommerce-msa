@@ -50,6 +50,11 @@ product-service:
     request-budget-millis: ${PRODUCT_SEARCH_REQUEST_BUDGET_MILLIS:10000}
     mapping:
       resource: ${PRODUCT_SEARCH_MAPPING_RESOURCE:classpath:opensearch/products-index.json}
+    reconciliation:
+      enabled: ${PRODUCT_SEARCH_RECONCILIATION_ENABLED:true}
+      poll-interval-millis: ${PRODUCT_SEARCH_RECONCILIATION_POLL_INTERVAL_MILLIS:30000}
+      retry-delay-millis: ${PRODUCT_SEARCH_RECONCILIATION_RETRY_DELAY_MILLIS:60000}
+      lease-millis: ${PRODUCT_SEARCH_RECONCILIATION_LEASE_MILLIS:60000}
     worker:
       enabled: ${PRODUCT_SEARCH_WORKER_ENABLED:true}
       poll-interval-millis: ${PRODUCT_SEARCH_WORKER_POLL_INTERVAL_MILLIS:2000}

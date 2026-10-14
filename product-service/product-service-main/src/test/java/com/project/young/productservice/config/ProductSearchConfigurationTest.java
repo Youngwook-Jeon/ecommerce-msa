@@ -15,6 +15,10 @@ import com.project.young.productservice.dataaccess.search.OpenSearchProductQuery
 import com.project.young.productservice.dataaccess.search.OpenSearchProductSearchAdapter;
 import com.project.young.productservice.dataaccess.search.ProductSearchIndexBatchReader;
 import org.junit.jupiter.api.Test;
+import com.project.young.productservice.application.port.output.ProductSearchIndexReconciliationPort;
+import com.project.young.productservice.application.service.ProductSearchIndexActivationReconciler;
+import com.project.young.productservice.dataaccess.config.ProductSearchIndexReconciliationConfiguration;
+import com.project.young.productservice.dataaccess.search.ProductSearchIndexReconciliationScheduler;
 import com.project.young.productservice.application.port.output.ProductSearchIndexActivationWorkPort;
 import com.project.young.productservice.application.port.output.ProductSearchIndexAliasPort;
 import com.project.young.productservice.application.service.ProductSearchIndexActivationExecutor;
@@ -106,16 +110,19 @@ class ProductSearchConfigurationTest {
     @Test
     void enabledWorkers_registerSeparateExecutorsAndHeartbeats() {
         new ApplicationContextRunner().withUserConfiguration(OpenSearchProductConfiguration.class,
-                        ProductSearchIndexBuildConfiguration.class, ProductSearchIndexActivationConfiguration.class)
+                        ProductSearchIndexBuildConfiguration.class, ProductSearchIndexActivationConfiguration.class, ProductSearchIndexReconciliationConfiguration.class)
                 .withBean(ObjectMapper.class, ObjectMapper::new)
                 .withBean(ProductSearchIndexBatchReader.class, () -> mock(ProductSearchIndexBatchReader.class))
                 .withBean(ProductSearchIndexVerificationReader.class, () -> mock(ProductSearchIndexVerificationReader.class))
                 .withBean(ProductSearchIndexBuildWorkPort.class, () -> mock(ProductSearchIndexBuildWorkPort.class))
                 .withBean(ProductSearchIndexActivationWorkPort.class, () -> mock(ProductSearchIndexActivationWorkPort.class))
+                .withBean(ProductSearchIndexReconciliationPort.class, () -> mock(ProductSearchIndexReconciliationPort.class))
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(ProductSearchIndexActivationExecutor.class);
                     assertThat(context).hasSingleBean(ProductSearchIndexBuildExecutor.class);
+                    assertThat(context).hasSingleBean(ProductSearchIndexActivationReconciler.class);
+                    assertThat(context).hasSingleBean(ProductSearchIndexReconciliationScheduler.class);
                 });
     }
 
@@ -126,5 +133,18 @@ class ProductSearchConfigurationTest {
             assertThatThrownBy(() -> context.getBean(ProductSearchIndexAliasPort.class).readAlias("products-read"))
                     .isInstanceOf(com.project.young.productservice.application.exception.ProductSearchIndexManagementException.class);
         });
+    }
+
+    @Test
+    void disabledAutomaticReconciliation_keepsManualRecheckAvailable() {
+        runner.withUserConfiguration(ProductSearchIndexReconciliationConfiguration.class)
+                .withPropertyValues("product-service.search.reconciliation.enabled=false")
+                .withBean(ProductSearchIndexActivationWorkPort.class, () -> mock(ProductSearchIndexActivationWorkPort.class))
+                .withBean(ProductSearchIndexReconciliationPort.class, () -> mock(ProductSearchIndexReconciliationPort.class))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(ProductSearchIndexActivationReconciler.class);
+                    assertThat(context).doesNotHaveBean(ProductSearchIndexReconciliationScheduler.class);
+                });
     }
 }

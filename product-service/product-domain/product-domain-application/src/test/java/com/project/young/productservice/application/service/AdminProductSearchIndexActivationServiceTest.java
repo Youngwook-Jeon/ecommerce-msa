@@ -1,5 +1,6 @@
 package com.project.young.productservice.application.service;
 
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexAliasState;
 import com.project.young.productservice.application.dto.command.RegisterProductSearchIndexActivationCommand;
 import com.project.young.productservice.application.exception.ProductSearchIndexManagementException;
 import com.project.young.productservice.application.port.output.ProductSearchIndexActivationMetadataPort;
@@ -36,7 +37,7 @@ class AdminProductSearchIndexActivationServiceTest {
     void prepare() {
         when(metadata.findRequest("admin", "activate-1")).thenReturn(Optional.empty());
         when(metadata.context(target.id())).thenReturn(new ProductSearchIndexActivationMetadataPort.Context(target, null, "products-read"));
-        when(aliases.readAlias("products-read")).thenReturn(new ProductSearchIndexAliasPort.AliasState(Set.of(), true));
+        when(aliases.readAlias("products-read")).thenReturn(new ProductSearchIndexAliasState(Set.of(), true));
     }
 
     @Test
@@ -70,14 +71,14 @@ class AdminProductSearchIndexActivationServiceTest {
 
     @Test
     void register_aliasDiffersFromDatabase_rejectsUnknownState() {
-        when(aliases.readAlias("products-read")).thenReturn(new ProductSearchIndexAliasPort.AliasState(Set.of("unknown-index"), true));
+        when(aliases.readAlias("products-read")).thenReturn(new ProductSearchIndexAliasState(Set.of("unknown-index"), true));
         assertCode(() -> service.register(command), "INDEX_STATE_UNCONFIRMED");
         verify(metadata, never()).register(any());
     }
 
     @Test
     void register_filteredAlias_rejectsUnknownState() {
-        when(aliases.readAlias("products-read")).thenReturn(new ProductSearchIndexAliasPort.AliasState(Set.of(), false));
+        when(aliases.readAlias("products-read")).thenReturn(new ProductSearchIndexAliasState(Set.of(), false));
         assertCode(() -> service.register(command), "INDEX_STATE_UNCONFIRMED");
     }
 

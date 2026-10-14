@@ -90,7 +90,8 @@ class ProductSearchIndexMetadataRepositoryTest {
                 WHERE contype = 'c' AND conrelid IN (
                     'product_search_index_versions'::regclass,
                     'product_search_index_build_jobs'::regclass,
-                    'product_search_index_activation_jobs'::regclass)
+                    'product_search_index_activation_jobs'::regclass,
+                    'product_search_index_reconciliation_attempts'::regclass)
                 """, Long.class);
         assertThat(checks).isZero();
     }
@@ -144,6 +145,21 @@ class ProductSearchIndexMetadataRepositoryTest {
         versions.saveAndFlush(mapper.toEntity(first, 0));
         assertThatThrownBy(() -> versions.saveAndFlush(mapper.toEntity(second, 0)))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void reconciliation_withoutExplicitId_generatesUuidV7() {
+        var version = registered(1);
+        versions.saveAndFlush(mapper.toEntity(version, 0));
+        var job = activation(version, "activate-1");
+        activations.saveAndFlush(mapper.toEntity(job, 0));
+        UUID id = jdbcTemplate.queryForObject("""
+                INSERT INTO product_search_index_reconciliation_attempts
+                    (job_id, status, created_at, lease_until)
+                VALUES (?, 'RUNNING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + interval '60 seconds')
+                RETURNING id
+                """, UUID.class, job.id());
+        assertThat(id.version()).isEqualTo(7);
     }
 
     @Test
