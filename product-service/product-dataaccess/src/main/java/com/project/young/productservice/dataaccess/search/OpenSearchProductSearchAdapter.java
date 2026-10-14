@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class OpenSearchProductSearchAdapter implements ProductSearchPort {
@@ -27,12 +28,14 @@ public class OpenSearchProductSearchAdapter implements ProductSearchPort {
     private final OpenSearchClient client;
     private final OpenSearchProductQueryBuilder queryBuilder;
     private final OpenSearchProductProperties properties;
+    private final ProductSearchCategoryNameReader categoryNames;
 
     public OpenSearchProductSearchAdapter(OpenSearchClient client, OpenSearchProductQueryBuilder queryBuilder,
-                                         OpenSearchProductProperties properties) {
+                                         OpenSearchProductProperties properties, ProductSearchCategoryNameReader categoryNames) {
         this.client = client;
         this.queryBuilder = queryBuilder;
         this.properties = properties;
+        this.categoryNames = categoryNames;
     }
 
     @Override
@@ -81,7 +84,11 @@ public class OpenSearchProductSearchAdapter implements ProductSearchPort {
             if (total == null || total.relation() != TotalHitsRelation.Eq) {
                 throw new IllegalStateException("Search total is not exact");
             }
-            var content = first.hits().hits().stream().map(hit -> toProduct(hit.source())).toList();
+            var documents = first.hits().hits().stream().map(hit -> hit.source()).toList();
+            documents.forEach(OpenSearchProductSearchAdapter::validateDocument);
+            var ids = documents.stream().map(OpenSearchProductDocument::categoryId).collect(Collectors.toSet());
+            var names = ids.isEmpty() ? Map.<Long, String>of() : categoryNames.read(ids);
+            var content = documents.stream().map(document -> toProduct(document, names)).toList();
             var priceAggregate = first.aggregations().get("price");
             if (priceAggregate == null || !priceAggregate.isStats()) {
                 throw new IllegalStateException("Missing price statistics");
@@ -127,12 +134,19 @@ public class OpenSearchProductSearchAdapter implements ProductSearchPort {
         }
     }
 
-    private static ProductSearchResult.Product toProduct(OpenSearchProductDocument document) {
-        if (document == null || document.categoryId() <= 0 || document.categoryName() == null
+    private static void validateDocument(OpenSearchProductDocument document) {
+        if (document == null || document.categoryId() <= 0
                 || document.name() == null || document.basePrice() == null || document.basePrice().signum() < 0) {
             throw new IllegalStateException("Invalid product search document");
         }
+    }
+
+    private static ProductSearchResult.Product toProduct(OpenSearchProductDocument document, Map<Long, String> names) {
+        String categoryName = names.get(document.categoryId());
+        if (categoryName == null || categoryName.isBlank()) {
+            throw new IllegalStateException("Category name is missing for a search result");
+        }
         return new ProductSearchResult.Product(UUID.fromString(document.id()), document.categoryId(),
-                document.categoryName(), document.name(), document.brand(), document.mainImageUrl(), document.basePrice());
+                categoryName, document.name(), document.brand(), document.mainImageUrl(), document.basePrice());
     }
 }

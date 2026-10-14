@@ -43,7 +43,7 @@ class OpenSearchProductIndexBuildExecutionAdapterTest {
     private final List<CountRequest> counts = new ArrayList<>();
     private final BigDecimal price = new BigDecimal("10.00");
     private final OpenSearchProductDocument sample = new OpenSearchProductDocument(
-            UUID.randomUUID().toString(), 12, "Category", "Sample", null, null, null, null, null,
+            UUID.randomUUID().toString(), 12, "Sample", null, null, null, null, null,
             price, "ACTIVE", "ACTIVE", "2026-10-14T00:00:00Z");
     private final Work work = new Work(null, ProductSearchIndexVersion.register(UUID.randomUUID(), 1, 1,
             "0".repeat(64), "admin", Instant.now()), null);
@@ -84,7 +84,7 @@ class OpenSearchProductIndexBuildExecutionAdapterTest {
         adapter = new OpenSearchProductIndexBuildExecutionAdapter(client, new ObjectMapper(),
                 mock(ProductSearchInitialLoader.class), reader, new CrossFieldsProductQueryBuilder(),
                 new OpenSearchProductProperties(URI.create("http://localhost:9200"), "products-read", 1000, 5000, 3, 10000),
-                new ProductSearchIndexMappingProperties(new ClassPathResource("opensearch/products-index.json")));
+                new ProductSearchIndexMappingProperties(new ClassPathResource("opensearch/products-index.json")), mock(ProductSearchCategoryNameReader.class));
     }
 
     @Test

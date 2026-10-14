@@ -16,6 +16,8 @@
 
 `product-service.search.mapping.resource` 설정(환경 변수 `PRODUCT_SEARCH_MAPPING_RESOURCE`, 기본값 `classpath:opensearch/products-index.json`)으로 매핑 JSON 위치를 지정한다. 등록 시 해시 계산과 실행기의 인덱스 생성은 같은 설정을 사용한다. `classpath:` 또는 `file:` 리소스를 사용할 수 있다. 등록 이후 파일 내용이나 설정이 달라져 해시가 일치하지 않으면 실행기는 인덱스를 생성하지 않고 작업을 실패 처리한다.
 
+현재 mappingVersion은 1이며 검색 문서에서 categoryName을 제거하고 공개 검색 응답에서 PostgreSQL의 현재 이름을 일괄 조회한다. categoryStatus는 공개 검색 필터용으로 유지한다. 등록·생성·활성화의 버전 검사는 ProductSearchIndexMappingProperties.CURRENT_VERSION을 공유한다.
+
 mappingVersion은 저장소에서 관리하는 매핑 정의의 버전이며 mappingHash는 사용한 매핑 JSON 파일 바이트의 SHA-256 소문자 hex(64자)다. 같은 매핑으로 여러 물리 인덱스를 만들 수 있다. requestedBy는 JWT의 sub이며 요청 body에서 받지 않는다. 기존 인증 converter의 principal name은 preferred_username이므로 Authentication.getName() 대신 JWT subject를 직접 사용한다.
 
 | 상태 | 의미 | 다음 상태 |

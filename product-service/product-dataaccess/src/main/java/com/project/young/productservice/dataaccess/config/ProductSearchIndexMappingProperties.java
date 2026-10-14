@@ -8,6 +8,8 @@ import org.springframework.core.io.Resource;
 public record ProductSearchIndexMappingProperties(
         @DefaultValue("classpath:opensearch/products-index.json") Resource resource
 ) {
+    public static final int CURRENT_VERSION = 1;
+
     public ProductSearchIndexMappingProperties {
         if (resource == null) {
             throw new IllegalArgumentException("Index mapping resource must be configured");

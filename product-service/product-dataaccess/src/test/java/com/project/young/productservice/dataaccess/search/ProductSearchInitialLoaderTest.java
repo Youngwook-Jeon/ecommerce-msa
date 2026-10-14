@@ -65,7 +65,7 @@ class ProductSearchInitialLoaderTest {
     }
 
     static OpenSearchProductDocument document() {
-        return new OpenSearchProductDocument(UUID.randomUUID().toString(), 12, "이어폰", "이어폰", "Example",
+        return new OpenSearchProductDocument(UUID.randomUUID().toString(), 12, "이어폰", "Example",
                 "example", "Example", "방수", null, new BigDecimal("10.00"), "ACTIVE", "ACTIVE", "2026-10-11T00:00:00Z");
     }
 }

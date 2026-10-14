@@ -39,7 +39,7 @@ import static com.project.young.productservice.application.exception.ProductSear
 @Component
 public class ProductSearchIndexMetadataAdapter implements ProductSearchIndexMetadataPort {
     // Build and activation registration use the same transaction lock before checking management state.
-    private static final int MAPPING_VERSION = 1;
+    private static final int MAPPING_VERSION = ProductSearchIndexMappingProperties.CURRENT_VERSION;
     private final ProductSearchIndexVersionJpaRepository versions;
     private final ProductSearchIndexBuildJobJpaRepository jobs;
     private final ProductSearchIndexMetadataMapper mapper;

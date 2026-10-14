@@ -19,6 +19,7 @@ import com.project.young.productservice.application.service.ProductSearchIndexAc
 import com.project.young.productservice.dataaccess.adapter.ProductSearchIndexActivationAdapter;
 import com.project.young.productservice.dataaccess.adapter.ProductSearchIndexMetadataAdapter;
 import com.project.young.productservice.dataaccess.config.ProductDataAccessConfig;
+import com.project.young.productservice.dataaccess.search.ProductSearchCategoryNameReader;
 import com.project.young.productservice.dataaccess.config.OpenSearchProductProperties;
 import com.project.young.productservice.dataaccess.config.ProductSearchIndexMappingProperties;
 import com.project.young.productservice.dataaccess.mapper.ProductSearchIndexMetadataMapper;
@@ -115,6 +116,8 @@ class ProductSearchIndexActivationIntegrationTest {
     private PlatformTransactionManager transactions;
     @Autowired
     private ProductSearchIndexMappingProperties mapping;
+    @Autowired
+    private ProductSearchCategoryNameReader categoryNames;
     @Autowired
     private ProductSearchIndexReconciliationPort reconciliation;
     @Autowired
@@ -423,7 +426,7 @@ class ProductSearchIndexActivationIntegrationTest {
              var heartbeat = Executors.newSingleThreadScheduledExecutor()) {
             var client = new OpenSearchClient(transport);
             var creator = new OpenSearchProductIndexBuildExecutionAdapter(client, new ObjectMapper(), null, null,
-                    new CrossFieldsProductQueryBuilder(), new OpenSearchProductProperties(endpoint, ALIAS, 1000, 5000, 3, 10000), mapping);
+                    new CrossFieldsProductQueryBuilder(), new OpenSearchProductProperties(endpoint, ALIAS, 1000, 5000, 3, 10000), mapping, categoryNames);
             var aliases = new OpenSearchProductIndexAliasAdapter(client, mapping);
             var actualService = new AdminProductSearchIndexActivationService(metadata, aliases);
             var worker = new ProductSearchIndexActivationExecutor(store, aliases, heartbeat, Duration.ofSeconds(60), Duration.ofSeconds(10));
@@ -475,7 +478,7 @@ class ProductSearchIndexActivationIntegrationTest {
             hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.readAllBytes()));
         }
         Instant now = Instant.now();
-        var version = ProductSearchIndexVersion.register(UUID.randomUUID(), number, 1, hash, "admin", now).beginBuild(now).markReady(now);
+        var version = ProductSearchIndexVersion.register(UUID.randomUUID(), number, ProductSearchIndexMappingProperties.CURRENT_VERSION, hash, "admin", now).beginBuild(now).markReady(now);
         var entity = mapper.toEntity(version, 0);
         entity.setIndexName("product-activation-test-" + UUID.randomUUID());
         return mapper.toDomain(versions.saveAndFlush(entity));
@@ -491,7 +494,7 @@ class ProductSearchIndexActivationIntegrationTest {
     }
 
     @Configuration
-    @Import({ProductDataAccessConfig.class, ProductSearchIndexActivationAdapter.class, ProductSearchIndexMetadataAdapter.class,
+    @Import({ProductDataAccessConfig.class, ProductSearchCategoryNameReader.class, ProductSearchIndexActivationAdapter.class, ProductSearchIndexMetadataAdapter.class,
             ProductSearchIndexMetadataMapper.class, AdminProductSearchIndexActivationService.class,
             ProductSearchIndexReconciliationAdapter.class, ProductSearchIndexReconciliationMapper.class, ProductSearchIndexReconciliationConfiguration.class})
     static class Config {

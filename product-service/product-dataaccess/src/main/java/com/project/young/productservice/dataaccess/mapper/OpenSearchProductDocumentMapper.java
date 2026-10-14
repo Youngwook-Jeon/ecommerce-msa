@@ -18,7 +18,6 @@ public class OpenSearchProductDocumentMapper {
         var category = product.getCategory();
         require(category != null, "product.category is required");
         require(category.getId() != null && category.getId() > 0, "category.id must be positive");
-        require(category.getName() != null && !category.getName().isBlank(), "category.name is required");
         require(product.getName() != null && !product.getName().isBlank(), "product.name is required");
         require(product.getStatus() != null, "product.status is required");
         require(category.getStatus() != null, "category.status is required");
@@ -37,7 +36,7 @@ public class OpenSearchProductDocumentMapper {
                 "product.brand label exceeds 100 code points");
         require(brandKey == null || brandKey.codePointCount(0, brandKey.length()) <= 100,
                 "product.brand key exceeds 100 code points");
-        return new OpenSearchProductDocument(product.getId().toString(), category.getId(), category.getName(),
+        return new OpenSearchProductDocument(product.getId().toString(), category.getId(),
                 product.getName(), brandLabel, brandKey, brandLabel, product.getDescription(), product.getMainImageUrl(),
                 price, product.getStatus().name(), category.getStatus().name(), product.getCreatedAt().toString());
     }

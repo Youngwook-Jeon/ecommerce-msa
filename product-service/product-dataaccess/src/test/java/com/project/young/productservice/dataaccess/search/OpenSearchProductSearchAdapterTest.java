@@ -18,6 +18,9 @@ import org.opensearch.client.opensearch.core.search.TotalHitsRelation;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.Map;
+import java.util.Set;
+import org.opensearch.client.opensearch.core.search.Hit;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,6 +36,7 @@ class OpenSearchProductSearchAdapterTest {
 
     private OpenSearchClient client;
     private OpenSearchProductSearchAdapter adapter;
+    private final ProductSearchCategoryNameReader categoryNames = mock(ProductSearchCategoryNameReader.class);
 
     @BeforeEach
     void setUp() throws Exception {
@@ -40,7 +44,46 @@ class OpenSearchProductSearchAdapterTest {
         when(client.createPit(any(CreatePitRequest.class))).thenReturn(CreatePitResponse.of(p -> p
                 .pitId("test-pit").creationTime(1L).shards(s -> s.total(2).successful(2).failed(0))));
         adapter = new OpenSearchProductSearchAdapter(client, new CrossFieldsProductQueryBuilder(),
-                new OpenSearchProductProperties(URI.create("http://localhost:9200"), "products-read", 1000, 5000, 3, 10000));
+                new OpenSearchProductProperties(URI.create("http://localhost:9200"), "products-read", 1000, 5000, 3, 10000), categoryNames);
+    }
+
+    @Test
+    void search_batchLoadsDistinctCategoryNamesAndPreservesHitOrder() throws Exception {
+        var first = document(12);
+        var second = document(34);
+        var third = document(12);
+        var response = priceResponse(3);
+        when(response.hits().hits()).thenReturn(List.of(
+                Hit.of(h -> h.index("products-v1").id(first.id()).source(first)),
+                Hit.of(h -> h.index("products-v1").id(second.id()).source(second)),
+                Hit.of(h -> h.index("products-v1").id(third.id()).source(third))));
+        when(response.aggregations().get("price").stats().min()).thenReturn(10.0);
+        when(response.aggregations().get("price").stats().max()).thenReturn(10.0);
+        when(client.search(any(SearchRequest.class), eq(OpenSearchProductDocument.class))).thenReturn(response);
+        when(categoryNames.read(Set.of(12L, 34L))).thenReturn(Map.of(12L, "현재 이름", 34L, "다른 카테고리"));
+        var result = adapter.search(criteria());
+        assertThat(result.content()).extracting(p -> p.id().toString()).containsExactly(first.id(), second.id(), third.id());
+        assertThat(result.content()).extracting(p -> p.categoryName()).containsExactly("현재 이름", "다른 카테고리", "현재 이름");
+        verify(categoryNames).read(Set.of(12L, 34L));
+    }
+
+    @Test
+    void search_missingCategoryName_failsInsteadOfReturningIncompleteResult() throws Exception {
+        var document = document(12);
+        var response = priceResponse(1);
+        when(response.hits().hits()).thenReturn(List.of(Hit.of(h -> h.index("products-v1").source(document))));
+        when(client.search(any(SearchRequest.class), eq(OpenSearchProductDocument.class))).thenReturn(response);
+        when(categoryNames.read(Set.of(12L))).thenReturn(Map.of());
+        assertThatThrownBy(() -> adapter.search(criteria())).isInstanceOf(ProductSearchUnavailableException.class)
+                .hasRootCauseMessage("Category name is missing for a search result");
+        verify(client).deletePit(any(DeletePitRequest.class));
+    }
+
+    private static OpenSearchProductDocument document(long categoryId) {
+        var original = ProductSearchInitialLoaderTest.document();
+        return new OpenSearchProductDocument(original.id(), categoryId, original.name(), original.brand(), original.brandKey(),
+                original.brandLabel(), original.description(), original.mainImageUrl(), original.basePrice(),
+                original.productStatus(), original.categoryStatus(), original.createdAt());
     }
 
     @Test
@@ -107,6 +150,7 @@ class OpenSearchProductSearchAdapterTest {
         var result = adapter.search(criteria());
         assertThat(result.minPrice()).isNull();
         assertThat(result.maxPrice()).isNull();
+        org.mockito.Mockito.verifyNoInteractions(categoryNames);
         verify(client).deletePit(any(DeletePitRequest.class));
     }
 

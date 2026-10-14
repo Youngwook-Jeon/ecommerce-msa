@@ -1,6 +1,7 @@
 package com.project.young.productservice.dataaccess.repository;
 
 import com.project.young.productservice.dataaccess.config.ProductDataAccessConfig;
+import com.project.young.productservice.dataaccess.search.ProductSearchCategoryNameReader;
 import com.project.young.productservice.dataaccess.config.ProductSearchIndexMappingProperties;
 import com.project.young.productservice.dataaccess.mapper.ProductSearchIndexMetadataMapper;
 import com.project.young.productservice.application.searchindex.model.ProductSearchIndexBuildJob;
@@ -98,10 +99,24 @@ class ProductSearchIndexRegistrationIntegrationTest {
     private ProductSearchIndexVerificationReader verificationReader;
     @Autowired
     private ProductSearchIndexMappingProperties mappingProperties;
+    @Autowired
+    private ProductSearchCategoryNameReader categoryNames;
 
     @BeforeEach
     void resetMetadata() {
         jdbcTemplate.execute("TRUNCATE product_search_index_build_jobs, product_search_index_versions CASCADE");
+    }
+
+    @Test
+    void categoryNames_areReadFromLatestPostgresState() {
+        Long id = jdbcTemplate.queryForObject("SELECT id FROM categories ORDER BY id LIMIT 1", Long.class);
+        String previous = jdbcTemplate.queryForObject("SELECT name FROM categories WHERE id = ?", String.class, id);
+        try {
+            jdbcTemplate.update("UPDATE categories SET name = ? WHERE id = ?", "검색 응답용 최신 이름", id);
+            assertThat(categoryNames.read(java.util.Set.of(id))).containsEntry(id, "검색 응답용 최신 이름");
+        } finally {
+            jdbcTemplate.update("UPDATE categories SET name = ? WHERE id = ?", previous, id);
+        }
     }
 
     @Test
@@ -227,7 +242,7 @@ class ProductSearchIndexRegistrationIntegrationTest {
             var client = new OpenSearchClient(transport);
             var loader = new ProductSearchInitialLoader(batchReader, new OpenSearchProductBulkWriter(client));
             var execution = new OpenSearchProductIndexBuildExecutionAdapter(client, new ObjectMapper(), loader, verificationReader,
-                    new CrossFieldsProductQueryBuilder(), new OpenSearchProductProperties(endpoint, index, 1000, 5000, 3, 10000), mappingProperties);
+                    new CrossFieldsProductQueryBuilder(), new OpenSearchProductProperties(endpoint, index, 1000, 5000, 3, 10000), mappingProperties, categoryNames);
             try {
                 new ProductSearchIndexBuildExecutor(workStore, execution, heartbeat, Duration.ofSeconds(60), Duration.ofSeconds(10)).runOnce();
                 var completed = service.getJob(registered.id());
@@ -292,7 +307,7 @@ class ProductSearchIndexRegistrationIntegrationTest {
     }
 
     @Configuration
-    @Import({ProductDataAccessConfig.class, ProductSearchIndexMetadataAdapter.class,
+    @Import({ProductDataAccessConfig.class, ProductSearchCategoryNameReader.class, ProductSearchIndexMetadataAdapter.class,
             ProductSearchIndexMetadataMapper.class, AdminProductSearchIndexService.class, ProductSearchIndexBuildWorkAdapter.class,
             ProductSearchIndexBatchReader.class, ProductSearchIndexVerificationReader.class, OpenSearchProductDocumentMapper.class})
     static class Config {

@@ -34,7 +34,6 @@ class OpenSearchProductDocumentMapperTest {
         var document = mapper.toDocument(product);
         assertThat(document.id()).isEqualTo(product.getId().toString());
         assertThat(document.categoryId()).isEqualTo(12);
-        assertThat(document.categoryName()).isEqualTo("이어폰");
         assertThat(document.name()).isEqualTo("상품 이름");
         assertThat(document.description()).isEqualTo(" 긴 설명\n줄바꿈 유지 ");
         assertThat(document.mainImageUrl()).isNull();
@@ -50,6 +49,15 @@ class OpenSearchProductDocumentMapperTest {
         assertThat(updated.id()).isEqualTo(document.id());
         assertThat(updated.mainImageUrl()).isEqualTo(product.getMainImageUrl());
         assertThat(updated.description()).isNull();
+    }
+
+    @Test
+    void categoryNameChanges_doNotChangeIndexedDocument() {
+        var product = product();
+        var before = mapper.toDocument(product);
+        product.getCategory().setName(null);
+        assertThat(mapper.toDocument(product)).isEqualTo(before);
+        assertThat(new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(before).has("categoryName")).isFalse();
     }
 
     @Test
@@ -126,8 +134,6 @@ class OpenSearchProductDocumentMapperTest {
                 p -> p.setCategory(null),
                 p -> p.getCategory().setId(null),
                 p -> p.getCategory().setId(0L),
-                p -> p.getCategory().setName(null),
-                p -> p.getCategory().setName(" "),
                 p -> p.setName(null),
                 p -> p.setName(" "),
                 p -> p.setStatus(null),

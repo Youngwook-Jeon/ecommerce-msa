@@ -31,11 +31,12 @@ public class OpenSearchProductIndexBuildExecutionAdapter implements ProductSearc
     private final OpenSearchProductQueryBuilder queries;
     private final OpenSearchProductProperties properties;
     private final ProductSearchIndexMappingProperties mappingProperties;
+    private final ProductSearchCategoryNameReader categoryNames;
 
     public OpenSearchProductIndexBuildExecutionAdapter(OpenSearchClient client, ObjectMapper json,
                                                        ProductSearchInitialLoader loader, ProductSearchIndexVerificationReader reader,
                                                        OpenSearchProductQueryBuilder queries, OpenSearchProductProperties properties,
-                                                       ProductSearchIndexMappingProperties mappingProperties) {
+                                                       ProductSearchIndexMappingProperties mappingProperties, ProductSearchCategoryNameReader categoryNames) {
         this.client = client;
         this.json = json;
         this.loader = loader;
@@ -43,6 +44,7 @@ public class OpenSearchProductIndexBuildExecutionAdapter implements ProductSearc
         this.queries = queries;
         this.properties = properties;
         this.mappingProperties = mappingProperties;
+        this.categoryNames = categoryNames;
     }
 
     @Override
@@ -50,7 +52,7 @@ public class OpenSearchProductIndexBuildExecutionAdapter implements ProductSearc
         try (var input = mappingProperties.resource().getInputStream()) {
             byte[] bytes = input.readAllBytes();
             String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-            if (work.version().mappingVersion() != 1 || !hash.equals(work.version().mappingHash())) {
+            if (work.version().mappingVersion() != ProductSearchIndexMappingProperties.CURRENT_VERSION || !hash.equals(work.version().mappingHash())) {
                 throw new IllegalStateException("Registered index mapping no longer matches this worker");
             }
             var definition = json.readTree(bytes);
@@ -90,7 +92,7 @@ public class OpenSearchProductIndexBuildExecutionAdapter implements ProductSearc
             var targetProperties = new OpenSearchProductProperties(properties.endpoint(), index,
                     properties.connectTimeoutMillis(), properties.responseTimeoutMillis(),
                     properties.queryTimeoutSeconds(), properties.requestBudgetMillis());
-            var search = new OpenSearchProductSearchAdapter(client, queries, targetProperties);
+            var search = new OpenSearchProductSearchAdapter(client, queries, targetProperties, categoryNames);
             checkpoint.run();
             var browse = search.search(new ProductSearchCriteria(null, null, List.of(), null, null, PublicProductSort.NEWEST, 0, 1));
             if (browse.totalElements() != source.visibleCount() || !samePrice(browse.minPrice(), source.min())
@@ -102,7 +104,7 @@ public class OpenSearchProductIndexBuildExecutionAdapter implements ProductSearc
                 checkpoint.run();
                 var stored = client.get(g -> g.index(index).id(sample.id()), OpenSearchProductDocument.class).source();
                 if (stored == null || !sample.name().equals(stored.name()) || sample.categoryId() != stored.categoryId()
-                        || !sample.categoryName().equals(stored.categoryName()) || !samePrice(sample.basePrice(), stored.basePrice())
+                        || !samePrice(sample.basePrice(), stored.basePrice())
                         || !java.util.Objects.equals(sample.brandKey(), stored.brandKey())
                         || !java.util.Objects.equals(sample.description(), stored.description())) {
                     throw new IllegalStateException("Catalog sample document validation failed");

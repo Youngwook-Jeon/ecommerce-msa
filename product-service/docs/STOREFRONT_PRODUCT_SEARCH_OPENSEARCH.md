@@ -33,7 +33,7 @@ curl --fail -X PUT http://localhost:9200/products-v1/_alias/products-read
 
 인덱싱 단위는 상품이며 `_id`와 문서 `id`는 상품 UUID를 사용한다. 검색 문서는 `OpenSearchProductDocument`의 필드를 따른다.
 
-- 필수 데이터: id, categoryId, categoryName, name, basePrice, productStatus, categoryStatus, createdAt.
+- 필수 데이터: id, categoryId, name, basePrice, productStatus, categoryStatus, createdAt.
 - brand/mainImageUrl은 null 가능. description은 전문 검색에 사용한다.
 - brandLabel은 브랜드 표시 이름을 NFC/앞뒤 Unicode 공백 제거한 값이다. brandKey는 해당 값을 `Locale.ROOT` 소문자로 변환하고 다시 NFC 정규화한다. brand는 전문 검색과 상품 응답에 사용하는 표시 이름이다. 빈 브랜드는 세 필드를 null로 두거나 생략한다.
 - brandKey는 필터와 정확한 집계에 사용한다. 대소문자만 다른 브랜드는 같은 키로 합산하며, 동일 키의 표시 이름이 여러 개면 사전순 첫 brandLabel을 선택한다.
@@ -47,7 +47,7 @@ curl --fail -X PUT http://localhost:9200/products-v1/_alias/products-read
 
 `OpenSearchProductDocumentMapper.toDocument(ProductEntity)`는 저장된 상품과 해당 카테고리를 검색 문서로 변환한다. 초기 적재와 변경 동기화에서 같은 매퍼를 사용한다. 호출자는 카테고리를 함께 조회하거나 유효한 persistence context 안에서 매핑해야 한다. 매퍼는 repository를 호출하거나 옵션/variant/카테고리 상품 컬렉션을 순회하지 않는다.
 
-- 상품 ID, 양의 카테고리 ID, 비어 있지 않은 상품/카테고리 이름, 두 상태와 생성 시각은 필수다. 누락 시 `IllegalArgumentException`으로 실패하며 임의의 기본값을 만들지 않는다.
+- 상품 ID, 양의 카테고리 ID, 비어 있지 않은 상품 이름, 두 상태와 생성 시각은 필수다. 누락 시 `IllegalArgumentException`으로 실패하며 임의의 기본값을 만들지 않는다.
 - 가격은 0 이상이며 반올림 없이 소수점 두 자리로 표현해야 한다. `12.3400`은 `12.34`로 허용하고 `12.341`은 거부한다.
 - 브랜드의 표시 이름과 키는 application의 `ProductSearchBrandNormalizer`를 사용한다. 요청 필터도 동일한 키 함수를 사용한다. 브랜드 내부 공백은 유지하며 표시 이름과 최종 키가 각각 100 code points를 넘으면 거부한다.
 - 정규화한 표시 이름은 brand와 brandLabel에 동일하게 저장한다. 브랜드 없음/Unicode 공백만 있는 값은 brand/brandKey/brandLabel 모두 null이다.
@@ -76,6 +76,12 @@ curl --fail -X PUT http://localhost:9200/products-v1/_alias/products-read
 기본 구현 `CrossFieldsProductQueryBuilder`는 기존 cross_fields AND 검색과 상품명 구문 가중치를 유지한다. 다른 구현으로 교체하려면 `OpenSearchProductQueryBuilder` 타입의 Spring bean을 등록한다. 기본 bean은 해당 타입의 bean이 없을 때만 등록되며 어댑터는 주입받은 빌더를 사용한다.
 
 `includeProductsAndPrice`는 상품 페이지 번호가 아니라, 이번 OpenSearch 호출에서 상품 목록과 가격 집계를 함께 요청할지 나타낸다. 첫 호출만 true이며 이후 브랜드 집계 호출은 false다.
+
+## 카테고리 표시 이름
+
+현재 매핑 버전은 1이며 검색 문서에는 categoryName을 저장하지 않는다. 카테고리 참조는 categoryId로 유지하며 categoryStatus는 공개 검색 필터용으로 계속 저장한다. 응답의 categoryId/categoryName 계약은 유지한다. 상품 페이지의 서로 다른 카테고리 ID를 모아 PostgreSQL에서 id/name만 한 번에 조회한 뒤 OpenSearch hit 순서대로 응답에 이름을 붙인다. 빈 상품 페이지에서는 DB 조회를 생략한다. 이름 조회는 짧은 별도 read-only 트랜잭션이며 조회 실패나 이름 누락은 부분 응답 대신 503으로 처리한다.
+
+카테고리 이름 변경은 재색인 없이 다음 검색 응답에 반영된다. 이름은 PostgreSQL 조회 시점의 값이므로 OpenSearch PIT와 동일한 시점의 스냅샷은 아니다. 카테고리 상태 변경은 검색 문서 동기화가 여전히 필요하다. 이 매핑으로 초기 인덱스를 생성·적재·활성화한다.
 
 ## 검색과 정확한 facets
 

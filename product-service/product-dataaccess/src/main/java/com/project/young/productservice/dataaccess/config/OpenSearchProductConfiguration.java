@@ -10,6 +10,7 @@ import com.project.young.productservice.dataaccess.search.OpenSearchProductSearc
 import com.project.young.productservice.dataaccess.search.OpenSearchProductBulkWriter;
 import com.project.young.productservice.dataaccess.search.ProductSearchIndexBatchReader;
 import com.project.young.productservice.dataaccess.search.ProductSearchInitialLoader;
+import com.project.young.productservice.dataaccess.search.ProductSearchCategoryNameReader;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.util.Timeout;
 import org.opensearch.client.json.jackson.JacksonJsonpMapper;
@@ -67,7 +68,7 @@ public class OpenSearchProductConfiguration {
     @Bean
     ProductSearchPort openSearchProductSearchPort(OpenSearchClient productSearchClient,
                                                 OpenSearchProductQueryBuilder productSearchQueryBuilder,
-                                                OpenSearchProductProperties properties) {
-        return new OpenSearchProductSearchAdapter(productSearchClient, productSearchQueryBuilder, properties);
+                                                OpenSearchProductProperties properties, ProductSearchCategoryNameReader categoryNames) {
+        return new OpenSearchProductSearchAdapter(productSearchClient, productSearchQueryBuilder, properties, categoryNames);
     }
 }

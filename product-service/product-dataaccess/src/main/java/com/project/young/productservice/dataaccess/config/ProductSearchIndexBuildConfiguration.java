@@ -9,6 +9,7 @@ import com.project.young.productservice.dataaccess.search.OpenSearchProductQuery
 import com.project.young.productservice.dataaccess.search.ProductSearchIndexBuildScheduler;
 import com.project.young.productservice.dataaccess.search.ProductSearchIndexVerificationReader;
 import com.project.young.productservice.dataaccess.search.ProductSearchInitialLoader;
+import com.project.young.productservice.dataaccess.search.ProductSearchCategoryNameReader;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -39,8 +40,8 @@ public class ProductSearchIndexBuildConfiguration {
     ProductSearchIndexBuildExecutionPort productSearchIndexBuildExecution(OpenSearchClient client, ObjectMapper json,
                                                                           ProductSearchInitialLoader loader, ProductSearchIndexVerificationReader reader,
                                                                           OpenSearchProductQueryBuilder queries, OpenSearchProductProperties properties,
-                                                                          ProductSearchIndexMappingProperties mappingProperties) {
-        return new OpenSearchProductIndexBuildExecutionAdapter(client, json, loader, reader, queries, properties, mappingProperties);
+                                                                          ProductSearchIndexMappingProperties mappingProperties, ProductSearchCategoryNameReader categoryNames) {
+        return new OpenSearchProductIndexBuildExecutionAdapter(client, json, loader, reader, queries, properties, mappingProperties, categoryNames);
     }
 
     @Bean

@@ -114,7 +114,6 @@ class ProductSearchInitialLoadIntegrationTest {
         });
         assertThat(written).extracting(OpenSearchProductDocument::id).containsExactlyElementsOf(ids.stream().map(UUID::toString).toList());
         assertThat(written).allSatisfy(d -> {
-            assertThat(d.categoryName()).isEqualTo("이어폰");
             assertThat(d.categoryStatus()).isEqualTo("INACTIVE");
             assertThat(d.brandKey()).isEqualTo("example");
         });

@@ -17,7 +17,6 @@
     "properties": {
       "id": { "type": "keyword" },
       "categoryId": { "type": "long" },
-      "categoryName": { "type": "keyword" },
       "name": { "type": "text", "analyzer": "product_text" },
       "brand": { "type": "text", "analyzer": "product_text" },
       "brandKey": { "type": "keyword" },

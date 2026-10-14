@@ -23,6 +23,11 @@ import org.opensearch.client.transport.OpenSearchTransport;
 import org.opensearch.client.transport.httpclient5.ApacheHttpClient5TransportBuilder;
 
 import java.math.BigDecimal;
+import java.util.Map;
+import java.util.HashMap;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -46,16 +51,23 @@ class OpenSearchProductSearchIntegrationTest {
     private OpenSearchClient client;
     private OpenSearchProductSearchAdapter adapter;
 
+    private final ProductSearchCategoryNameReader categoryNames = mock(ProductSearchCategoryNameReader.class);
+    private final Map<Long, String> names = new HashMap<>();
+
     @BeforeEach
     void setUp() throws Exception {
 //        endpoint = URI.create("http://localhost:9200");
+        when(categoryNames.read(any())).thenAnswer(invocation -> {
+            java.util.Collection<Long> ids = invocation.getArgument(0);
+            return ids.stream().collect(java.util.stream.Collectors.toMap(id -> id, id -> names.getOrDefault(id, "이어폰")));
+        });
         endpoint = URI.create(System.getenv("OPENSEARCH_TEST_ENDPOINT"));
         index = "product-search-test-" + UUID.randomUUID();
         transport = ApacheHttpClient5TransportBuilder.builder(HttpHost.create(endpoint))
                 .setMapper(new JacksonJsonpMapper(new ObjectMapper())).build();
         client = new OpenSearchClient(transport);
         adapter = new OpenSearchProductSearchAdapter(client, new CrossFieldsProductQueryBuilder(),
-                new OpenSearchProductProperties(endpoint, index, 1000, 5000, 3, 10000));
+                new OpenSearchProductProperties(endpoint, index, 1000, 5000, 3, 10000), categoryNames);
         try (var resource = getClass().getResourceAsStream("/opensearch/products-index.json")) {
             assertThat(resource).isNotNull();
             var response = HttpClient.newHttpClient().send(HttpRequest.newBuilder(endpoint.resolve("/" + index))
@@ -104,10 +116,15 @@ class OpenSearchProductSearchIntegrationTest {
                 .basePrice(new BigDecimal("1.2000")).status(ProductStatusEntity.ACTIVE)
                 .createdAt(Instant.parse("2026-10-11T00:00:00.123Z")).build();
         index(List.of(new OpenSearchProductDocumentMapper().toDocument(entity)));
+        names.put(12L, "최신 카테고리");
         var result = search("방수", 12L, List.of(" 가 EXAMPLE "), "1.20", "1.20", "newest", 0, 24);
         assertThat(result.totalElements()).isEqualTo(1);
         assertThat(result.content().getFirst().id()).isEqualTo(entity.getId());
         assertThat(result.content().getFirst().categoryName()).isEqualTo("최신 카테고리");
+        names.put(12L, "이름 수정됨");
+        assertThat(search(null, null, List.of(), null, null, null, 0, 24).content().getFirst().categoryName()).isEqualTo("이름 수정됨");
+        var stored = client.get(g -> g.index(index).id(entity.getId().toString()), com.fasterxml.jackson.databind.JsonNode.class).source();
+        assertThat(stored.has("categoryName")).isFalse();
         assertThat(result.content().getFirst().brand()).isEqualTo("가 Example");
         assertThat(result.brands().getFirst().value()).isEqualTo("가 example");
         assertThat(result.brands().getFirst().label()).isEqualTo("가 Example");
@@ -196,7 +213,7 @@ class OpenSearchProductSearchIntegrationTest {
     void ranksNameMatchesAboveDescriptionMatchesAndSupportsExplicitSorts() throws Exception {
         var nameMatch = doc("방수 이어폰", "Example", "example", "", "100.00", 12, "ACTIVE", "ACTIVE");
         var descriptionMatch = doc("음향 기기", "Example", "example", "방수 이어폰", "50.00", 12, "ACTIVE", "ACTIVE");
-        nameMatch = new OpenSearchProductDocument(nameMatch.id(), nameMatch.categoryId(), nameMatch.categoryName(),
+        nameMatch = new OpenSearchProductDocument(nameMatch.id(), nameMatch.categoryId(),
                 nameMatch.name(), nameMatch.brand(), nameMatch.brandKey(), nameMatch.brandLabel(), nameMatch.description(),
                 nameMatch.mainImageUrl(), nameMatch.basePrice(), nameMatch.productStatus(), nameMatch.categoryStatus(),
                 "2026-10-09T00:00:00Z");
@@ -221,7 +238,7 @@ class OpenSearchProductSearchIntegrationTest {
     @Test
     void missingIndexIsUnavailableRatherThanAnEmptyResult() {
         var missing = new OpenSearchProductSearchAdapter(client, new CrossFieldsProductQueryBuilder(),
-                new OpenSearchProductProperties(endpoint, index + "-missing", 1000, 5000, 3, 10000));
+                new OpenSearchProductProperties(endpoint, index + "-missing", 1000, 5000, 3, 10000), categoryNames);
         var criteria = new ProductSearchQueryValidator().validate(
                 new ProductSearchQuery(null, null, List.of(), null, null, null, 0, 24));
         assertThatThrownBy(() -> missing.search(criteria)).isInstanceOf(ProductSearchUnavailableException.class);
@@ -242,7 +259,7 @@ class OpenSearchProductSearchIntegrationTest {
 
     private static OpenSearchProductDocument doc(String name, String brand, String key, String description,
                                                   String price, long categoryId, String status, String categoryStatus) {
-        return new OpenSearchProductDocument(UUID.randomUUID().toString(), categoryId, "이어폰", name, brand, key, brand,
+        return new OpenSearchProductDocument(UUID.randomUUID().toString(), categoryId, name, brand, key, brand,
                 description, null, new BigDecimal(price), status, categoryStatus, "2026-10-10T00:00:00Z");
     }
 }

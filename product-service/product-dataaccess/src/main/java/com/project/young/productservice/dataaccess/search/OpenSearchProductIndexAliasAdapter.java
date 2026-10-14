@@ -57,7 +57,7 @@ public class OpenSearchProductIndexAliasAdapter implements ProductSearchIndexAli
     public void verifyBeforeSwitch(Work work) {
         try (var input = mapping.resource().getInputStream()) {
             String hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.readAllBytes()));
-            if (work.version().mappingVersion() != 1 || !hash.equals(work.version().mappingHash())) {
+            if (work.version().mappingVersion() != ProductSearchIndexMappingProperties.CURRENT_VERSION || !hash.equals(work.version().mappingHash())) {
                 throw new IllegalStateException("Activation target mapping is incompatible with this application");
             }
             new OpenSearchProductBulkWriter(client).verifyTarget(work.version().indexName());

@@ -7,8 +7,17 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Collection;
 
 public interface CategoryJpaRepository extends JpaRepository<CategoryEntity, Long> {
+
+    interface CategoryNameView {
+        Long getId();
+        String getName();
+    }
+
+    @Query("SELECT c.id AS id, c.name AS name FROM CategoryEntity c WHERE c.id IN :ids")
+    List<CategoryNameView> findNamesByIdIn(@Param("ids") Collection<Long> ids);
 
     boolean existsByName(String name);
 
