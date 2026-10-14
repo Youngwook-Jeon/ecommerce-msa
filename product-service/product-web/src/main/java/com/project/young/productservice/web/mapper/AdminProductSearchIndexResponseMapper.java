@@ -1,6 +1,8 @@
 package com.project.young.productservice.web.mapper;
 
 import com.project.young.productservice.application.searchindex.model.ProductSearchIndexBuildJob;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexActivationJob;
+import com.project.young.productservice.web.dto.AdminProductSearchIndexActivationJobResponse;
 import com.project.young.productservice.application.searchindex.model.ProductSearchIndexVersion;
 import com.project.young.productservice.web.dto.AdminProductSearchIndexBuildJobResponse;
 import com.project.young.productservice.web.dto.AdminProductSearchIndexVersionResponse;
@@ -22,5 +24,12 @@ public class AdminProductSearchIndexResponseMapper {
                 new AdminProductSearchIndexBuildJobResponse.Progress(job.sourceProductCount(), job.indexedProducts(),
                         job.completedBatches()), job.requestedBy(), job.createdAt(), job.updatedAt(),
                 job.startedAt(), job.finishedAt(), failure);
+    }
+
+    public AdminProductSearchIndexActivationJobResponse toActivationResponse(ProductSearchIndexActivationJob job) {
+        var failure = job.failureCode() == null ? null : new AdminProductSearchIndexActivationJobResponse.Failure(job.failureCode(), job.failureMessage());
+        return new AdminProductSearchIndexActivationJobResponse(job.id(), job.indexVersionId(), job.expectedActiveVersionId(),
+                job.aliasName(), job.status(), job.requestedBy(), job.createdAt(), job.updatedAt(), job.startedAt(),
+                job.switchStartedAt(), job.finishedAt(), failure);
     }
 }

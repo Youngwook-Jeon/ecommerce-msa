@@ -38,7 +38,7 @@ import static com.project.young.productservice.application.exception.ProductSear
 @Slf4j
 @Component
 public class ProductSearchIndexMetadataAdapter implements ProductSearchIndexMetadataPort {
-    // Future activation registration must take the same transaction lock before checking build state.
+    // Build and activation registration use the same transaction lock before checking management state.
     private static final int MAPPING_VERSION = 1;
     private final ProductSearchIndexVersionJpaRepository versions;
     private final ProductSearchIndexBuildJobJpaRepository jobs;

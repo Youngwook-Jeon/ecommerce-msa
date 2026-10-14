@@ -37,23 +37,24 @@ public class ProductSearchIndexBuildConfiguration {
 
     @Bean
     ProductSearchIndexBuildExecutionPort productSearchIndexBuildExecution(OpenSearchClient client, ObjectMapper json,
-            ProductSearchInitialLoader loader, ProductSearchIndexVerificationReader reader,
-            OpenSearchProductQueryBuilder queries, OpenSearchProductProperties properties,
-            ProductSearchIndexMappingProperties mappingProperties) {
+                                                                          ProductSearchInitialLoader loader, ProductSearchIndexVerificationReader reader,
+                                                                          OpenSearchProductQueryBuilder queries, OpenSearchProductProperties properties,
+                                                                          ProductSearchIndexMappingProperties mappingProperties) {
         return new OpenSearchProductIndexBuildExecutionAdapter(client, json, loader, reader, queries, properties, mappingProperties);
     }
 
     @Bean
     ProductSearchIndexBuildExecutor productSearchIndexBuildExecutor(ProductSearchIndexBuildWorkPort store,
-            ProductSearchIndexBuildExecutionPort execution, ScheduledExecutorService productSearchBuildHeartbeat,
-            ProductSearchIndexWorkerProperties properties) {
+                                                                    ProductSearchIndexBuildExecutionPort execution,
+                                                                    @Qualifier("productSearchBuildHeartbeat") ScheduledExecutorService productSearchBuildHeartbeat,
+                                                                    ProductSearchIndexWorkerProperties properties) {
         return new ProductSearchIndexBuildExecutor(store, execution, productSearchBuildHeartbeat,
                 Duration.ofMillis(properties.leaseMillis()), Duration.ofMillis(properties.heartbeatIntervalMillis()));
     }
 
     @Bean
     ProductSearchIndexBuildScheduler productSearchIndexBuildScheduler(ProductSearchIndexBuildExecutor worker,
-                                                                     @Qualifier("productSearchBuildThreads") ExecutorService productSearchBuildThreads) {
+                                                                      @Qualifier("productSearchBuildThreads") ExecutorService productSearchBuildThreads) {
         return new ProductSearchIndexBuildScheduler(worker, productSearchBuildThreads);
     }
 }

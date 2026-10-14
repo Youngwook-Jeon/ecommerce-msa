@@ -5,6 +5,7 @@ import com.project.young.productservice.application.dto.result.ProductSearchInde
 import com.project.young.productservice.application.exception.ProductSearchIndexManagementException;
 import com.project.young.productservice.application.searchindex.model.ProductSearchIndexBuildJob;
 import com.project.young.productservice.application.service.AdminProductSearchIndexService;
+import com.project.young.productservice.application.service.AdminProductSearchIndexActivationService;
 import com.project.young.productservice.web.config.SecurityConfig;
 import com.project.young.productservice.web.mapper.AdminProductSearchIndexResponseMapper;
 import org.junit.jupiter.api.Test;
@@ -16,6 +17,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.CannotCreateTransactionException;
 
+import com.project.young.productservice.application.dto.command.RegisterProductSearchIndexActivationCommand;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexActivationJob;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -38,8 +41,76 @@ class AdminProductSearchIndexControllerTest {
     private MockMvc mvc;
     @MockitoBean
     private AdminProductSearchIndexService service;
+    @MockitoBean
+    private AdminProductSearchIndexActivationService activations;
 
     private static final String PREFIX = "/admin/product-search";
+
+    @Test
+    void activate_asAdmin_registersIntentAndReturnsJobLocation() throws Exception {
+        var job = ProductSearchIndexActivationJob.queue(UUID.randomUUID(), UUID.randomUUID(), null,
+                "products-read", "admin-sub", "activate-1", Instant.now());
+        when(activations.register(any())).thenReturn(job);
+        mvc.perform(post(PREFIX + "/index-versions/" + job.indexVersionId() + "/activate")
+                        .with(jwt().jwt(j -> j.subject("admin-sub").claim("preferred_username", "display-name"))
+                                .authorities(new SimpleGrantedAuthority("ADMIN")))
+                        .header("Idempotency-Key", "activate-1").contentType("application/json")
+                        .content("{\"expectedActiveVersionId\":null,\"catalogWritesPaused\":true}"))
+                .andExpect(status().isAccepted())
+                .andExpect(header().string("Location", PREFIX + "/index-activations/" + job.id()))
+                .andExpect(jsonPath("$.jobId").value(job.id().toString()))
+                .andExpect(jsonPath("$.status").value("QUEUED"));
+        verify(activations).register(new RegisterProductSearchIndexActivationCommand(job.indexVersionId(), null, "admin-sub", "activate-1", true));
+    }
+
+    @Test
+    void getActivation_asAdmin_returnsUnconfirmedStatusAndSafeFailure() throws Exception {
+        Instant now = Instant.now();
+        var job = ProductSearchIndexActivationJob.queue(UUID.randomUUID(), UUID.randomUUID(), null,
+                "products-read", "admin-sub", "activate-1", now).start(now).beginSwitch(now)
+                .markUnconfirmed("UNKNOWN", "결과 확인 필요", now);
+        when(activations.getJob(job.id())).thenReturn(job);
+        mvc.perform(get(PREFIX + "/index-activations/" + job.id()).with(jwt().authorities(new SimpleGrantedAuthority("ADMIN"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("UNCONFIRMED"))
+                .andExpect(jsonPath("$.failure.code").value("UNKNOWN"))
+                .andExpect(jsonPath("$.ownerToken").doesNotExist());
+    }
+
+    @Test
+    void activate_invalidBodyOrMissingHeader_rejectsBeforeService() throws Exception {
+        String path = PREFIX + "/index-versions/" + UUID.randomUUID() + "/activate";
+        mvc.perform(post(path).with(jwt().authorities(new SimpleGrantedAuthority("ADMIN")))
+                        .header("Idempotency-Key", "activate-1").contentType("application/json")
+                        .content("{\"catalogWritesPaused\":false}"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post(path).with(jwt().authorities(new SimpleGrantedAuthority("ADMIN")))
+                        .contentType("application/json").content("{\"catalogWritesPaused\":true}"))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(activations);
+    }
+
+    @Test
+    void activate_withoutAdminAuthority_rejectsAccess() throws Exception {
+        String path = PREFIX + "/index-versions/" + UUID.randomUUID() + "/activate";
+        mvc.perform(post(path).contentType("application/json").content("{\"catalogWritesPaused\":true}"))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(path).with(jwt().authorities(new SimpleGrantedAuthority("CUSTOMER")))
+                        .header("Idempotency-Key", "activate-1").contentType("application/json")
+                        .content("{\"catalogWritesPaused\":true}"))
+                .andExpect(status().isForbidden());
+        verifyNoInteractions(activations);
+    }
+
+    @Test
+    void activate_conflict_returnsSpecificErrorCode() throws Exception {
+        when(activations.register(any())).thenThrow(new ProductSearchIndexManagementException(
+                ProductSearchIndexManagementException.Code.ACTIVE_INDEX_CHANGED, "Active index version changed"));
+        mvc.perform(post(PREFIX + "/index-versions/" + UUID.randomUUID() + "/activate")
+                        .with(jwt().authorities(new SimpleGrantedAuthority("ADMIN")))
+                        .header("Idempotency-Key", "activate-1").contentType("application/json")
+                        .content("{\"catalogWritesPaused\":true}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("ACTIVE_INDEX_CHANGED"));
+    }
 
     @Test
     void register_asAdmin_usesJwtSubjectAndReturnsAcceptedLocation() throws Exception {

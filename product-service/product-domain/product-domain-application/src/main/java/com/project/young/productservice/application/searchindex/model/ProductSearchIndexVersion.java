@@ -89,6 +89,11 @@ public record ProductSearchIndexVersion(UUID id, long versionNumber, String inde
         return transition(ProductSearchIndexStatus.ACTIVATING, ProductSearchIndexStatus.ACTIVE, now, now);
     }
 
+    /** Only when the associated activation job failed before any alias-changing request. */
+    public ProductSearchIndexVersion cancelActivationBeforeSwitch(Instant now) {
+        return transition(ProductSearchIndexStatus.ACTIVATING, ProductSearchIndexStatus.READY, now, activatedAt);
+    }
+
     public ProductSearchIndexVersion deactivate(Instant now) {
         return transition(ProductSearchIndexStatus.ACTIVE, ProductSearchIndexStatus.INACTIVE, now, activatedAt);
     }

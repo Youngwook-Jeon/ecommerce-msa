@@ -2,6 +2,11 @@ package com.project.young.productservice.web.controller;
 
 import com.project.young.productservice.application.dto.command.RegisterProductSearchIndexBuildCommand;
 import com.project.young.productservice.application.service.AdminProductSearchIndexService;
+import com.project.young.productservice.application.service.AdminProductSearchIndexActivationService;
+import com.project.young.productservice.application.dto.command.RegisterProductSearchIndexActivationCommand;
+import com.project.young.productservice.web.dto.AdminProductSearchIndexActivationRequest;
+import com.project.young.productservice.web.dto.AdminProductSearchIndexActivationResponse;
+import com.project.young.productservice.web.dto.AdminProductSearchIndexActivationJobResponse;
 import com.project.young.productservice.web.dto.AdminProductSearchIndexBuildAcceptedResponse;
 import com.project.young.productservice.web.dto.AdminProductSearchIndexBuildJobResponse;
 import com.project.young.productservice.web.dto.AdminProductSearchIndexBuildRequest;
@@ -31,10 +36,13 @@ import java.util.UUID;
 public class AdminProductSearchIndexController {
     private final AdminProductSearchIndexService service;
     private final AdminProductSearchIndexResponseMapper mapper;
+    private final AdminProductSearchIndexActivationService activations;
 
-    public AdminProductSearchIndexController(AdminProductSearchIndexService service, AdminProductSearchIndexResponseMapper mapper) {
+    public AdminProductSearchIndexController(AdminProductSearchIndexService service, AdminProductSearchIndexResponseMapper mapper,
+                                             AdminProductSearchIndexActivationService activations) {
         this.service = service;
         this.mapper = mapper;
+        this.activations = activations;
     }
 
     @PostMapping("/index-builds")
@@ -48,6 +56,24 @@ public class AdminProductSearchIndexController {
                 request.batchSize(), Boolean.TRUE.equals(request.catalogWritesPaused())));
         return ResponseEntity.accepted().location(URI.create("/admin/product-search/index-builds/" + job.id()))
                 .body(new AdminProductSearchIndexBuildAcceptedResponse(job.id(), job.indexVersionId(), job.status()));
+    }
+
+    @PostMapping("/index-versions/{versionId}/activate")
+    public ResponseEntity<AdminProductSearchIndexActivationResponse> activate(@PathVariable UUID versionId,
+            @AuthenticationPrincipal Jwt jwt, @RequestHeader("Idempotency-Key") String key,
+            @Valid @RequestBody AdminProductSearchIndexActivationRequest request) {
+        if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
+            throw new AccessDeniedException("Authenticated administrator subject is required");
+        }
+        var job = activations.register(new RegisterProductSearchIndexActivationCommand(versionId, request.expectedActiveVersionId(),
+                jwt.getSubject(), key, Boolean.TRUE.equals(request.catalogWritesPaused())));
+        return ResponseEntity.accepted().location(URI.create("/admin/product-search/index-activations/" + job.id()))
+                .body(new AdminProductSearchIndexActivationResponse(job.id(), job.indexVersionId(), job.expectedActiveVersionId(), job.status()));
+    }
+
+    @GetMapping("/index-activations/{jobId}")
+    public AdminProductSearchIndexActivationJobResponse getActivation(@PathVariable UUID jobId) {
+        return mapper.toActivationResponse(activations.getJob(jobId));
     }
 
     @GetMapping("/index-builds/{jobId}")

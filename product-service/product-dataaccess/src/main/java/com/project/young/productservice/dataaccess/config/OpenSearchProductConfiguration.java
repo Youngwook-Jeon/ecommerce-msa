@@ -2,6 +2,8 @@ package com.project.young.productservice.dataaccess.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.productservice.application.port.output.ProductSearchPort;
+import com.project.young.productservice.application.port.output.ProductSearchIndexAliasPort;
+import com.project.young.productservice.dataaccess.search.OpenSearchProductIndexAliasAdapter;
 import com.project.young.productservice.dataaccess.search.CrossFieldsProductQueryBuilder;
 import com.project.young.productservice.dataaccess.search.OpenSearchProductQueryBuilder;
 import com.project.young.productservice.dataaccess.search.OpenSearchProductSearchAdapter;
@@ -22,16 +24,22 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "product-service.search", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties(OpenSearchProductProperties.class)
+@EnableConfigurationProperties({OpenSearchProductProperties.class, ProductSearchIndexMappingProperties.class})
 public class OpenSearchProductConfiguration {
 
     @Bean(destroyMethod = "close")
     OpenSearchTransport productSearchTransport(OpenSearchProductProperties properties, ObjectMapper objectMapper) {
         return ApacheHttpClient5TransportBuilder.builder(HttpHost.create(properties.endpoint()))
                 .setMapper(new JacksonJsonpMapper(objectMapper))
+                .setHttpClientConfigCallback(c -> c.disableAutomaticRetries())
                 .setConnectionConfigCallback(c -> c.setConnectTimeout(Timeout.ofMilliseconds(properties.connectTimeoutMillis())))
                 .setRequestConfigCallback(r -> r.setResponseTimeout(Timeout.ofMilliseconds(properties.responseTimeoutMillis())))
                 .build();
+    }
+
+    @Bean
+    ProductSearchIndexAliasPort productSearchIndexAliases(OpenSearchClient client, ProductSearchIndexMappingProperties mapping) {
+        return new OpenSearchProductIndexAliasAdapter(client, mapping);
     }
 
     @Bean

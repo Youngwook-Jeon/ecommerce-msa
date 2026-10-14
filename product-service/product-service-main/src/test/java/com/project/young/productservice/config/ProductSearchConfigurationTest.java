@@ -15,6 +15,10 @@ import com.project.young.productservice.dataaccess.search.OpenSearchProductQuery
 import com.project.young.productservice.dataaccess.search.OpenSearchProductSearchAdapter;
 import com.project.young.productservice.dataaccess.search.ProductSearchIndexBatchReader;
 import org.junit.jupiter.api.Test;
+import com.project.young.productservice.application.port.output.ProductSearchIndexActivationWorkPort;
+import com.project.young.productservice.application.port.output.ProductSearchIndexAliasPort;
+import com.project.young.productservice.application.service.ProductSearchIndexActivationExecutor;
+import com.project.young.productservice.dataaccess.config.ProductSearchIndexActivationConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -98,4 +102,29 @@ class ProductSearchConfigurationTest {
                 .run(context -> assertThat(context).doesNotHaveBean(ProductSearchIndexBuildExecutor.class));
     }
 
+
+    @Test
+    void enabledWorkers_registerSeparateExecutorsAndHeartbeats() {
+        new ApplicationContextRunner().withUserConfiguration(OpenSearchProductConfiguration.class,
+                        ProductSearchIndexBuildConfiguration.class, ProductSearchIndexActivationConfiguration.class)
+                .withBean(ObjectMapper.class, ObjectMapper::new)
+                .withBean(ProductSearchIndexBatchReader.class, () -> mock(ProductSearchIndexBatchReader.class))
+                .withBean(ProductSearchIndexVerificationReader.class, () -> mock(ProductSearchIndexVerificationReader.class))
+                .withBean(ProductSearchIndexBuildWorkPort.class, () -> mock(ProductSearchIndexBuildWorkPort.class))
+                .withBean(ProductSearchIndexActivationWorkPort.class, () -> mock(ProductSearchIndexActivationWorkPort.class))
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(ProductSearchIndexActivationExecutor.class);
+                    assertThat(context).hasSingleBean(ProductSearchIndexBuildExecutor.class);
+                });
+    }
+
+    @Test
+    void disabledSearch_aliasManagementReturnsExplicitUnavailable() {
+        runner.run(context -> {
+            assertThat(context).hasSingleBean(ProductSearchIndexAliasPort.class);
+            assertThatThrownBy(() -> context.getBean(ProductSearchIndexAliasPort.class).readAlias("products-read"))
+                    .isInstanceOf(com.project.young.productservice.application.exception.ProductSearchIndexManagementException.class);
+        });
+    }
 }

@@ -25,8 +25,9 @@ public class AdminProductSearchIndexExceptionHandler {
     public ResponseEntity<ErrorDTO> handleManagement(ProductSearchIndexManagementException exception) {
         HttpStatus status = switch (exception.code()) {
             case INVALID_INDEX_MANAGEMENT_REQUEST -> HttpStatus.BAD_REQUEST;
-            case INDEX_BUILD_NOT_FOUND -> HttpStatus.NOT_FOUND;
-            case INDEX_BUILD_IN_PROGRESS, IDEMPOTENCY_KEY_CONFLICT, INDEX_ACTIVATION_IN_PROGRESS -> HttpStatus.CONFLICT;
+            case INDEX_BUILD_NOT_FOUND, INDEX_VERSION_NOT_FOUND, INDEX_ACTIVATION_NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case INDEX_BUILD_IN_PROGRESS, IDEMPOTENCY_KEY_CONFLICT, INDEX_ACTIVATION_IN_PROGRESS,
+                    INDEX_NOT_READY, ACTIVE_INDEX_CHANGED, INDEX_STATE_UNCONFIRMED -> HttpStatus.CONFLICT;
             case INDEX_MANAGEMENT_UNAVAILABLE -> HttpStatus.SERVICE_UNAVAILABLE;
         };
         return ResponseEntity.status(status).body(ErrorDTO.builder().code(exception.code().name()).message(exception.getMessage()).build());
