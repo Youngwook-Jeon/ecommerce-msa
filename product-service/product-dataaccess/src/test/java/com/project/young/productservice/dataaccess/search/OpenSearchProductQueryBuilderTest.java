@@ -27,16 +27,16 @@ class OpenSearchProductQueryBuilderTest {
         var query = request.query().bool();
         assertThat(builder.keyword).isEqualTo("이어폰");
         assertThat(query.must()).containsExactly(builder.textQuery);
-        assertThat(query.filter()).hasSize(5);
-        assertThat(query.filter().get(0).term().field()).isEqualTo("productStatus");
-        assertThat(query.filter().get(0).term().value().stringValue()).isEqualTo("ACTIVE");
-        assertThat(query.filter().get(1).term().field()).isEqualTo("categoryStatus");
+        assertThat(query.filter()).hasSize(6);
+        assertThat(query.filter().get(1).term().field()).isEqualTo("productStatus");
         assertThat(query.filter().get(1).term().value().stringValue()).isEqualTo("ACTIVE");
-        assertThat(query.filter().get(2).term().value().longValue()).isEqualTo(12);
-        assertThat(query.filter().get(3).terms().terms().value()).extracting(FieldValue::stringValue)
+        assertThat(query.filter().get(2).term().field()).isEqualTo("categoryStatus");
+        assertThat(query.filter().get(2).term().value().stringValue()).isEqualTo("ACTIVE");
+        assertThat(query.filter().get(3).term().value().longValue()).isEqualTo(12);
+        assertThat(query.filter().get(4).terms().terms().value()).extracting(FieldValue::stringValue)
                 .containsExactly("apple", "samsung");
-        assertThat(query.filter().get(4).range().gte().to(BigDecimal.class)).isEqualByComparingTo("10.00");
-        assertThat(query.filter().get(4).range().lte().to(BigDecimal.class)).isEqualByComparingTo("100.00");
+        assertThat(query.filter().get(5).range().gte().to(BigDecimal.class)).isEqualByComparingTo("10.00");
+        assertThat(query.filter().get(5).range().lte().to(BigDecimal.class)).isEqualByComparingTo("100.00");
     }
 
     @Test
@@ -44,7 +44,7 @@ class OpenSearchProductQueryBuilderTest {
         var request = builder.build(criteria(null, PublicProductSort.NEWEST), "pit", 3, Map.of(), true);
         assertThat(builder.keyword).isNull();
         assertThat(request.query().bool().must()).isEmpty();
-        assertThat(request.query().bool().filter()).hasSize(2);
+        assertThat(request.query().bool().filter()).hasSize(3);
     }
 
     @Test

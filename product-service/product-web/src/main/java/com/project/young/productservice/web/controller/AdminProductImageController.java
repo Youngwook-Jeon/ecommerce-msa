@@ -13,6 +13,8 @@ import com.project.young.productservice.web.dto.ProductImageReorderRequest;
 import com.project.young.productservice.web.dto.ProductImageReorderResponse;
 import com.project.young.productservice.web.mapper.ProductImageResponseMapper;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import org.springframework.web.bind.annotation.RequestParam;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -66,7 +68,8 @@ public class AdminProductImageController {
     @PostMapping("/commit")
     public ResponseEntity<ProductImageCommitResponse> commit(
             @PathVariable("productId") UUID productId,
-            @Valid @RequestBody ProductImageCommitRequest request
+            @Valid @RequestBody ProductImageCommitRequest request,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST commit image productId={}", productId);
         CommitProductImageCommand command = CommitProductImageCommand.builder()
@@ -79,7 +82,7 @@ public class AdminProductImageController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(
                 productImageResponseMapper.toProductImageCommitResponse(
-                        productImageApplicationService.commitUpload(productId, command)
+                        productImageApplicationService.commitUpload(productId, command, expectedVersion)
                 )
         );
     }
@@ -87,17 +90,19 @@ public class AdminProductImageController {
     @DeleteMapping("/{imageId}")
     public ResponseEntity<Void> delete(
             @PathVariable("productId") UUID productId,
-            @PathVariable("imageId") UUID imageId
+            @PathVariable("imageId") UUID imageId,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST delete image productId={}, imageId={}", productId, imageId);
-        productImageApplicationService.deleteImage(productId, imageId);
+        productImageApplicationService.deleteImage(productId, imageId, expectedVersion);
         return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/reorder")
     public ResponseEntity<ProductImageReorderResponse> reorder(
             @PathVariable("productId") UUID productId,
-            @Valid @RequestBody ProductImageReorderRequest request
+            @Valid @RequestBody ProductImageReorderRequest request,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST reorder images productId={}", productId);
         ReorderProductImagesCommand command = ReorderProductImagesCommand.builder()
@@ -105,7 +110,7 @@ public class AdminProductImageController {
                 .build();
 
         return ResponseEntity.ok(productImageResponseMapper.toProductImageReorderResponse(
-                productImageApplicationService.reorderImages(productId, command)
+                productImageApplicationService.reorderImages(productId, command, expectedVersion)
         ));
     }
 

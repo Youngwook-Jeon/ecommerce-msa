@@ -61,7 +61,7 @@ class ProductCatalogCacheInvalidationListenerTest {
                 Instant.parse("2026-06-13T08:03:10.343300Z"),
                 null,
                 Instant.parse("2026-06-13T08:03:10.345273Z")
-        );
+        , null);
 
         listener.onProductCatalogChanged(message);
 
@@ -78,6 +78,6 @@ class ProductCatalogCacheInvalidationListenerTest {
                 Instant.parse("2026-06-13T08:03:10.343300Z"),
                 null,
                 Instant.parse("2026-06-13T08:03:10.345273Z")
-        );
+        , null);
     }
 }

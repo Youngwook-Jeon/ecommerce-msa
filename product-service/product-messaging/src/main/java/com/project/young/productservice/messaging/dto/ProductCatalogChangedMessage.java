@@ -18,6 +18,7 @@ public record ProductCatalogChangedMessage(
         String changeType,
         Instant occurredAt,
         Instant publishedAt,
-        Instant createdAt
+        Instant createdAt,
+        Long catalogRevision
 ) {
 }

@@ -31,7 +31,7 @@ class OpenSearchProductDocumentMapperTest {
     @Test
     void mapsPersistedFieldsWithoutChangingSourceAndKeepsOptionalFieldsNull() {
         var product = product();
-        var document = mapper.toDocument(product);
+        var document = mapper.toDocument(product, 1);
         assertThat(document.id()).isEqualTo(product.getId().toString());
         assertThat(document.categoryId()).isEqualTo(12);
         assertThat(document.name()).isEqualTo("상품 이름");
@@ -45,18 +45,29 @@ class OpenSearchProductDocumentMapperTest {
         assertThat(document.createdAt()).isEqualTo("2026-10-11T00:00:00.123Z");
         product.setMainImageUrl("https://example.com/image.jpg");
         product.setDescription(null);
-        var updated = mapper.toDocument(product);
+        var updated = mapper.toDocument(product, 1);
         assertThat(updated.id()).isEqualTo(document.id());
         assertThat(updated.mainImageUrl()).isEqualTo(product.getMainImageUrl());
         assertThat(updated.description()).isNull();
     }
 
     @Test
+    void missingCategory_createsVersionedNonSearchableDocument() {
+        var product = product();
+        product.setCategory(null);
+        var document = mapper.toDocument(product, 7);
+        assertThat(document.documentReady()).isFalse();
+        assertThat(document.catalogRevision()).isEqualTo(7);
+        assertThat(document.categoryId()).isNull();
+        assertThat(document.basePrice()).isNull();
+    }
+
+    @Test
     void categoryNameChanges_doNotChangeIndexedDocument() {
         var product = product();
-        var before = mapper.toDocument(product);
+        var before = mapper.toDocument(product, 1);
         product.getCategory().setName(null);
-        assertThat(mapper.toDocument(product)).isEqualTo(before);
+        assertThat(mapper.toDocument(product, 1)).isEqualTo(before);
         assertThat(new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(before).has("categoryName")).isFalse();
     }
 
@@ -64,7 +75,7 @@ class OpenSearchProductDocumentMapperTest {
     void brandNormalizationMatchesRequestFiltersAndPreservesInternalSpaces() {
         var product = product();
         product.setBrand("\u00a0가 EXAMPLE  Brand\u2003");
-        var document = mapper.toDocument(product);
+        var document = mapper.toDocument(product, 1);
         assertThat(document.brandLabel()).isEqualTo("가 EXAMPLE  Brand");
         assertThat(document.brand()).isEqualTo(document.brandLabel());
         assertThat(document.brandKey()).isEqualTo("가 example  brand");
@@ -81,7 +92,7 @@ class OpenSearchProductDocumentMapperTest {
             Locale.setDefault(Locale.forLanguageTag("tr-TR"));
             var product = product();
             product.setBrand("IKEA");
-            assertThat(mapper.toDocument(product).brandKey()).isEqualTo("ikea");
+            assertThat(mapper.toDocument(product, 1).brandKey()).isEqualTo("ikea");
         } finally {
             Locale.setDefault(previous);
         }
@@ -93,7 +104,7 @@ class OpenSearchProductDocumentMapperTest {
     void absentBrandsHaveNoTextKeyOrLabel(String brand) {
         var product = product();
         product.setBrand(brand);
-        var document = mapper.toDocument(product);
+        var document = mapper.toDocument(product, 1);
         assertThat(document.brand()).isNull();
         assertThat(document.brandKey()).isNull();
         assertThat(document.brandLabel()).isNull();
@@ -104,7 +115,7 @@ class OpenSearchProductDocumentMapperTest {
     void preservesAllProductStatusesForSearchVisibilityFiltering(ProductStatusEntity status) {
         var product = product();
         product.setStatus(status);
-        assertThat(mapper.toDocument(product).productStatus()).isEqualTo(status.name());
+        assertThat(mapper.toDocument(product, 1).productStatus()).isEqualTo(status.name());
     }
 
     @ParameterizedTest
@@ -112,12 +123,12 @@ class OpenSearchProductDocumentMapperTest {
     void preservesAllCategoryStatusesForSearchVisibilityFiltering(CategoryStatusEntity status) {
         var product = product();
         product.getCategory().setStatus(status);
-        assertThat(mapper.toDocument(product).categoryStatus()).isEqualTo(status.name());
+        assertThat(mapper.toDocument(product, 1).categoryStatus()).isEqualTo(status.name());
     }
 
     @Test
     void rejectsNullProduct() {
-        assertThatThrownBy(() -> mapper.toDocument(null)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> mapper.toDocument(null, 1)).isInstanceOf(IllegalArgumentException.class);
     }
 
     @ParameterizedTest
@@ -125,13 +136,12 @@ class OpenSearchProductDocumentMapperTest {
     void rejectsIncompleteOrUnrepresentableDocuments(Consumer<ProductEntity> invalidate) {
         var product = product();
         invalidate.accept(product);
-        assertThatThrownBy(() -> mapper.toDocument(product)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> mapper.toDocument(product, 1)).isInstanceOf(IllegalArgumentException.class);
     }
 
     static Stream<Consumer<ProductEntity>> invalidProducts() {
         return Stream.<Consumer<ProductEntity>>of(
                 p -> p.setId(null),
-                p -> p.setCategory(null),
                 p -> p.getCategory().setId(null),
                 p -> p.getCategory().setId(0L),
                 p -> p.setName(null),
@@ -150,9 +160,9 @@ class OpenSearchProductDocumentMapperTest {
     void acceptsZeroPriceAndTrailingZeroPrecisionWithoutRounding() {
         var product = product();
         product.setBasePrice(new BigDecimal("0.000"));
-        assertThat(mapper.toDocument(product).basePrice()).isEqualTo(new BigDecimal("0.00"));
+        assertThat(mapper.toDocument(product, 1).basePrice()).isEqualTo(new BigDecimal("0.00"));
         product.setBasePrice(new BigDecimal("12.3400"));
-        assertThat(mapper.toDocument(product).basePrice()).isEqualTo(new BigDecimal("12.34"));
+        assertThat(mapper.toDocument(product, 1).basePrice()).isEqualTo(new BigDecimal("12.34"));
     }
 
     private static ProductEntity product() {

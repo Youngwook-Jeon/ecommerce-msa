@@ -420,6 +420,17 @@ class PublicProductApiIntegrationTest {
         return UUID.fromString(objectMapper.readTree(response).get("id").asText());
     }
 
+    private String readProductVersion(UUID productId) throws Exception {
+        String response = mockMvc.perform(get("/admin/queries/products/{productId}", productId)
+                        .with(user("admin").authorities(ADMIN_AUTHORITIES)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.version").isNumber())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        return objectMapper.readTree(response).get("version").asText();
+    }
+
     private void publishProduct(UUID productId) throws Exception {
         OptionFixture optionFixture = createGlobalOptionGroupWithValues(
                 UUID.randomUUID().toString().substring(0, 8));
@@ -438,7 +449,7 @@ class PublicProductApiIntegrationTest {
                 ))
                 .build();
 
-        mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+        mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", readProductVersion(productId))
                         .with(user("admin").authorities(ADMIN_AUTHORITIES))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -464,7 +475,7 @@ class PublicProductApiIntegrationTest {
                 ))
                 .build();
 
-        mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+        mockMvc.perform(post("/admin/products/{productId}/variants", productId).param("expectedVersion", readProductVersion(productId))
                         .with(user("admin").authorities(ADMIN_AUTHORITIES))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -481,7 +492,7 @@ class PublicProductApiIntegrationTest {
                 .status(ProductStatus.ACTIVE)
                 .build();
 
-        mockMvc.perform(patch("/admin/products/{productId}/status", productId)
+        mockMvc.perform(patch("/admin/products/{productId}/status", productId).param("expectedVersion", readProductVersion(productId))
                         .with(user("admin").authorities(ADMIN_AUTHORITIES))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -494,7 +505,7 @@ class PublicProductApiIntegrationTest {
                 .status(status)
                 .build();
 
-        mockMvc.perform(patch("/admin/products/{productId}/status", productId)
+        mockMvc.perform(patch("/admin/products/{productId}/status", productId).param("expectedVersion", readProductVersion(productId))
                         .with(user("admin").authorities(ADMIN_AUTHORITIES))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)

@@ -12,6 +12,8 @@ import com.project.young.productservice.application.service.ProductOptionGroupVi
 import com.project.young.productservice.web.dto.*;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import org.springframework.web.bind.annotation.RequestParam;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -55,12 +57,13 @@ public class AdminProductCompositionController {
     @PostMapping("/{productId}/option-groups")
     public ResponseEntity<AddProductOptionGroupResponse> addOptionGroup(
             @PathVariable("productId") UUID productId,
-            @Valid @RequestBody AddProductOptionGroupCommand command
+            @Valid @RequestBody AddProductOptionGroupCommand command,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST request to add option group to productId={}", productId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(productResponseMapper.toAddProductOptionGroupResponse(
-                        productApplicationService.addProductOptionGroup(productId, command)));
+                        productApplicationService.addProductOptionGroup(productId, command, expectedVersion)));
     }
 
     /**
@@ -70,7 +73,8 @@ public class AdminProductCompositionController {
     public ResponseEntity<AddProductOptionValuesToGroupResponse> addOptionValues(
             @PathVariable("productId") UUID productId,
             @PathVariable("productOptionGroupId") UUID productOptionGroupId,
-            @Valid @RequestBody AddProductOptionValuesCommand command
+            @Valid @RequestBody AddProductOptionValuesCommand command,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST request to add option values to productId={}, productOptionGroupId={}, count={}",
                 productId,
@@ -80,7 +84,7 @@ public class AdminProductCompositionController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(AddProductOptionValuesToGroupResponse.builder()
                         .optionValues(
-                                productApplicationService.addProductOptionValues(productId, productOptionGroupId, command)
+                                productApplicationService.addProductOptionValues(productId, productOptionGroupId, command, expectedVersion)
                                         .stream()
                                         .map(productResponseMapper::toAddProductOptionValueToGroupResponse)
                                         .collect(Collectors.toList())
@@ -91,13 +95,14 @@ public class AdminProductCompositionController {
     @DeleteMapping("/{productId}/option-groups/{productOptionGroupId}")
     public ResponseEntity<DeleteProductOptionGroupResponse> deleteOptionGroup(
             @PathVariable("productId") UUID productId,
-            @PathVariable("productOptionGroupId") UUID productOptionGroupId
+            @PathVariable("productOptionGroupId") UUID productOptionGroupId,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST request to soft-delete option group. productId={}, productOptionGroupId={}",
                 productId, productOptionGroupId);
         return ResponseEntity.ok(
                 productResponseMapper.toDeleteProductOptionGroupResponse(
-                        productApplicationService.deleteProductOptionGroup(productId, productOptionGroupId)
+                        productApplicationService.deleteProductOptionGroup(productId, productOptionGroupId, expectedVersion)
                 )
         );
     }
@@ -105,13 +110,14 @@ public class AdminProductCompositionController {
     @DeleteMapping("/{productId}/option-values/{productOptionValueId}")
     public ResponseEntity<DeleteProductOptionValueResponse> deleteOptionValue(
             @PathVariable("productId") UUID productId,
-            @PathVariable("productOptionValueId") UUID productOptionValueId
+            @PathVariable("productOptionValueId") UUID productOptionValueId,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST request to soft-delete option value. productId={}, productOptionValueId={}",
                 productId, productOptionValueId);
         return ResponseEntity.ok(
                 productResponseMapper.toDeleteProductOptionValueResponse(
-                        productApplicationService.deleteProductOptionValue(productId, productOptionValueId)
+                        productApplicationService.deleteProductOptionValue(productId, productOptionValueId, expectedVersion)
                 )
         );
     }
@@ -120,13 +126,13 @@ public class AdminProductCompositionController {
     public ResponseEntity<ChangeProductOptionGroupStepOrderResponse> changeOptionGroupStepOrder(
             @PathVariable("productId") UUID productId,
             @PathVariable("productOptionGroupId") UUID productOptionGroupId,
-            @Valid @RequestBody ChangeProductOptionGroupStepOrderCommand command
+            @Valid @RequestBody ChangeProductOptionGroupStepOrderCommand command,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         return ResponseEntity.ok(
                 productResponseMapper.toChangeProductOptionGroupStepOrderResponse(
                         productApplicationService.changeProductOptionGroupStepOrder(
-                                productId, productOptionGroupId, command
-                        )
+                                productId, productOptionGroupId, command, expectedVersion)
                 )
         );
     }
@@ -134,11 +140,12 @@ public class AdminProductCompositionController {
     @PatchMapping("/{productId}/option-groups/reorder")
     public ResponseEntity<ReorderProductOptionGroupsResponse> reorderOptionGroups(
             @PathVariable("productId") UUID productId,
-            @Valid @RequestBody ReorderProductOptionGroupsCommand command
+            @Valid @RequestBody ReorderProductOptionGroupsCommand command,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         return ResponseEntity.ok(
                 productResponseMapper.toReorderProductOptionGroupsResponse(
-                        productApplicationService.reorderProductOptionGroups(productId, command)
+                        productApplicationService.reorderProductOptionGroups(productId, command, expectedVersion)
                 )
         );
     }
@@ -147,7 +154,8 @@ public class AdminProductCompositionController {
     public ResponseEntity<UpdateProductOptionGroupVisualResponse> updateOptionGroupVisual(
             @PathVariable("productId") UUID productId,
             @PathVariable("productOptionGroupId") UUID productOptionGroupId,
-            @Valid @RequestBody UpdateProductOptionGroupVisualRequest request
+            @Valid @RequestBody UpdateProductOptionGroupVisualRequest request,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST update visual option group productId={}, productOptionGroupId={}, drives={}",
                 productId, productOptionGroupId, request.getDrivesVariantImages());
@@ -158,8 +166,7 @@ public class AdminProductCompositionController {
                                 productOptionGroupId,
                                 UpdateProductOptionGroupVisualCommand.builder()
                                         .drivesVariantImages(Boolean.TRUE.equals(request.getDrivesVariantImages()))
-                                        .build()
-                        )
+                                        .build(), expectedVersion)
                 )
         );
     }
@@ -170,7 +177,8 @@ public class AdminProductCompositionController {
     @PostMapping("/{productId}/variants")
     public ResponseEntity<AddProductVariantsResponse> addVariants(
             @PathVariable("productId") UUID productId,
-            @Valid @RequestBody AddProductVariantsCommand command
+            @Valid @RequestBody AddProductVariantsCommand command,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST request to add variants to productId={}, variantsCount={}",
                 productId,
@@ -180,7 +188,7 @@ public class AdminProductCompositionController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(AddProductVariantsResponse.builder()
                         .variants(
-                                productApplicationService.addProductVariants(productId, command)
+                                productApplicationService.addProductVariants(productId, command, expectedVersion)
                                         .stream()
                                         .map(productResponseMapper::toAddProductVariantResponse)
                                         .collect(Collectors.toList())
@@ -192,12 +200,13 @@ public class AdminProductCompositionController {
     public ResponseEntity<UpdateProductVariantResponse> updateVariant(
             @PathVariable("productId") UUID productId,
             @PathVariable("productVariantId") UUID productVariantId,
-            @Valid @RequestBody UpdateProductVariantCommand command
+            @Valid @RequestBody UpdateProductVariantCommand command,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST request to update variant. productId={}, productVariantId={}", productId, productVariantId);
         return ResponseEntity.ok(
                 productResponseMapper.toUpdateProductVariantResponse(
-                        productApplicationService.updateProductVariant(productId, productVariantId, command)
+                        productApplicationService.updateProductVariant(productId, productVariantId, command, expectedVersion)
                 )
         );
     }
@@ -205,12 +214,13 @@ public class AdminProductCompositionController {
     @DeleteMapping("/{productId}/variants/{productVariantId}")
     public ResponseEntity<DeleteProductVariantResponse> deleteVariant(
             @PathVariable("productId") UUID productId,
-            @PathVariable("productVariantId") UUID productVariantId
+            @PathVariable("productVariantId") UUID productVariantId,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST request to soft-delete variant. productId={}, productVariantId={}", productId, productVariantId);
         return ResponseEntity.ok(
                 productResponseMapper.toDeleteProductVariantResponse(
-                        productApplicationService.deleteProductVariant(productId, productVariantId)
+                        productApplicationService.deleteProductVariant(productId, productVariantId, expectedVersion)
                 )
         );
     }

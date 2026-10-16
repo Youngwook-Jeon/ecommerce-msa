@@ -85,8 +85,8 @@ class OptionStatusTest {
     @Test
     @DisplayName("getDescription: 각 상태별 설명 반환")
     void getDescription_ReturnsDescription() {
-        assertThat(OptionStatus.ACTIVE.getDescription()).isEqualTo("활성");
-        assertThat(OptionStatus.INACTIVE.getDescription()).isEqualTo("비활성");
-        assertThat(OptionStatus.DELETED.getDescription()).isEqualTo("삭제됨");
+        assertThat(OptionStatus.ACTIVE.getDescription()).isEqualTo("Active");
+        assertThat(OptionStatus.INACTIVE.getDescription()).isEqualTo("Inactive");
+        assertThat(OptionStatus.DELETED.getDescription()).isEqualTo("Deleted");
     }
 }

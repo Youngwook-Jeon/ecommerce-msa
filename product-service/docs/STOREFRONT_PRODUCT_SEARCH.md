@@ -86,7 +86,7 @@
   "facets": [
     {
       "key": "brand",
-      "label": "브랜드",
+      "label": "Brand",
       "type": "terms",
       "values": [
         { "value": "example", "label": "Example", "count": 1 }
@@ -95,7 +95,7 @@
     },
     {
       "key": "price",
-      "label": "가격",
+      "label": "Price",
       "type": "range",
       "min": 89.99,
       "max": 89.99
@@ -144,10 +144,10 @@
 ```json
 {
   "key": "feature:connectivity",
-  "label": "연결 방식",
+  "label": "Connectivity",
   "type": "terms",
   "values": [
-    { "value": "bluetooth", "label": "블루투스", "count": 8 }
+    { "value": "bluetooth", "label": "Bluetooth", "count": 8 }
   ],
   "hasMore": false
 }

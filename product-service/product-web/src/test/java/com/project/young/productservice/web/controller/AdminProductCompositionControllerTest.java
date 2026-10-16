@@ -122,11 +122,11 @@ class AdminProductCompositionControllerTest {
                     .message("ok")
                     .build();
 
-            when(productApplicationService.addProductOptionGroup(eq(productId), any(AddProductOptionGroupCommand.class)))
+            when(productApplicationService.addProductOptionGroup(eq(productId), any(AddProductOptionGroupCommand.class), eq(1L)))
                     .thenReturn(result);
             when(productResponseMapper.toAddProductOptionGroupResponse(result)).thenReturn(response);
 
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -134,7 +134,7 @@ class AdminProductCompositionControllerTest {
                     .andExpect(jsonPath("$.productOptionGroupId").value(pogId.toString()))
                     .andExpect(jsonPath("$.optionValueCount").value(1));
 
-            verify(productApplicationService).addProductOptionGroup(eq(productId), any(AddProductOptionGroupCommand.class));
+            verify(productApplicationService).addProductOptionGroup(eq(productId), any(AddProductOptionGroupCommand.class), org.mockito.ArgumentMatchers.eq(1L));
         }
     }
 
@@ -183,19 +183,19 @@ class AdminProductCompositionControllerTest {
                     .priceDelta(BigDecimal.ZERO)
                     .message("ok")
                     .build();
-            when(productApplicationService.addProductOptionValues(eq(productId), eq(pogId), any(AddProductOptionValuesCommand.class)))
+            when(productApplicationService.addProductOptionValues(eq(productId), eq(pogId), any(AddProductOptionValuesCommand.class), eq(1L)))
                     .thenReturn(List.of(result));
             when(productResponseMapper.toAddProductOptionValueToGroupResponse(result)).thenReturn(response);
 
             mockMvc.perform(post("/admin/products/{productId}/option-groups/{productOptionGroupId}/option-values",
-                            productId, pogId)
+                            productId, pogId).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.optionValues[0].productOptionValueId").value(povId.toString()));
 
-            verify(productApplicationService).addProductOptionValues(eq(productId), eq(pogId), any(AddProductOptionValuesCommand.class));
+            verify(productApplicationService).addProductOptionValues(eq(productId), eq(pogId), any(AddProductOptionValuesCommand.class), org.mockito.ArgumentMatchers.eq(1L));
         }
     }
 
@@ -239,18 +239,18 @@ class AdminProductCompositionControllerTest {
                     .message("ok")
                     .build();
 
-            when(productApplicationService.addProductVariants(eq(productId), any(AddProductVariantsCommand.class)))
+            when(productApplicationService.addProductVariants(eq(productId), any(AddProductVariantsCommand.class), eq(1L)))
                     .thenReturn(List.of(result));
             when(productResponseMapper.toAddProductVariantResponse(result)).thenReturn(response);
 
-            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(bulkCommand)))
                     .andExpect(status().isCreated())
                     .andExpect(jsonPath("$.variants[0].sku").value("PRD-TEST-SKU"));
 
-            verify(productApplicationService).addProductVariants(eq(productId), any(AddProductVariantsCommand.class));
+            verify(productApplicationService).addProductVariants(eq(productId), any(AddProductVariantsCommand.class), org.mockito.ArgumentMatchers.eq(1L));
         }
     }
 
@@ -289,11 +289,11 @@ class AdminProductCompositionControllerTest {
                     .message("ok")
                     .build();
 
-            when(productApplicationService.updateProductVariant(eq(productId), eq(variantId), any(UpdateProductVariantCommand.class)))
+            when(productApplicationService.updateProductVariant(eq(productId), eq(variantId), any(UpdateProductVariantCommand.class), eq(1L)))
                     .thenReturn(result);
             when(productResponseMapper.toUpdateProductVariantResponse(result)).thenReturn(response);
 
-            mockMvc.perform(patch("/admin/products/{productId}/variants/{productVariantId}", productId, variantId)
+            mockMvc.perform(patch("/admin/products/{productId}/variants/{productVariantId}", productId, variantId).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -303,7 +303,7 @@ class AdminProductCompositionControllerTest {
                     .andExpect(jsonPath("$.status").value("ACTIVE"));
 
             verify(productApplicationService)
-                    .updateProductVariant(eq(productId), eq(variantId), any(UpdateProductVariantCommand.class));
+                    .updateProductVariant(eq(productId), eq(variantId), any(UpdateProductVariantCommand.class), org.mockito.ArgumentMatchers.eq(1L));
         }
     }
 
@@ -330,10 +330,10 @@ class AdminProductCompositionControllerTest {
                     .message("ok")
                     .build();
 
-            when(productApplicationService.deleteProductOptionGroup(productId, groupId)).thenReturn(result);
+            when(productApplicationService.deleteProductOptionGroup(productId, groupId, 1L)).thenReturn(result);
             when(productResponseMapper.toDeleteProductOptionGroupResponse(result)).thenReturn(response);
 
-            mockMvc.perform(delete("/admin/products/{productId}/option-groups/{productOptionGroupId}", productId, groupId)
+            mockMvc.perform(delete("/admin/products/{productId}/option-groups/{productOptionGroupId}", productId, groupId).param("expectedVersion", "1")
                             .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("DELETED"));
@@ -363,10 +363,10 @@ class AdminProductCompositionControllerTest {
                     .message("ok")
                     .build();
 
-            when(productApplicationService.deleteProductOptionValue(productId, valueId)).thenReturn(result);
+            when(productApplicationService.deleteProductOptionValue(productId, valueId, 1L)).thenReturn(result);
             when(productResponseMapper.toDeleteProductOptionValueResponse(result)).thenReturn(response);
 
-            mockMvc.perform(delete("/admin/products/{productId}/option-values/{productOptionValueId}", productId, valueId)
+            mockMvc.perform(delete("/admin/products/{productId}/option-values/{productOptionValueId}", productId, valueId).param("expectedVersion", "1")
                             .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("DELETED"));
@@ -396,10 +396,10 @@ class AdminProductCompositionControllerTest {
                     .message("ok")
                     .build();
 
-            when(productApplicationService.deleteProductVariant(productId, variantId)).thenReturn(result);
+            when(productApplicationService.deleteProductVariant(productId, variantId, 1L)).thenReturn(result);
             when(productResponseMapper.toDeleteProductVariantResponse(result)).thenReturn(response);
 
-            mockMvc.perform(delete("/admin/products/{productId}/variants/{productVariantId}", productId, variantId)
+            mockMvc.perform(delete("/admin/products/{productId}/variants/{productVariantId}", productId, variantId).param("expectedVersion", "1")
                             .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.productVariantId").value(variantId.toString()))
@@ -432,11 +432,11 @@ class AdminProductCompositionControllerTest {
                     .message("ok")
                     .build();
 
-            when(productApplicationService.reorderProductOptionGroups(eq(productId), any(ReorderProductOptionGroupsCommand.class)))
+            when(productApplicationService.reorderProductOptionGroups(eq(productId), any(ReorderProductOptionGroupsCommand.class), eq(1L)))
                     .thenReturn(result);
             when(productResponseMapper.toReorderProductOptionGroupsResponse(result)).thenReturn(response);
 
-            mockMvc.perform(patch("/admin/products/{productId}/option-groups/reorder", productId)
+            mockMvc.perform(patch("/admin/products/{productId}/option-groups/reorder", productId).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -445,7 +445,7 @@ class AdminProductCompositionControllerTest {
                     .andExpect(jsonPath("$.updatedCount").value(2));
 
             verify(productApplicationService)
-                    .reorderProductOptionGroups(eq(productId), any(ReorderProductOptionGroupsCommand.class));
+                    .reorderProductOptionGroups(eq(productId), any(ReorderProductOptionGroupsCommand.class), org.mockito.ArgumentMatchers.eq(1L));
         }
     }
 }

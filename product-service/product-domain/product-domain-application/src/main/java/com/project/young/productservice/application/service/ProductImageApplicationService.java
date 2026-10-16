@@ -48,20 +48,20 @@ public class ProductImageApplicationService {
     private final ProductImagePersistencePort productImagePersistence;
     private final ProductImageStoragePort productImageStorage;
     private final VariantMainImageSyncPort variantMainImageSyncPort;
-    private final StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
+    private final ProductCatalogChangeService productCatalogChangeService;
 
     public ProductImageApplicationService(
             ProductRepository productRepository,
             ProductImagePersistencePort productImagePersistence,
             ProductImageStoragePort productImageStorage,
             VariantMainImageSyncPort variantMainImageSyncPort,
-            StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService
+            ProductCatalogChangeService productCatalogChangeService
     ) {
         this.productRepository = productRepository;
         this.productImagePersistence = productImagePersistence;
         this.productImageStorage = productImageStorage;
         this.variantMainImageSyncPort = variantMainImageSyncPort;
-        this.storefrontProductCatalogInvalidationService = storefrontProductCatalogInvalidationService;
+        this.productCatalogChangeService = productCatalogChangeService;
     }
 
     @Transactional(readOnly = true)
@@ -102,8 +102,8 @@ public class ProductImageApplicationService {
     }
 
     @Transactional
-    public CommitProductImageResult commitUpload(UUID productId, CommitProductImageCommand command) {
-        Product product = findProductOrThrow(productId);
+    public CommitProductImageResult commitUpload(UUID productId, CommitProductImageCommand command, long expectedVersion) {
+        Product product = findProductOrThrow(productId, expectedVersion);
         if (product.isDeleted()) {
             throw new ProductDomainException("Cannot attach images to a deleted product.");
         }
@@ -116,7 +116,7 @@ public class ProductImageApplicationService {
                 productId
         );
         if (existing.isPresent()) {
-            return toIdempotentCommitResult(product, command, existing.get());
+            return toIdempotentCommitResult(product, command, existing.get(), expectedVersion);
         }
 
         if (command.getRole() == ProductImageRole.GALLERY) {
@@ -130,32 +130,20 @@ public class ProductImageApplicationService {
 
         String publicUrl = productImageStorage.publicUrlForKey(command.getObjectKey());
 
+        recordCatalogChange(product, expectedVersion);
         if (command.getRole() == ProductImageRole.MAIN) {
             productImagePersistence.demoteActiveMainsToGallery(productId);
         }
 
-        UUID imageId;
-        try {
-            imageId = productImagePersistence.insert(
-                    productId,
-                    command.getObjectKey(),
-                    publicUrl,
-                    command.getRole(),
-                    command.getSortOrder(),
-                    command.getContentType(),
-                    command.getFileSize()
-            );
-        } catch (RuntimeException ex) {
-            // Retry-safe idempotency for a race where another request inserted the same storage key first.
-            Optional<ProductImagePersistencePort.ProductImageRow> raced = productImagePersistence.findByStorageKeyAndProductId(
-                    command.getObjectKey(),
-                    productId
-            );
-            if (raced.isPresent()) {
-                return toIdempotentCommitResult(product, command, raced.get());
-            }
-            throw ex;
-        }
+        UUID imageId = productImagePersistence.insert(
+                productId,
+                command.getObjectKey(),
+                publicUrl,
+                command.getRole(),
+                command.getSortOrder(),
+                command.getContentType(),
+                command.getFileSize()
+        );
 
         if (command.getRole() == ProductImageRole.MAIN) {
             product.changeMainImageUrl(publicUrl);
@@ -163,7 +151,6 @@ public class ProductImageApplicationService {
             variantMainImageSyncPort.syncAllForProduct(productId);
         }
 
-        invalidateStorefrontCatalog(product);
         return CommitProductImageResult.builder()
                 .id(imageId)
                 .publicUrl(publicUrl)
@@ -175,8 +162,7 @@ public class ProductImageApplicationService {
     private CommitProductImageResult toIdempotentCommitResult(
             Product product,
             CommitProductImageCommand command,
-            ProductImagePersistencePort.ProductImageRow existing
-    ) {
+            ProductImagePersistencePort.ProductImageRow existing, long expectedVersion) {
         String expectedPublicUrl = productImageStorage.publicUrlForKey(command.getObjectKey());
         if (!existing.storageKey().equals(command.getObjectKey())) {
             throw new ProductDomainException("Object key mismatch for idempotent commit.");
@@ -191,8 +177,9 @@ public class ProductImageApplicationService {
             throw new ProductDomainException("Image already committed with inconsistent public URL.");
         }
 
-        if (existing.role() == ProductImageRole.MAIN) {
+        if (existing.role() == ProductImageRole.MAIN && !existing.publicUrl().equals(product.getMainImageUrl())) {
             product.changeMainImageUrl(existing.publicUrl());
+            recordCatalogChange(product, expectedVersion);
             productRepository.update(product);
         }
 
@@ -205,7 +192,7 @@ public class ProductImageApplicationService {
     }
 
     @Transactional
-    public void deleteImage(UUID productId, UUID imageId) {
+    public void deleteImage(UUID productId, UUID imageId, long expectedVersion) {
         executeWithMainImagePolicy(productId, "delete images", product -> {
             productImagePersistence.findActiveByIdAndProduct(imageId, productId)
                     .orElseThrow(() -> new ProductDomainException("Product image not found."));
@@ -215,11 +202,11 @@ public class ProductImageApplicationService {
                 throw new ProductDomainException("Product image not found or already deleted.");
             }
             return null;
-        });
+        }, expectedVersion);
     }
 
     @Transactional
-    public ReorderProductImagesResult reorderImages(UUID productId, ReorderProductImagesCommand command) {
+    public ReorderProductImagesResult reorderImages(UUID productId, ReorderProductImagesCommand command, long expectedVersion) {
         return executeWithMainImagePolicy(productId, "reorder images", product -> {
             if (command == null || command.getOrderedImageIds() == null) {
                 throw new ProductDomainException("orderedImageIds is required.");
@@ -251,17 +238,17 @@ public class ProductImageApplicationService {
                     .reorderedCount(requested.size())
                     .orderedImageIds(List.copyOf(requested))
                     .build();
-        });
+        }, expectedVersion);
     }
 
-    private <T> T executeWithMainImagePolicy(UUID productId, String actionName, ImageMutation<T> mutation) {
-        Product product = findProductOrThrow(productId);
+    private <T> T executeWithMainImagePolicy(UUID productId, String actionName, ImageMutation<T> mutation, long expectedVersion) {
+        Product product = findProductOrThrow(productId, expectedVersion);
         if (product.isDeleted()) {
             throw new ProductDomainException("Cannot " + actionName + " of a deleted product.");
         }
+        recordCatalogChange(product, expectedVersion);
         T result = mutation.apply(product);
         applyFirstActiveImageAsMainPolicy(productId, product);
-        invalidateStorefrontCatalog(product);
         return result;
     }
 
@@ -290,8 +277,8 @@ public class ProductImageApplicationService {
         variantMainImageSyncPort.syncAllForProduct(productId);
     }
 
-    private void invalidateStorefrontCatalog(Product product) {
-        storefrontProductCatalogInvalidationService.invalidate(product, ProductCatalogChangeType.IMAGE_CHANGED);
+    private void recordCatalogChange(Product product, long expectedVersion) {
+        productCatalogChangeService.recordChange(product, ProductCatalogChangeType.IMAGE_CHANGED, expectedVersion);
     }
 
     @FunctionalInterface
@@ -299,13 +286,15 @@ public class ProductImageApplicationService {
         T apply(Product product);
     }
 
-    private Product findProductOrThrow(UUID productId) {
+    private Product findProductOrThrow(UUID productId, long expectedVersion) {
+        productCatalogChangeService.verifyVersion(productId, expectedVersion);
         return productRepository.findById(new ProductId(productId))
                 .orElseThrow(() -> new ProductNotFoundException("Product not found: " + productId));
     }
 
     private void validateProductWritable(UUID productId) {
-        Product product = findProductOrThrow(productId);
+        Product product = productRepository.findById(new ProductId(productId))
+                .orElseThrow(() -> new ProductNotFoundException("Product not found: " + productId));
         if (product.isDeleted()) {
             throw new ProductDomainException("Cannot upload images for a deleted product.");
         }

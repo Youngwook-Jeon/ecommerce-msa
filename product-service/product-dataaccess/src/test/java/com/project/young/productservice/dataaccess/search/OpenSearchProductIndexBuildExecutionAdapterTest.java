@@ -43,8 +43,8 @@ class OpenSearchProductIndexBuildExecutionAdapterTest {
     private final List<CountRequest> counts = new ArrayList<>();
     private final BigDecimal price = new BigDecimal("10.00");
     private final OpenSearchProductDocument sample = new OpenSearchProductDocument(
-            UUID.randomUUID().toString(), 12, "Sample", null, null, null, null, null,
-            price, "ACTIVE", "ACTIVE", "2026-10-14T00:00:00Z");
+            UUID.randomUUID().toString(), 12L, "Sample", null, null, null, null, null,
+            price, "ACTIVE", "ACTIVE", "2026-10-14T00:00:00Z", 1, true);
     private final Work work = new Work(null, ProductSearchIndexVersion.register(UUID.randomUUID(), 1, 1,
             "0".repeat(64), "admin", Instant.now()), null);
     private OpenSearchProductIndexBuildExecutionAdapter adapter;
@@ -96,11 +96,11 @@ class OpenSearchProductIndexBuildExecutionAdapterTest {
         assertThat(filters.get(1).term().field()).isEqualTo("id");
         assertThat(filters.get(1).term().value().stringValue()).isEqualTo(sample.id());
         var publicFilters = filters.getFirst().bool().filter();
-        assertThat(publicFilters.get(0).term().field()).isEqualTo("productStatus");
-        assertThat(publicFilters.get(1).term().field()).isEqualTo("categoryStatus");
-        assertThat(publicFilters.get(2).term().value().longValue()).isEqualTo(sample.categoryId());
-        assertThat(publicFilters.get(3).range().gte().to(BigDecimal.class)).isEqualByComparingTo(price);
-        assertThat(publicFilters.get(3).range().lte().to(BigDecimal.class)).isEqualByComparingTo(price);
+        assertThat(publicFilters.get(1).term().field()).isEqualTo("productStatus");
+        assertThat(publicFilters.get(2).term().field()).isEqualTo("categoryStatus");
+        assertThat(publicFilters.get(3).term().value().longValue()).isEqualTo(sample.categoryId());
+        assertThat(publicFilters.get(4).range().gte().to(BigDecimal.class)).isEqualByComparingTo(price);
+        assertThat(publicFilters.get(4).range().lte().to(BigDecimal.class)).isEqualByComparingTo(price);
     }
 
     @ParameterizedTest

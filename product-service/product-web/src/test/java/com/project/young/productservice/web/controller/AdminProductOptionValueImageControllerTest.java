@@ -135,7 +135,7 @@ class AdminProductOptionValueImageControllerTest {
                     .message("Image committed successfully")
                     .build();
 
-            when(productOptionValueImageApplicationService.commitUpload(eq(productId), eq(povId), any()))
+            when(productOptionValueImageApplicationService.commitUpload(eq(productId), eq(povId), any(), eq(1L)))
                     .thenReturn(result);
             when(productImageResponseMapper.toProductImageCommitResponse(result)).thenReturn(response);
 
@@ -151,7 +151,7 @@ class AdminProductOptionValueImageControllerTest {
                             "/admin/products/{productId}/option-values/{productOptionValueId}/images/commit",
                             productId,
                             povId
-                    )
+                    ).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(body)))
@@ -159,7 +159,7 @@ class AdminProductOptionValueImageControllerTest {
                     .andExpect(jsonPath("$.id").value(imageId.toString()))
                     .andExpect(jsonPath("$.role").value("MAIN"));
 
-            verify(productOptionValueImageApplicationService).commitUpload(eq(productId), eq(povId), any());
+            verify(productOptionValueImageApplicationService).commitUpload(eq(productId), eq(povId), any(), org.mockito.ArgumentMatchers.eq(1L));
             verify(productImageResponseMapper).toProductImageCommitResponse(result);
         }
     }
@@ -180,11 +180,11 @@ class AdminProductOptionValueImageControllerTest {
                             productId,
                             povId,
                             imageId
-                    )
+                    ).param("expectedVersion", "1")
                             .with(csrf()))
                     .andExpect(status().isNoContent());
 
-            verify(productOptionValueImageApplicationService).deleteImage(productId, povId, imageId);
+            verify(productOptionValueImageApplicationService).deleteImage(productId, povId, imageId, 1L);
         }
     }
 
@@ -211,7 +211,7 @@ class AdminProductOptionValueImageControllerTest {
                     .message("Images reordered successfully")
                     .build();
 
-            when(productOptionValueImageApplicationService.reorderImages(eq(productId), eq(povId), any()))
+            when(productOptionValueImageApplicationService.reorderImages(eq(productId), eq(povId), any(), eq(1L)))
                     .thenReturn(result);
             when(productImageResponseMapper.toProductImageReorderResponse(result)).thenReturn(response);
 
@@ -223,7 +223,7 @@ class AdminProductOptionValueImageControllerTest {
                             "/admin/products/{productId}/option-values/{productOptionValueId}/images/reorder",
                             productId,
                             povId
-                    )
+                    ).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(body)))
@@ -231,7 +231,7 @@ class AdminProductOptionValueImageControllerTest {
                     .andExpect(jsonPath("$.productId").value(productId.toString()))
                     .andExpect(jsonPath("$.reorderedCount").value(2));
 
-            verify(productOptionValueImageApplicationService).reorderImages(eq(productId), eq(povId), any());
+            verify(productOptionValueImageApplicationService).reorderImages(eq(productId), eq(povId), any(), org.mockito.ArgumentMatchers.eq(1L));
             verify(productImageResponseMapper).toProductImageReorderResponse(result);
         }
     }

@@ -9,6 +9,8 @@ import com.project.young.productservice.web.dto.DeleteProductResponse;
 import com.project.young.productservice.web.dto.UpdateProductResponse;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import org.springframework.web.bind.annotation.RequestParam;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -55,26 +57,32 @@ public class ProductController {
     @PutMapping("/{productId}")
     public ResponseEntity<UpdateProductResponse> update(
             @PathVariable("productId") UUID productId,
-            @Valid @RequestBody UpdateProductCommand command) {
+            @Valid @RequestBody UpdateProductCommand command,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
+    ) {
         log.info("A put request to update Product with id: {}, command: {}", productId, command.getName());
         return ResponseEntity.ok(productResponseMapper.toUpdateProductResponse(
-                productApplicationService.updateProduct(productId, command)));
+                productApplicationService.updateProduct(productId, command, expectedVersion)));
     }
 
     @PatchMapping("/{productId}/status")
     public ResponseEntity<UpdateProductResponse> updateStatus(
             @PathVariable("productId") UUID productId,
-            @Valid @RequestBody UpdateProductStatusCommand command) {
+            @Valid @RequestBody UpdateProductStatusCommand command,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
+    ) {
         log.info("A patch request to update Product status with id: {}, status: {}", productId, command.getStatus());
         return ResponseEntity.ok(productResponseMapper.toUpdateProductStatusResponse(
-                productApplicationService.updateProductStatus(productId, command)));
+                productApplicationService.updateProductStatus(productId, command, expectedVersion)));
     }
 
     @DeleteMapping("/{productId}")
-    public ResponseEntity<DeleteProductResponse> delete(@PathVariable("productId") UUID productId) {
+    public ResponseEntity<DeleteProductResponse> delete(@PathVariable("productId") UUID productId,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
+    ) {
         log.info("A delete request to delete Product with id: {}", productId);
         return ResponseEntity.ok(productResponseMapper.toDeleteProductResponse(
-                productApplicationService.deleteProduct(productId)));
+                productApplicationService.deleteProduct(productId, expectedVersion)));
     }
 }
 

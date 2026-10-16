@@ -4,6 +4,7 @@ package com.project.young.productservice.application.dto.event;
  * Storefront catalog mutation kinds for cache invalidation events.
  */
 public enum ProductCatalogChangeType {
+    PRODUCT_CREATED,
     PRODUCT_UPDATED,
     STATUS_CHANGED,
     VARIANT_CHANGED,

@@ -47,7 +47,7 @@ class ProductSearchIndexBuildJobTest {
 
     @Test
     void terminalFailure_retainsCompletedProgressAndCannotRestart() {
-        var job = queued().start(3, now).recordCompletedBatch(2, now).fail("BULK_ITEM_FAILED", "색인 실패", now);
+        var job = queued().start(3, now).recordCompletedBatch(2, now).fail("BULK_ITEM_FAILED", "Indexing failed", now);
         assertThat(job.indexedProducts()).isEqualTo(2);
         assertThat(job.failureCode()).isEqualTo("BULK_ITEM_FAILED");
         assertThatThrownBy(() -> job.start(3, now)).isInstanceOf(IllegalStateException.class);
@@ -56,10 +56,10 @@ class ProductSearchIndexBuildJobTest {
 
     @Test
     void claimedJob_onLostOwnership_canBeMarkedInterrupted() {
-        var job = queued().start(3, now).interrupt("실행 소유권 확인 필요", now);
+        var job = queued().start(3, now).interrupt("Execution ownership requires verification", now);
         assertThat(job.status()).isEqualTo(ProductSearchIndexBuildStatus.INTERRUPTED);
         assertThat(job.failureCode()).isEqualTo("WORKER_INTERRUPTED");
-        assertThatThrownBy(() -> queued().interrupt("중단", now)).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> queued().interrupt("Interrupted", now)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
@@ -106,7 +106,7 @@ class ProductSearchIndexBuildJobTest {
     @ParameterizedTest
     @EnumSource(value = ProductSearchIndexBuildStatus.class, names = {"FAILED", "INTERRUPTED"})
     void failedJob_withoutFailureCode_reportsMissingFailureDetails(ProductSearchIndexBuildStatus status) {
-        assertThatThrownBy(() -> restored(status, null, 0, null, now, null, "실패"))
+        assertThatThrownBy(() -> restored(status, null, 0, null, now, null, "Failed"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("failureCode is required");
     }
@@ -114,7 +114,7 @@ class ProductSearchIndexBuildJobTest {
     @Test
     void queuedJob_withFailureDetails_rejectsInconsistentState() {
         assertThatThrownBy(() -> restored(ProductSearchIndexBuildStatus.QUEUED, null, 0, null, null,
-                "INVALID_DOCUMENT", "실패"))
+                "INVALID_DOCUMENT", "Failed"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("failure details must be absent");
     }
@@ -128,7 +128,7 @@ class ProductSearchIndexBuildJobTest {
 
     @Test
     void failedJob_beforeStart_stillAllowsNullSourceAndStartTime() {
-        var job = queued().fail("INVALID_DOCUMENT", "실패", now);
+        var job = queued().fail("INVALID_DOCUMENT", "Failed", now);
         assertThat(job.sourceProductCount()).isNull();
         assertThat(job.startedAt()).isNull();
         assertThat(job.finishedAt()).isEqualTo(now);

@@ -1,6 +1,8 @@
 package com.project.young.productservice.dataaccess.config;
 
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import com.project.young.productservice.dataaccess.catalog.ProductCatalogRevisionStore;
+import org.springframework.context.annotation.Import;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -11,6 +13,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 
 @Configuration
+@Import(ProductCatalogRevisionStore.class)
 @EnableJpaAuditing
 @EnableJpaRepositories(basePackages = "com.project.young.productservice.dataaccess")
 @EntityScan(basePackages = "com.project.young.productservice.dataaccess")

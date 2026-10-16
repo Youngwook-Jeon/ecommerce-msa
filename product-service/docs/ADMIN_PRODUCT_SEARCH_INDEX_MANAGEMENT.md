@@ -100,7 +100,7 @@ batchSize 생략/null은 500. catalogWritesPaused는 필수 true다. 실제 인�
 }
 ```
 
-QUEUED의 sourceProductCount/startedAt은 null이며 처리 수는 0이다. 실패 시 failure는 {"code":"BULK_ITEM_FAILED","message":"상품 색인에 실패했습니다."} 형태다. 시각은 UTC ISO-8601, 개수는 0 이상 정수다.
+QUEUED의 sourceProductCount/startedAt은 null이며 처리 수는 0이다. 실패 시 failure는 {"code":"BULK_ITEM_FAILED","message":"Product indexing failed."} 형태다. 시각은 UTC ISO-8601, 개수는 0 이상 정수다.
 
 ### GET /index-versions
 

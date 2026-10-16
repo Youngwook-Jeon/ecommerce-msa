@@ -51,7 +51,7 @@ class ProductApplicationServiceSubAggregateTest {
     private VariantMainImageSyncPort variantMainImageSyncPort;
 
     @Mock
-    private StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
+    private ProductCatalogChangeService productCatalogChangeService;
 
     @InjectMocks
     private ProductApplicationService productApplicationService;
@@ -79,7 +79,7 @@ class ProductApplicationServiceSubAggregateTest {
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void invalidRequest_Throws() {
-            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(null, null))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(null, null, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid add product option group request");
         }
@@ -104,7 +104,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command, 1L))
                     .isInstanceOf(ProductNotFoundException.class)
                     .hasMessageContaining("Product with id");
         }
@@ -138,7 +138,7 @@ class ProductApplicationServiceSubAggregateTest {
             UUID generatedProductOptionValueId = UUID.randomUUID();
             when(idGenerator.generateId()).thenReturn(generatedProductOptionGroupId, generatedProductOptionValueId);
 
-            AddProductOptionGroupResult result = productApplicationService.addProductOptionGroup(productId, command);
+            AddProductOptionGroupResult result = productApplicationService.addProductOptionGroup(productId, command, 1L);
 
             assertThat(result.productId()).isEqualTo(productId);
             assertThat(result.optionGroupId()).isEqualTo(optionGroupId);
@@ -188,7 +188,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
 
-            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Option group/value changes are allowed only when product is DRAFT");
 
@@ -212,7 +212,7 @@ class ProductApplicationServiceSubAggregateTest {
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
             when(idGenerator.generateId()).thenReturn(UUID.randomUUID());
 
-            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Product option values must not be empty");
 
@@ -251,7 +251,7 @@ class ProductApplicationServiceSubAggregateTest {
                             Set.of(new OptionValueId(optionValueId))
                     );
 
-            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("not allowed");
 
@@ -266,7 +266,7 @@ class ProductApplicationServiceSubAggregateTest {
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void invalidRequest_Throws() {
-            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(null, UUID.randomUUID(), null))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(null, UUID.randomUUID(), null, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid add product option value request");
         }
@@ -290,7 +290,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
 
-            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, pogId, command))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, pogId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Product option group not found");
 
@@ -331,7 +331,7 @@ class ProductApplicationServiceSubAggregateTest {
             when(idGenerator.generateId()).thenReturn(generatedProductOptionValueId);
 
             AddProductOptionValueToGroupResult result =
-                    productApplicationService.addProductOptionValues(productId, productOptionGroupId, command).getFirst();
+                    productApplicationService.addProductOptionValues(productId, productOptionGroupId, command, 1L).getFirst();
 
             assertThat(result.productOptionGroupId()).isEqualTo(productOptionGroupId);
             assertThat(result.productOptionValueId()).isEqualTo(generatedProductOptionValueId);
@@ -381,7 +381,7 @@ class ProductApplicationServiceSubAggregateTest {
                             Set.of(new OptionValueId(wrongGlobalOptionValueId))
                     );
 
-            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, productOptionGroupId, command))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, productOptionGroupId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("does not belong");
 
@@ -431,7 +431,7 @@ class ProductApplicationServiceSubAggregateTest {
             doNothing().when(productRepository).update(product);
             when(idGenerator.generateId()).thenReturn(UUID.randomUUID());
 
-            assertThatCode(() -> productApplicationService.addProductOptionValues(productId, productOptionGroupId, command))
+            assertThatCode(() -> productApplicationService.addProductOptionValues(productId, productOptionGroupId, command, 1L))
                     .doesNotThrowAnyException();
 
             verify(productRepository).update(product);
@@ -477,7 +477,7 @@ class ProductApplicationServiceSubAggregateTest {
                             Set.of(new OptionValueId(deletedGlobalOptionValueId))
                     );
 
-            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, productOptionGroupId, command))
+            assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, productOptionGroupId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("not allowed");
 
@@ -492,7 +492,7 @@ class ProductApplicationServiceSubAggregateTest {
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void invalidRequest_Throws() {
-            assertThatThrownBy(() -> productApplicationService.addProductVariants(null, null))
+            assertThatThrownBy(() -> productApplicationService.addProductVariants(null, null, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid add product variants request");
         }
@@ -556,7 +556,7 @@ class ProductApplicationServiceSubAggregateTest {
                     sameVariantId
             );
 
-            assertThatThrownBy(() -> productApplicationService.addProductVariants(productId, bulkCommand))
+            assertThatThrownBy(() -> productApplicationService.addProductVariants(productId, bulkCommand, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Failed to generate unique SKU after 5 attempts");
 
@@ -606,7 +606,7 @@ class ProductApplicationServiceSubAggregateTest {
             UUID generatedVariantId = UUID.randomUUID();
             when(idGenerator.generateId()).thenReturn(generatedVariantId);
 
-            AddProductVariantResult result = productApplicationService.addProductVariants(productId, bulkCommand).get(0);
+            AddProductVariantResult result = productApplicationService.addProductVariants(productId, bulkCommand, 1L).get(0);
 
             assertThat(result.productId()).isEqualTo(productId);
             assertThat(result.productVariantId()).isEqualTo(generatedVariantId);
@@ -648,7 +648,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(deletedProduct));
 
-            assertThatThrownBy(() -> productApplicationService.addProductVariants(productId, bulkCommand))
+            assertThatThrownBy(() -> productApplicationService.addProductVariants(productId, bulkCommand, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Cannot update a product that has been deleted");
 
@@ -701,7 +701,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
 
-            assertThatThrownBy(() -> productApplicationService.addProductVariants(productId, bulkCommand))
+            assertThatThrownBy(() -> productApplicationService.addProductVariants(productId, bulkCommand, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Duplicate variant option combination");
 
@@ -765,7 +765,7 @@ class ProductApplicationServiceSubAggregateTest {
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
             when(idGenerator.generateId()).thenReturn(generatedVariantId);
 
-            List<AddProductVariantResult> results = productApplicationService.addProductVariants(productId, bulkCommand);
+            List<AddProductVariantResult> results = productApplicationService.addProductVariants(productId, bulkCommand, 1L);
 
             assertThat(results).hasSize(1);
             assertThat(results.get(0).productVariantId()).isEqualTo(generatedVariantId);
@@ -782,7 +782,7 @@ class ProductApplicationServiceSubAggregateTest {
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void invalidRequest_Throws() {
-            assertThatThrownBy(() -> productApplicationService.changeProductOptionValuePriceDelta(null, null, null))
+            assertThatThrownBy(() -> productApplicationService.changeProductOptionValuePriceDelta(null, null, null, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid product option value price delta change request");
         }
@@ -832,7 +832,7 @@ class ProductApplicationServiceSubAggregateTest {
             doNothing().when(productRepository).update(product);
 
             ChangeProductOptionValuePriceDeltaResult result = productApplicationService
-                    .changeProductOptionValuePriceDelta(productId, productOptionValueId, command);
+                    .changeProductOptionValuePriceDelta(productId, productOptionValueId, command, 1L);
 
             assertThat(result.productId()).isEqualTo(productId);
             assertThat(result.productOptionValueId()).isEqualTo(productOptionValueId);
@@ -849,7 +849,7 @@ class ProductApplicationServiceSubAggregateTest {
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void invalidRequest_Throws() {
-            assertThatThrownBy(() -> productApplicationService.updateProductVariant(null, null, null))
+            assertThatThrownBy(() -> productApplicationService.updateProductVariant(null, null, null, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid product variant update request");
         }
@@ -868,7 +868,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
 
-            assertThatThrownBy(() -> productApplicationService.updateProductVariant(productId, variantId, command))
+            assertThatThrownBy(() -> productApplicationService.updateProductVariant(productId, variantId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Variant not found in this product");
         }
@@ -885,7 +885,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> productApplicationService.updateProductVariant(productId, variantId, command))
+            assertThatThrownBy(() -> productApplicationService.updateProductVariant(productId, variantId, command, 1L))
                     .isInstanceOf(ProductNotFoundException.class)
                     .hasMessageContaining("Product with id");
 
@@ -929,7 +929,7 @@ class ProductApplicationServiceSubAggregateTest {
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
             doNothing().when(productRepository).update(product);
 
-            UpdateProductVariantResult result = productApplicationService.updateProductVariant(productId, variantId, command);
+            UpdateProductVariantResult result = productApplicationService.updateProductVariant(productId, variantId, command, 1L);
 
             assertThat(result.productId()).isEqualTo(productId);
             assertThat(result.productVariantId()).isEqualTo(variantId);
@@ -948,7 +948,7 @@ class ProductApplicationServiceSubAggregateTest {
                     .status(ProductStatus.DELETED)
                     .build();
 
-            assertThatThrownBy(() -> productApplicationService.updateProductVariant(productId, variantId, command))
+            assertThatThrownBy(() -> productApplicationService.updateProductVariant(productId, variantId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Use delete variant endpoint for DELETED status");
 
@@ -964,7 +964,7 @@ class ProductApplicationServiceSubAggregateTest {
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void invalidRequest_Throws() {
-            assertThatThrownBy(() -> productApplicationService.deleteProductVariant(null, null))
+            assertThatThrownBy(() -> productApplicationService.deleteProductVariant(null, null, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid product variant delete request");
         }
@@ -1001,7 +1001,7 @@ class ProductApplicationServiceSubAggregateTest {
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
             doNothing().when(productRepository).update(product);
 
-            DeleteProductVariantResult result = productApplicationService.deleteProductVariant(productId, variantId);
+            DeleteProductVariantResult result = productApplicationService.deleteProductVariant(productId, variantId, 1L);
 
             assertThat(result.productId()).isEqualTo(productId);
             assertThat(result.productVariantId()).isEqualTo(variantId);
@@ -1017,7 +1017,7 @@ class ProductApplicationServiceSubAggregateTest {
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void invalidRequest_Throws() {
-            assertThatThrownBy(() -> productApplicationService.deleteProductOptionValue(null, null))
+            assertThatThrownBy(() -> productApplicationService.deleteProductOptionValue(null, null, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid product option value deactivate request");
         }
@@ -1061,7 +1061,7 @@ class ProductApplicationServiceSubAggregateTest {
             doNothing().when(productRepository).update(product);
 
             DeleteProductOptionValueResult result =
-                    productApplicationService.deleteProductOptionValue(productId, productOptionValueId);
+                    productApplicationService.deleteProductOptionValue(productId, productOptionValueId, 1L);
 
             assertThat(result.productId()).isEqualTo(productId);
             assertThat(result.productOptionValueId()).isEqualTo(productOptionValueId);
@@ -1078,7 +1078,7 @@ class ProductApplicationServiceSubAggregateTest {
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void invalidRequest_Throws() {
-            assertThatThrownBy(() -> productApplicationService.reorderProductOptionGroups(null, null))
+            assertThatThrownBy(() -> productApplicationService.reorderProductOptionGroups(null, null, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid product option group reorder request");
         }
@@ -1135,7 +1135,7 @@ class ProductApplicationServiceSubAggregateTest {
             doNothing().when(productRepository).update(product);
 
             ReorderProductOptionGroupsResult result =
-                    productApplicationService.reorderProductOptionGroups(productId, command);
+                    productApplicationService.reorderProductOptionGroups(productId, command, 1L);
 
             assertThat(result.productId()).isEqualTo(productId);
             assertThat(result.updatedCount()).isEqualTo(3);
@@ -1186,7 +1186,7 @@ class ProductApplicationServiceSubAggregateTest {
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
 
-            assertThatThrownBy(() -> productApplicationService.reorderProductOptionGroups(productId, command))
+            assertThatThrownBy(() -> productApplicationService.reorderProductOptionGroups(productId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Option group/value changes are allowed only when product is DRAFT");
 

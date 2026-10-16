@@ -125,7 +125,7 @@ public class ProductSearchIndexActivationAdapter implements ProductSearchIndexAc
                 """, (rs, row) -> rs.getObject(1, UUID.class));
         for (UUID id : ids) {
             var entity = jobs.findById(id).orElseThrow();
-            resolveFailure(entity, "ACTIVATION_WORKER_INTERRUPTED", "활성화 실행 소유권이 만료되었습니다.");
+            resolveFailure(entity, "ACTIVATION_WORKER_INTERRUPTED", "The activation execution lease expired.");
             log.warn("Expired activation stopped: jobId={}, indexVersionId={}, status={}", id, entity.getIndexVersionId(), entity.getStatus());
         }
     }
@@ -191,7 +191,7 @@ public class ProductSearchIndexActivationAdapter implements ProductSearchIndexAc
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void failOrUnconfirm(Work work) {
         acquireManagementLock();
-        resolveFailure(owned(work), "INDEX_ACTIVATION_FAILED", "검색 인덱스 활성화 결과를 확인해 주세요.");
+        resolveFailure(owned(work), "INDEX_ACTIVATION_FAILED", "Check the search index activation result.");
     }
 
     private void resolveFailure(ProductSearchIndexActivationJobEntity entity, String code, String message) {

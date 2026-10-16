@@ -5,6 +5,14 @@ import com.project.young.productservice.application.dto.event.ProductCatalogChan
 import com.project.young.productservice.dataaccess.entity.ProductCatalogOutboxEntity;
 import com.project.young.productservice.dataaccess.repository.ProductCatalogOutboxJpaRepository;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
+import com.project.young.productservice.dataaccess.catalog.ProductCatalogRevisionStore;
+import com.project.young.productservice.application.port.output.ProductCatalogChangeActorPort;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.ObjectProvider;
+import jakarta.persistence.EntityManager;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +32,17 @@ class ProductCatalogOutboxAdapterTest {
     @Mock
     private ProductCatalogOutboxJpaRepository productCatalogOutboxJpaRepository;
 
+    @Mock private ProductCatalogRevisionStore revisions;
+    @Mock private JdbcTemplate jdbc;
+    @Mock private EntityManager entityManager;
+    @Mock private ObjectProvider<ProductCatalogChangeActorPort> actors;
+
+    @BeforeEach
+    void prepareRevision() {
+        when(revisions.advance(any(), org.mockito.ArgumentMatchers.anyLong())).thenReturn(2L);
+        when(actors.getIfAvailable(any())).thenReturn(() -> "admin-sub");
+    }
+
     @InjectMocks
     private ProductCatalogOutboxAdapter productCatalogOutboxAdapter;
 
@@ -38,8 +57,7 @@ class ProductCatalogOutboxAdapterTest {
                 productId,
                 4L,
                 ProductCatalogChangeType.PRODUCT_UPDATED,
-                occurredAt
-        );
+                occurredAt, 1L);
 
         productCatalogOutboxAdapter.enqueue(event);
 
@@ -65,8 +83,7 @@ class ProductCatalogOutboxAdapterTest {
                 productId,
                 null,
                 ProductCatalogChangeType.DELETED,
-                Instant.now()
-        );
+                Instant.now(), 1L);
 
         productCatalogOutboxAdapter.enqueue(event);
 

@@ -1,10 +1,10 @@
 package com.project.young.productservice.domain.valueobject;
 
 public enum ConditionType {
-    NEW("새 상품"),
-    USED("중고"),
-    REFURBISHED("리퍼"),
-    OPEN_BOX("오픈박스");
+    NEW("New"),
+    USED("Used"),
+    REFURBISHED("Refurbished"),
+    OPEN_BOX("Open box");
 
     private final String description;
 

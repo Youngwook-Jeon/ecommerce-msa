@@ -9,6 +9,8 @@ import com.project.young.productservice.application.exception.ProductSearchIndex
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
+import com.project.young.productservice.application.port.output.ProductSearchSynchronizationPort;
+import com.project.young.productservice.application.exception.ProductSearchSynchronizationDeferredException;
 import org.springframework.context.annotation.Configuration;
 
 /** Explicitly disabled search returns 503 while leaving other product features available. */
@@ -38,5 +40,12 @@ public class ProductSearchConfiguration {
             public void switchAlias(Work work) { throw unavailable(); }
             public void verifyAfterSwitch(Work work) { throw unavailable(); }
         };
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(ProductSearchSynchronizationPort.class)
+    @ConditionalOnProperty(prefix = "product-service.search", name = "enabled", havingValue = "false")
+    ProductSearchSynchronizationPort unavailableProductSearchSynchronization() {
+        return (id, revision) -> { throw new ProductSearchSynchronizationDeferredException("Search is disabled"); };
     }
 }

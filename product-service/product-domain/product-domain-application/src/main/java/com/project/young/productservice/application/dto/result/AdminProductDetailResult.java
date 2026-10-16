@@ -15,6 +15,7 @@ import java.util.UUID;
 @Builder
 public record AdminProductDetailResult(
         UUID id,
+        long version,
         Long categoryId,
         String name,
         String description,

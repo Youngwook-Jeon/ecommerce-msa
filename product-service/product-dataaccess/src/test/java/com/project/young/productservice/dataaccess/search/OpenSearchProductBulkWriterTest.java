@@ -119,6 +119,20 @@ class OpenSearchProductBulkWriterTest {
                 .doesNotContain("private product value", "private nested value", document.toString());
     }
 
+    @Test
+    void externalVersionConflict_isAnIdempotentSuccess() throws Exception {
+        var document = ProductSearchInitialLoaderTest.document();
+        var conflict = BulkResponseItem.of(i -> i.operationType(OperationType.Index).id(document.id()).index("products-v1").status(409)
+                .error(e -> e.type("version_conflict_engine_exception").reason("older or duplicate revision")));
+        when(client.bulk(any(BulkRequest.class))).thenReturn(response(true, conflict));
+        writer.write("products-v1", List.of(document));
+        var request = ArgumentCaptor.forClass(BulkRequest.class);
+        verify(client).bulk(request.capture());
+        assertThat(request.getValue().operations().getFirst().index().version()).isEqualTo(1L);
+        assertThat(request.getValue().operations().getFirst().index().versionType())
+                .isEqualTo(org.opensearch.client.opensearch._types.VersionType.External);
+    }
+
     private static BulkResponseItem item(OpenSearchProductDocument document, int status) {
         return BulkResponseItem.of(i -> i.operationType(OperationType.Index).id(document.id()).index("products-v1").status(status));
     }

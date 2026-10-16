@@ -7,6 +7,7 @@ import com.project.young.productservice.application.dto.event.ProductCatalogChan
 import com.project.young.productservice.application.dto.event.StorefrontProductDetailCacheEvictRequestedEvent;
 import com.project.young.productservice.application.port.output.IdGenerator;
 import com.project.young.productservice.application.port.output.ProductCatalogOutboxPort;
+import com.project.young.productservice.application.port.output.ProductCatalogVersionPort;
 import com.project.young.productservice.domain.entity.Product;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -20,31 +21,38 @@ import java.util.UUID;
  */
 @Service
 @Slf4j
-public class StorefrontProductCatalogInvalidationService {
+public class ProductCatalogChangeService {
 
     private final ProductCatalogOutboxPort productCatalogOutboxPort;
+    private final ProductCatalogVersionPort versions;
     private final IdGenerator idGenerator;
     private final ApplicationEventPublisher applicationEventPublisher;
 
-    public StorefrontProductCatalogInvalidationService(
+    public ProductCatalogChangeService(
             ProductCatalogOutboxPort productCatalogOutboxPort,
             IdGenerator idGenerator,
-            ApplicationEventPublisher applicationEventPublisher
+            ApplicationEventPublisher applicationEventPublisher,
+            ProductCatalogVersionPort versions
     ) {
+        this.versions = versions;
         this.productCatalogOutboxPort = productCatalogOutboxPort;
         this.idGenerator = idGenerator;
         this.applicationEventPublisher = applicationEventPublisher;
     }
 
-    public void invalidate(Product product, ProductCatalogChangeType changeType) {
+    public void verifyVersion(UUID productId, long expectedVersion) {
+        versions.verifyVersion(productId, expectedVersion);
+    }
+
+    public void recordChange(Product product, ProductCatalogChangeType changeType, long expectedVersion) {
         if (product == null || product.getId() == null) {
             throw new IllegalArgumentException("product must not be null");
         }
         Long categoryId = product.getCategoryId().map(CategoryId::getValue).orElse(null);
-        invalidate(product.getId(), categoryId, changeType);
+        recordChange(product.getId(), categoryId, changeType, expectedVersion);
     }
 
-    public void invalidate(ProductId productId, Long categoryId, ProductCatalogChangeType changeType) {
+    public void recordChange(ProductId productId, Long categoryId, ProductCatalogChangeType changeType, long expectedVersion) {
         if (productId == null) {
             throw new IllegalArgumentException("productId must not be null");
         }
@@ -57,15 +65,16 @@ public class StorefrontProductCatalogInvalidationService {
                 productId.getValue(),
                 categoryId,
                 changeType,
-                Instant.now()
+                Instant.now(),
+                expectedVersion
         ));
         applicationEventPublisher.publishEvent(
                 new StorefrontProductDetailCacheEvictRequestedEvent(productId.getValue(), changeType)
         );
-        log.debug("Scheduled storefront catalog invalidation for product {} ({})", productId.getValue(), changeType);
+        log.debug("Recorded catalog change for product {} ({})", productId.getValue(), changeType);
     }
 
-    public void invalidate(UUID productIdValue, Long categoryId, ProductCatalogChangeType changeType) {
-        invalidate(new ProductId(productIdValue), categoryId, changeType);
+    public void recordChange(UUID productIdValue, Long categoryId, ProductCatalogChangeType changeType, long expectedVersion) {
+        recordChange(new ProductId(productIdValue), categoryId, changeType, expectedVersion);
     }
 }

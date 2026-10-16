@@ -128,7 +128,7 @@ class AdminProductImageControllerTest {
                     .message("Image committed successfully")
                     .build();
 
-            when(productImageApplicationService.commitUpload(eq(productId), any())).thenReturn(result);
+            when(productImageApplicationService.commitUpload(eq(productId), any(), eq(1L))).thenReturn(result);
             when(productImageResponseMapper.toProductImageCommitResponse(result)).thenReturn(response);
 
             ProductImageCommitRequest body = ProductImageCommitRequest.builder()
@@ -139,7 +139,7 @@ class AdminProductImageControllerTest {
                     .sortOrder(0)
                     .build();
 
-            mockMvc.perform(post("/admin/products/{productId}/images/commit", productId)
+            mockMvc.perform(post("/admin/products/{productId}/images/commit", productId).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(body)))
@@ -147,7 +147,7 @@ class AdminProductImageControllerTest {
                     .andExpect(jsonPath("$.id").value(imageId.toString()))
                     .andExpect(jsonPath("$.role").value("MAIN"));
 
-            verify(productImageApplicationService).commitUpload(eq(productId), any());
+            verify(productImageApplicationService).commitUpload(eq(productId), any(), org.mockito.ArgumentMatchers.eq(1L));
             verify(productImageResponseMapper).toProductImageCommitResponse(result);
         }
     }
@@ -162,11 +162,11 @@ class AdminProductImageControllerTest {
             UUID productId = UUID.randomUUID();
             UUID imageId = UUID.randomUUID();
 
-            mockMvc.perform(delete("/admin/products/{productId}/images/{imageId}", productId, imageId)
+            mockMvc.perform(delete("/admin/products/{productId}/images/{imageId}", productId, imageId).param("expectedVersion", "1")
                             .with(csrf()))
                     .andExpect(status().isNoContent());
 
-            verify(productImageApplicationService).deleteImage(productId, imageId);
+            verify(productImageApplicationService).deleteImage(productId, imageId, 1L);
         }
     }
 
@@ -192,14 +192,14 @@ class AdminProductImageControllerTest {
                     .message("Images reordered successfully")
                     .build();
 
-            when(productImageApplicationService.reorderImages(eq(productId), any())).thenReturn(result);
+            when(productImageApplicationService.reorderImages(eq(productId), any(), eq(1L))).thenReturn(result);
             when(productImageResponseMapper.toProductImageReorderResponse(result)).thenReturn(response);
 
             ProductImageReorderRequest body = ProductImageReorderRequest.builder()
                     .orderedImageIds(List.of(image2, image1))
                     .build();
 
-            mockMvc.perform(patch("/admin/products/{productId}/images/reorder", productId)
+            mockMvc.perform(patch("/admin/products/{productId}/images/reorder", productId).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(body)))
@@ -207,7 +207,7 @@ class AdminProductImageControllerTest {
                     .andExpect(jsonPath("$.productId").value(productId.toString()))
                     .andExpect(jsonPath("$.reorderedCount").value(2));
 
-            verify(productImageApplicationService).reorderImages(eq(productId), any());
+            verify(productImageApplicationService).reorderImages(eq(productId), any(), org.mockito.ArgumentMatchers.eq(1L));
             verify(productImageResponseMapper).toProductImageReorderResponse(result);
         }
     }

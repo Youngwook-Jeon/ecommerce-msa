@@ -33,7 +33,7 @@ curl --fail -X PUT http://localhost:9200/products-v1/_alias/products-read
 
 인덱싱 단위는 상품이며 `_id`와 문서 `id`는 상품 UUID를 사용한다. 검색 문서는 `OpenSearchProductDocument`의 필드를 따른다.
 
-- 필수 데이터: id, categoryId, name, basePrice, productStatus, categoryStatus, createdAt.
+- 공통 필수 데이터: id, productStatus, createdAt, 양의 catalogRevision, documentReady. 검색 가능한 문서는 categoryId, name, basePrice, categoryStatus도 필수다.
 - brand/mainImageUrl은 null 가능. description은 전문 검색에 사용한다.
 - brandLabel은 브랜드 표시 이름을 NFC/앞뒤 Unicode 공백 제거한 값이다. brandKey는 해당 값을 `Locale.ROOT` 소문자로 변환하고 다시 NFC 정규화한다. brand는 전문 검색과 상품 응답에 사용하는 표시 이름이다. 빈 브랜드는 세 필드를 null로 두거나 생략한다.
 - brandKey는 필터와 정확한 집계에 사용한다. 대소문자만 다른 브랜드는 같은 키로 합산하며, 동일 키의 표시 이름이 여러 개면 사전순 첫 brandLabel을 선택한다.
@@ -41,30 +41,30 @@ curl --fail -X PUT http://localhost:9200/products-v1/_alias/products-read
 - createdAt은 ISO-8601 시각 문자열이다. 정렬에만 사용하며 공개 상품 응답에는 추가하지 않는다.
 - 브랜드 이름 변경 시 관련 상품 문서의 brand/brandLabel/brandKey를 함께 갱신한다. 이름 변경에 따라 필터 키도 바뀔 수 있다.
 - 다른 브랜드 필드 매핑으로 생성된 기존 인덱스는 새 매핑으로 다시 색인한 후 alias를 전환해야 한다.
-- 상품 생성/수정/삭제 및 카테고리 상태/이름 변경을 문서에 반영하는 DB 초기 적재와 outbox 동기화는 후속 작업이다. 어댑터만으로 DB 상품이 자동 색인되지 않는다.
+- 상품 변경은 기존 outbox/Kafka 토픽으로 동기화한다. 카테고리 상태 변경의 관련 상품 갱신은 후속 작업이다. 자세한 동작은 [상품 검색 동기화](PRODUCT_SEARCH_SYNCHRONIZATION.md)를 참고한다.
 
 ## 검색 문서 생성
 
-`OpenSearchProductDocumentMapper.toDocument(ProductEntity)`는 저장된 상품과 해당 카테고리를 검색 문서로 변환한다. 초기 적재와 변경 동기화에서 같은 매퍼를 사용한다. 호출자는 카테고리를 함께 조회하거나 유효한 persistence context 안에서 매핑해야 한다. 매퍼는 repository를 호출하거나 옵션/variant/카테고리 상품 컬렉션을 순회하지 않는다.
+`OpenSearchProductDocumentMapper.toDocument(ProductEntity, long catalogRevision)`는 저장된 상품과 해당 카테고리를 검색 문서로 변환한다. 초기 적재와 변경 동기화에서 같은 매퍼를 사용한다. 호출자는 카테고리를 함께 조회하거나 유효한 persistence context 안에서 매핑해야 한다. 매퍼는 repository를 호출하거나 옵션/variant/카테고리 상품 컬렉션을 순회하지 않는다.
 
-- 상품 ID, 양의 카테고리 ID, 비어 있지 않은 상품 이름, 두 상태와 생성 시각은 필수다. 누락 시 `IllegalArgumentException`으로 실패하며 임의의 기본값을 만들지 않는다.
+- 상품 ID, 상품 상태, 생성 시각, 양의 revision은 필수다. 카테고리가 없으면 documentReady=false인 최소 문서를 생성해 기존 검색 문서의 노출을 막는다. 카테고리가 있으면 양의 카테고리 ID, 상품 이름, 가격과 카테고리 상태를 검증한다. 잘못된 값은 `IllegalArgumentException`으로 실패한다.
 - 가격은 0 이상이며 반올림 없이 소수점 두 자리로 표현해야 한다. `12.3400`은 `12.34`로 허용하고 `12.341`은 거부한다.
 - 브랜드의 표시 이름과 키는 application의 `ProductSearchBrandNormalizer`를 사용한다. 요청 필터도 동일한 키 함수를 사용한다. 브랜드 내부 공백은 유지하며 표시 이름과 최종 키가 각각 100 code points를 넘으면 거부한다.
 - 정규화한 표시 이름은 brand와 brandLabel에 동일하게 저장한다. 브랜드 없음/Unicode 공백만 있는 값은 brand/brandKey/brandLabel 모두 null이다.
-- 상품명, 카테고리명, 설명, 이미지 URL은 원본을 유지한다. 설명과 이미지 URL은 null 가능하다. 생성 시각은 저장된 Instant를 ISO-8601 문자열로 변환한다.
-- 비활성/삭제 등 상태도 원래 enum 이름으로 보존한다. 문서 생성 단계에서 상품을 제외하지 않으며 검색 쿼리가 활성 상품/카테고리만 노출한다. 물리 삭제 문서 제거는 후속 동기화에서 처리한다.
+- 상품명, 설명, 이미지 URL은 원본을 유지한다. 설명과 이미지 URL은 null 가능하다. 생성 시각은 저장된 Instant를 ISO-8601 문자열로 변환한다.
+- 비활성/삭제 등 상태도 원래 enum 이름으로 보존한다. 문서 생성 단계에서 상품을 제외하지 않으며 검색 쿼리가 활성 상품/카테고리만 노출한다. 물리 삭제는 현재 지원하지 않는다.
 
-매퍼는 원본 엔티티를 수정하거나 OpenSearch에 쓰지 않는다. 초기 적재와 Bulk 전송은 아래 파이프라인에서 수행한다. outbox 변경 동기화는 후속 작업이다.
+매퍼는 원본 엔티티를 수정하거나 OpenSearch에 쓰지 않는다. 초기 적재와 Bulk 전송은 아래 파이프라인에서 수행한다. 변경 동기화에서도 같은 매퍼와 Bulk writer를 사용한다.
 
 ## 초기 적재 파이프라인
 
-`ProductSearchInitialLoader.load(targetIndex, batchSize)`가 배치 조회 → 매퍼 → Bulk 저장을 연결한다. search.enabled=true일 때 Spring bean으로 등록하며 자동 실행하지 않는다. 기본 배치 크기 상수는 500이며 허용 범위는 1~1000이다. 어드민 등록 작업의 실행기가 인덱스 생성과 최종 refresh·검증까지 수행한다. alias 전환은 후속 작업이다. 실행 조건과 lease는 [어드민 인덱스 관리](ADMIN_PRODUCT_SEARCH_INDEX_MANAGEMENT.md)를 참고한다.
+`ProductSearchInitialLoader.load(targetIndex, batchSize)`가 배치 조회 → 매퍼 → Bulk 저장을 연결한다. search.enabled=true일 때 Spring bean으로 등록하며 자동 실행하지 않는다. 기본 배치 크기 상수는 500이며 허용 범위는 1~1000이다. 어드민 등록 작업의 실행기가 인덱스 생성과 최종 refresh·검증까지 수행한다. 검증 후 별도 어드민 활성화 API로 alias를 전환한다. 실행 조건과 lease는 [어드민 인덱스 관리](ADMIN_PRODUCT_SEARCH_INDEX_MANAGEMENT.md)를 참고한다.
 
 - 상품·카테고리 쓰기를 멈춘 상태에서 실행해야 한다. 배치마다 새 트랜잭션을 사용하므로 전체 적재가 하나의 스냅샷은 아니다.
 - 대상은 사전에 매핑을 적용해 생성한 실제 인덱스 이름이다. alias, wildcard, 존재하지 않는 대상은 시작 전에 거부한다. 읽기 alias를 그대로 대상으로 사용하지 않는다.
-- 상품 UUID 오름차순 keyset 조회와 카테고리 LEFT JOIN FETCH를 사용한다. 카테고리 없는 잘못된 상품을 조용히 제외하지 않으며 매퍼에서 실패시킨다. count 쿼리나 옵션/variant 컬렉션 조회는 하지 않는다.
-- `ProductSearchIndexBatchReader.read()`는 REQUIRES_NEW/readOnly 트랜잭션 안에서 조회와 변환을 완료한다. loader는 NOT_SUPPORTED로 외부 트랜잭션도 중단하므로 Bulk 전송 동안 DB 트랜잭션을 유지하지 않는다. Spring에서 주입받은 bean으로 호출해야 이 경계가 적용된다.
-- `_id`는 상품 UUID, 동작은 index(upsert/덮어쓰기), refresh=false다. 최대 3회 시도하며 항목의 429/502/503/504는 실패 문서만, IOException이나 재시도 가능한 요청 오류는 미확정 문서 묶음을 재전송한다. 재시도 간 100ms/200ms 대기한다.
+- 상품 UUID 오름차순 keyset 조회와 카테고리 LEFT JOIN FETCH를 사용한다. 카테고리 없는 상품도 documentReady=false인 문서로 저장한다. count 쿼리나 옵션/variant 컬렉션 조회는 하지 않는다.
+- `ProductSearchIndexBatchReader.read()`는 REQUIRES_NEW/readOnly/REPEATABLE_READ 트랜잭션 안에서 상품과 revision을 함께 조회하고 문서 변환을 완료한다. loader는 NOT_SUPPORTED로 외부 트랜잭션도 중단하므로 Bulk 전송 동안 DB 트랜잭션을 유지하지 않는다. Spring에서 주입받은 bean으로 호출해야 이 경계가 적용된다.
+- `_id`는 상품 UUID, 동작은 index, refresh=false다. catalogRevision을 external version으로 보내며 동일하거나 오래된 revision의 version conflict는 이미 반영된 성공으로 취급한다. 최대 3회 시도하며 항목의 429/502/503/504는 실패 문서만, IOException이나 재시도 가능한 요청 오류는 미확정 문서 묶음을 재전송한다. 재시도 간 100ms/200ms 대기한다.
 - 항목 수, 상품 ID, 대상 인덱스와 작업 타입을 검사한다. 영구 오류, 불완전 응답, 재시도 소진 시 중단하며 다음 DB 배치를 읽지 않는다. 성공한 배치만 커서와 처리 수를 갱신한다.
 - 완료 결과는 저장 완료한 상품 수와 배치 수다. 검색에 보이는 문서 수를 의미하지 않으며 최종 검증은 별도다. 실패 전 성공한 쓰기는 되돌리지 않는다. 중간 성공이 있으므로 실패 대상은 새 인덱스로 다시 적재하는 것이 안전하다.
 - 전체 문서를 메모리에 모으지 않고 한 DB 배치만 처리한다. 긴 설명에 따른 요청 바이트 제한과 배치 튜닝은 운영 적재량으로 확인해야 한다.
@@ -85,7 +85,7 @@ curl --fail -X PUT http://localhost:9200/products-v1/_alias/products-read
 
 ## 검색과 정확한 facets
 
-- 활성 상품/활성 카테고리 조건을 항상 적용한다.
+- documentReady=true 및 활성 상품/활성 카테고리 조건을 항상 적용한다.
 - categoryId/brandKey/basePrice 필터는 bool filter에 구성한다. 여러 브랜드는 OR, 다른 필터와는 AND다.
 - name/brand/description은 같은 Nori+lowercase 분석기를 사용한다. multi_match cross_fields에서 분석된 검색어 토큰을 AND로 결합한다. 가중치는 name 4, brand 2, description 1이며 name 구문 일치를 추가 보강한다. 동의어/오타/벡터 검색은 아직 추가하지 않는다.
 - 정렬과 최종 id 동점 정렬은 API 계약을 따른다. total hits는 정확한 개수를 요구한다.

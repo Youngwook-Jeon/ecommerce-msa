@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.opensearch.client.opensearch.OpenSearchClient;
 import org.opensearch.client.opensearch._types.OpenSearchException;
 import org.opensearch.client.opensearch._types.Refresh;
+import org.opensearch.client.opensearch._types.VersionType;
 import org.opensearch.client.opensearch.core.BulkRequest;
 import org.opensearch.client.opensearch.core.BulkResponse;
 import org.opensearch.client.opensearch.core.bulk.OperationType;
@@ -41,6 +42,9 @@ public class OpenSearchProductBulkWriter {
     }
 
     public void write(String index, List<OpenSearchProductDocument> documents, Runnable beforeAttempt) {
+        if (documents.stream().anyMatch(d -> d.catalogRevision() < 1)) {
+            throw new IllegalArgumentException("Search revision must be positive");
+        }
         List<OpenSearchProductDocument> pending = List.copyOf(documents);
         for (int attempt = 1; !pending.isEmpty(); attempt++) {
             beforeAttempt.run();
@@ -48,7 +52,7 @@ public class OpenSearchProductBulkWriter {
             try {
                 var request = new BulkRequest.Builder().refresh(Refresh.False);
                 pending.forEach(document -> request.operations(o -> o.index(i -> i.index(index)
-                        .id(document.id()).document(document))));
+                        .id(document.id()).version(document.catalogRevision()).versionType(VersionType.External).document(document))));
                 retry = failedDocuments(index, pending, client.bulk(request.build()), attempt);
             } catch (IOException exception) {
                 log.warn("Product bulk transport failed: index={}, attempt={}, documentCount={}",
@@ -83,6 +87,7 @@ public class OpenSearchProductBulkWriter {
             throw new ProductSearchIndexingException("Incomplete bulk response");
         }
         List<OpenSearchProductDocument> retry = new ArrayList<>();
+        boolean versionConflict = false;
         for (int i = 0; i < documents.size(); i++) {
             var item = response.items().get(i);
             var document = documents.get(i);
@@ -90,6 +95,10 @@ public class OpenSearchProductBulkWriter {
                 throw new ProductSearchIndexingException("Bulk response does not match requested documents");
             }
             if (item.status() >= 200 && item.status() < 300 && item.error() == null) {
+                continue;
+            }
+            if (item.status() == 409 && item.error() != null && "version_conflict_engine_exception".equals(item.error().type())) {
+                versionConflict = true;
                 continue;
             }
             String errorType = item.error() == null ? null : item.error().type();
@@ -103,7 +112,7 @@ public class OpenSearchProductBulkWriter {
                     index, document.id(), attempt, item.status(), errorType, causeType);
             retry.add(document);
         }
-        if (response.errors() && retry.isEmpty()) {
+        if (response.errors() && retry.isEmpty() && !versionConflict) {
             throw new ProductSearchIndexingException("Inconsistent bulk error response");
         }
         return retry;

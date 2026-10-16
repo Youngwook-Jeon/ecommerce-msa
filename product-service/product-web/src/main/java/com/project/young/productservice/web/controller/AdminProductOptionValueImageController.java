@@ -13,6 +13,8 @@ import com.project.young.productservice.web.dto.ProductImageReorderRequest;
 import com.project.young.productservice.web.dto.ProductImageReorderResponse;
 import com.project.young.productservice.web.mapper.ProductImageResponseMapper;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
+import org.springframework.web.bind.annotation.RequestParam;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -68,7 +70,8 @@ public class AdminProductOptionValueImageController {
     public ResponseEntity<ProductImageCommitResponse> commit(
             @PathVariable("productId") UUID productId,
             @PathVariable("productOptionValueId") UUID productOptionValueId,
-            @Valid @RequestBody ProductImageCommitRequest request
+            @Valid @RequestBody ProductImageCommitRequest request,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST commit option value image productId={}, povId={}", productId, productOptionValueId);
         CommitProductImageCommand command = CommitProductImageCommand.builder()
@@ -84,8 +87,7 @@ public class AdminProductOptionValueImageController {
                         productOptionValueImageApplicationService.commitUpload(
                                 productId,
                                 productOptionValueId,
-                                command
-                        )
+                                command, expectedVersion)
                 )
         );
     }
@@ -94,10 +96,11 @@ public class AdminProductOptionValueImageController {
     public ResponseEntity<Void> delete(
             @PathVariable("productId") UUID productId,
             @PathVariable("productOptionValueId") UUID productOptionValueId,
-            @PathVariable("imageId") UUID imageId
+            @PathVariable("imageId") UUID imageId,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST delete option value image productId={}, povId={}, imageId={}", productId, productOptionValueId, imageId);
-        productOptionValueImageApplicationService.deleteImage(productId, productOptionValueId, imageId);
+        productOptionValueImageApplicationService.deleteImage(productId, productOptionValueId, imageId, expectedVersion);
         return ResponseEntity.noContent().build();
     }
 
@@ -105,7 +108,8 @@ public class AdminProductOptionValueImageController {
     public ResponseEntity<ProductImageReorderResponse> reorder(
             @PathVariable("productId") UUID productId,
             @PathVariable("productOptionValueId") UUID productOptionValueId,
-            @Valid @RequestBody ProductImageReorderRequest request
+            @Valid @RequestBody ProductImageReorderRequest request,
+            @RequestParam("expectedVersion") @Positive long expectedVersion
     ) {
         log.info("REST reorder option value images productId={}, povId={}", productId, productOptionValueId);
         ReorderProductImagesCommand command = ReorderProductImagesCommand.builder()
@@ -113,7 +117,7 @@ public class AdminProductOptionValueImageController {
                 .build();
 
         return ResponseEntity.ok(productImageResponseMapper.toProductImageReorderResponse(
-                productOptionValueImageApplicationService.reorderImages(productId, productOptionValueId, command)
+                productOptionValueImageApplicationService.reorderImages(productId, productOptionValueId, command, expectedVersion)
         ));
     }
 

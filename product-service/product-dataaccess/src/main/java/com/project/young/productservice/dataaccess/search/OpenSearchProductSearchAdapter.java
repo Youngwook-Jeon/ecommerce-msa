@@ -135,7 +135,7 @@ public class OpenSearchProductSearchAdapter implements ProductSearchPort {
     }
 
     private static void validateDocument(OpenSearchProductDocument document) {
-        if (document == null || document.categoryId() <= 0
+        if (document == null || !document.documentReady() || document.categoryId() == null || document.categoryId() <= 0
                 || document.name() == null || document.basePrice() == null || document.basePrice().signum() < 0) {
             throw new IllegalStateException("Invalid product search document");
         }

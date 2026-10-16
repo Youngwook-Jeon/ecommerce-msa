@@ -116,7 +116,7 @@ public class ProductOptionGroup extends BaseEntity<ProductOptionGroupId> {
         ProductOptionValue targetValue = this.optionValues.stream()
                 .filter(v -> v.getOptionValueId().equals(optionValueIdToRemove))
                 .findFirst()
-                .orElseThrow(() -> new ProductDomainException("해당 옵션 값이 이 그룹에 존재하지 않습니다."));
+                .orElseThrow(() -> new ProductDomainException("The option value does not exist in this group."));
 
         targetValue.deactivateLocalOption();
     }

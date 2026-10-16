@@ -23,42 +23,42 @@ public class ProductOptionGroupVisualApplicationService {
     private final ProductRepository productRepository;
     private final ProductOptionGroupVisualPort productOptionGroupVisualPort;
     private final VariantMainImageSyncPort variantMainImageSyncPort;
-    private final StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
+    private final ProductCatalogChangeService productCatalogChangeService;
 
     public ProductOptionGroupVisualApplicationService(
             ProductRepository productRepository,
             ProductOptionGroupVisualPort productOptionGroupVisualPort,
             VariantMainImageSyncPort variantMainImageSyncPort,
-            StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService
+            ProductCatalogChangeService productCatalogChangeService
     ) {
         this.productRepository = productRepository;
         this.productOptionGroupVisualPort = productOptionGroupVisualPort;
         this.variantMainImageSyncPort = variantMainImageSyncPort;
-        this.storefrontProductCatalogInvalidationService = storefrontProductCatalogInvalidationService;
+        this.productCatalogChangeService = productCatalogChangeService;
     }
 
     @Transactional
     public UpdateProductOptionGroupVisualResult updateVisualFlag(
             UUID productId,
             UUID productOptionGroupId,
-            UpdateProductOptionGroupVisualCommand command
-    ) {
+            UpdateProductOptionGroupVisualCommand command, long expectedVersion) {
         if (command == null) {
             throw new IllegalArgumentException("UpdateProductOptionGroupVisualCommand is required.");
         }
+        productCatalogChangeService.verifyVersion(productId, expectedVersion);
         Product product = productRepository.findById(new ProductId(productId))
                 .orElseThrow(() -> new ProductNotFoundException("Product not found: " + productId));
         if (product.isDeleted()) {
             throw new ProductDomainException("Cannot update visual option group for a deleted product.");
         }
 
+        productCatalogChangeService.recordChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productOptionGroupVisualPort.setDrivesVariantImages(
                 productId,
                 productOptionGroupId,
                 command.isDrivesVariantImages()
         );
         variantMainImageSyncPort.syncAllForProduct(productId);
-        storefrontProductCatalogInvalidationService.invalidate(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return UpdateProductOptionGroupVisualResult.builder()
                 .productId(productId)

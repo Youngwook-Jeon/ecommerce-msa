@@ -50,7 +50,7 @@ public class ProductSearchIndexBuildWorkAdapter implements ProductSearchIndexBui
                 """, (rs, row) -> rs.getObject(1, UUID.class));
         for (UUID id : expired) {
             var entity = jobs.findById(id).orElseThrow();
-            var job = mapper.toDomain(entity).interrupt("실행 소유권이 만료되어 작업을 중단했습니다.", now());
+            var job = mapper.toDomain(entity).interrupt("The job was interrupted because its execution lease expired.", now());
             terminate(entity, job);
             failVersion(entity.getIndexVersionId(), job.updatedAt());
             log.warn("Expired index build interrupted: jobId={}, indexVersionId={}", id, entity.getIndexVersionId());
@@ -127,7 +127,7 @@ public class ProductSearchIndexBuildWorkAdapter implements ProductSearchIndexBui
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void fail(Work work) {
         var entity = owned(work);
-        var job = mapper.toDomain(entity).fail("INDEX_BUILD_FAILED", "검색 인덱스 생성·적재·검증에 실패했습니다.", now());
+        var job = mapper.toDomain(entity).fail("INDEX_BUILD_FAILED", "Search index creation, loading, or verification failed.", now());
         terminate(entity, job);
         failVersion(entity.getIndexVersionId(), job.updatedAt());
         log.warn("Index build failed: jobId={}, indexVersionId={}", job.id(), entity.getIndexVersionId());

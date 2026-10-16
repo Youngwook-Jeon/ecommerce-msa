@@ -83,7 +83,7 @@ class OpenSearchProductSearchAdapterTest {
         var original = ProductSearchInitialLoaderTest.document();
         return new OpenSearchProductDocument(original.id(), categoryId, original.name(), original.brand(), original.brandKey(),
                 original.brandLabel(), original.description(), original.mainImageUrl(), original.basePrice(),
-                original.productStatus(), original.categoryStatus(), original.createdAt());
+                original.productStatus(), original.categoryStatus(), original.createdAt(), 1, true);
     }
 
     @Test

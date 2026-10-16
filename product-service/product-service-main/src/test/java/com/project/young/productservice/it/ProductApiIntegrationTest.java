@@ -100,6 +100,11 @@ class ProductApiIntegrationTest {
     @Autowired
     private EntityManager entityManager;
 
+    private String versionOf(UUID productId) {
+        return entityManager.createNativeQuery("SELECT revision FROM product_catalog_versions WHERE product_id = :id")
+                .setParameter("id", productId).getSingleResult().toString();
+    }
+
     @BeforeEach
     void setUp() {
         // currentSchema=product 기준. CASCADE로 option_values·product_option_*·variants 등 FK 하위 테이블까지 비운다.
@@ -124,6 +129,37 @@ class ProductApiIntegrationTest {
                 .andExpect(jsonPath("$.id").value(1));
 
         return 1L;
+    }
+
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void staleEditor_acrossProductAndImageChanges_returns409WithoutExtraOutbox() throws Exception {
+        Long categoryId = createCategory("version test category");
+        var create = CreateProductCommand.builder().name("initial product")
+                .description("Initial description for optimistic version test")
+                .brand("brand").basePrice(new BigDecimal("10.00"))
+                .categoryId(categoryId).conditionType(ConditionType.NEW).build();
+        var response = mockMvc.perform(post("/admin/products").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(create)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID id = UUID.fromString(objectMapper.readTree(response).get("id").asText());
+        mockMvc.perform(get("/admin/queries/products/{productId}", id))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(1));
+        var update = UpdateProductCommand.builder().name("changed product")
+                .description("Updated description for optimistic version test")
+                .brand("brand").basePrice(new BigDecimal("20.00")).categoryId(categoryId).build();
+        mockMvc.perform(put("/admin/products/{productId}", id).param("expectedVersion", "1")
+                        .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isOk());
+        mockMvc.perform(delete("/admin/products/{productId}/images/{imageId}", id, UUID.randomUUID())
+                        .param("expectedVersion", "1").with(csrf()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("PRODUCT_VERSION_CONFLICT"));
+        mockMvc.perform(get("/admin/queries/products/{productId}", id))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(2))
+                .andExpect(jsonPath("$.name").value("changed product"));
+        org.assertj.core.api.Assertions.assertThat(entityManager.createNativeQuery(
+                        "SELECT count(*) FROM product_catalog_outbox WHERE product_id = :id")
+                .setParameter("id", id).getSingleResult()).isEqualTo(2L);
     }
 
     private record OptionFixture(UUID optionGroupId, List<UUID> optionValueIds) {
@@ -293,7 +329,7 @@ class ProductApiIntegrationTest {
                     .categoryId(categoryId)
                     .build();
 
-            mockMvc.perform(put("/admin/products/{productId}", productId)
+            mockMvc.perform(put("/admin/products/{productId}", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateCommand)))
@@ -308,7 +344,7 @@ class ProductApiIntegrationTest {
                     .status(ProductStatus.INACTIVE)
                     .build();
 
-            mockMvc.perform(patch("/admin/products/{productId}/status", productId)
+            mockMvc.perform(patch("/admin/products/{productId}/status", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(statusCommand)))
@@ -348,7 +384,7 @@ class ProductApiIntegrationTest {
             UUID productId = UUID.fromString(objectMapper.readTree(createResponse).get("id").asText());
 
             // When & Then
-            mockMvc.perform(delete("/admin/products/{productId}", productId)
+            mockMvc.perform(delete("/admin/products/{productId}", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf()))
                     .andDo(print())
                     .andExpect(status().isOk())
@@ -405,7 +441,7 @@ class ProductApiIntegrationTest {
                     )
                     .build();
 
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
@@ -432,7 +468,7 @@ class ProductApiIntegrationTest {
             Statistics statistics = sessionFactory.getStatistics();
             statistics.clear();
 
-            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(addProductVariantsCommand)))
@@ -510,7 +546,7 @@ class ProductApiIntegrationTest {
                     ))
                     .build();
 
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -564,7 +600,7 @@ class ProductApiIntegrationTest {
                     ))
                     .build();
 
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -608,7 +644,7 @@ class ProductApiIntegrationTest {
                                     .build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
@@ -626,7 +662,7 @@ class ProductApiIntegrationTest {
                                     .build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(variantsCommand)))
@@ -639,7 +675,7 @@ class ProductApiIntegrationTest {
             entityManager.flush();
             entityManager.clear();
 
-            mockMvc.perform(patch("/admin/products/{productId}/status", productId)
+            mockMvc.perform(patch("/admin/products/{productId}/status", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(UpdateProductStatusCommand.builder()
@@ -650,7 +686,7 @@ class ProductApiIntegrationTest {
             ProductEntity aggregate = productJpaRepository.findAggregateById(productId).orElseThrow();
             UUID productOptionGroupId = aggregate.getOptionGroups().stream().findFirst().orElseThrow().getId();
 
-            mockMvc.perform(delete("/admin/products/{productId}/option-groups/{productOptionGroupId}", productId, productOptionGroupId)
+            mockMvc.perform(delete("/admin/products/{productId}/option-groups/{productOptionGroupId}", productId, productOptionGroupId).param("expectedVersion", versionOf(productId))
                             .with(csrf()))
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.message").value(containsString("DRAFT")));
@@ -698,7 +734,7 @@ class ProductApiIntegrationTest {
                                     .build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
@@ -714,13 +750,13 @@ class ProductApiIntegrationTest {
                             AddProductVariantCommand.builder().stockQuantity(5).selectedProductOptionValueIds(Set.of(povIds.get(1))).build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(variantsCommand)))
                     .andExpect(status().isCreated());
 
-            mockMvc.perform(delete("/admin/products/{productId}/option-values/{productOptionValueId}", productId, povIds.get(0))
+            mockMvc.perform(delete("/admin/products/{productId}/option-values/{productOptionValueId}", productId, povIds.get(0)).param("expectedVersion", versionOf(productId))
                             .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("DELETED"));
@@ -772,7 +808,7 @@ class ProductApiIntegrationTest {
                                     .build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
@@ -788,13 +824,13 @@ class ProductApiIntegrationTest {
                             AddProductVariantCommand.builder().stockQuantity(5).selectedProductOptionValueIds(Set.of(povIds.get(1))).build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(variantsCommand)))
                     .andExpect(status().isCreated());
 
-            mockMvc.perform(delete("/admin/products/{productId}/option-groups/{productOptionGroupId}", productId, pog.getId())
+            mockMvc.perform(delete("/admin/products/{productId}/option-groups/{productOptionGroupId}", productId, pog.getId()).param("expectedVersion", versionOf(productId))
                             .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.status").value("DELETED"));
@@ -856,12 +892,12 @@ class ProductApiIntegrationTest {
                     ))
                     .build();
 
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(addFirstGroup)))
                     .andExpect(status().isCreated());
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(addSecondGroup)))
@@ -877,7 +913,7 @@ class ProductApiIntegrationTest {
                     .orderedProductOptionGroupIds(List.of(groupIdsByCurrentOrder.get(1), groupIdsByCurrentOrder.get(0)))
                     .build();
 
-            mockMvc.perform(patch("/admin/products/{productId}/option-groups/reorder", productId)
+            mockMvc.perform(patch("/admin/products/{productId}/option-groups/reorder", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(reorderCommand)))
@@ -935,7 +971,7 @@ class ProductApiIntegrationTest {
                                     .build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
@@ -954,7 +990,7 @@ class ProductApiIntegrationTest {
                                     .build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(variantsCommand)))
@@ -967,7 +1003,7 @@ class ProductApiIntegrationTest {
                     .status(ProductStatus.ACTIVE)
                     .build();
 
-            mockMvc.perform(patch("/admin/products/{productId}/variants/{productVariantId}", productId, variantId)
+            mockMvc.perform(patch("/admin/products/{productId}/variants/{productVariantId}", productId, variantId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateCommand)))
@@ -1013,7 +1049,7 @@ class ProductApiIntegrationTest {
                                     .build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
@@ -1032,7 +1068,7 @@ class ProductApiIntegrationTest {
                                     .build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(variantsCommand)))
@@ -1044,7 +1080,7 @@ class ProductApiIntegrationTest {
                     .status(ProductStatus.DELETED)
                     .build();
 
-            mockMvc.perform(patch("/admin/products/{productId}/variants/{productVariantId}", productId, variantId)
+            mockMvc.perform(patch("/admin/products/{productId}/variants/{productVariantId}", productId, variantId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(updateCommand)))
@@ -1088,7 +1124,7 @@ class ProductApiIntegrationTest {
                                     .build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId)
+            mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(addOptionGroupCommand)))
@@ -1107,7 +1143,7 @@ class ProductApiIntegrationTest {
                                     .build()
                     ))
                     .build();
-            mockMvc.perform(post("/admin/products/{productId}/variants", productId)
+            mockMvc.perform(post("/admin/products/{productId}/variants", productId).param("expectedVersion", versionOf(productId))
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(variantsCommand)))
@@ -1116,7 +1152,7 @@ class ProductApiIntegrationTest {
             ProductEntity beforeDelete = productJpaRepository.findAggregateById(productId).orElseThrow();
             UUID variantId = beforeDelete.getVariants().stream().findFirst().orElseThrow().getId();
 
-            mockMvc.perform(delete("/admin/products/{productId}/variants/{productVariantId}", productId, variantId)
+            mockMvc.perform(delete("/admin/products/{productId}/variants/{productVariantId}", productId, variantId).param("expectedVersion", versionOf(productId))
                             .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.productVariantId").value(variantId.toString()))

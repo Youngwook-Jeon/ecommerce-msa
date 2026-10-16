@@ -115,7 +115,7 @@ class OpenSearchProductSearchIntegrationTest {
                 .name("이어폰").description("방수 지원").brand("\u00a0가 Example\u2003")
                 .basePrice(new BigDecimal("1.2000")).status(ProductStatusEntity.ACTIVE)
                 .createdAt(Instant.parse("2026-10-11T00:00:00.123Z")).build();
-        index(List.of(new OpenSearchProductDocumentMapper().toDocument(entity)));
+        index(List.of(new OpenSearchProductDocumentMapper().toDocument(entity, 1)));
         names.put(12L, "최신 카테고리");
         var result = search("방수", 12L, List.of(" 가 EXAMPLE "), "1.20", "1.20", "newest", 0, 24);
         assertThat(result.totalElements()).isEqualTo(1);
@@ -216,7 +216,7 @@ class OpenSearchProductSearchIntegrationTest {
         nameMatch = new OpenSearchProductDocument(nameMatch.id(), nameMatch.categoryId(),
                 nameMatch.name(), nameMatch.brand(), nameMatch.brandKey(), nameMatch.brandLabel(), nameMatch.description(),
                 nameMatch.mainImageUrl(), nameMatch.basePrice(), nameMatch.productStatus(), nameMatch.categoryStatus(),
-                "2026-10-09T00:00:00Z");
+                "2026-10-09T00:00:00Z", 1, true);
         index(List.of(nameMatch, descriptionMatch));
         assertThat(search("방수 이어폰", null, List.of(), null, null, null, 0, 24)
                 .content().getFirst().id().toString()).isEqualTo(nameMatch.id());
@@ -260,6 +260,6 @@ class OpenSearchProductSearchIntegrationTest {
     private static OpenSearchProductDocument doc(String name, String brand, String key, String description,
                                                   String price, long categoryId, String status, String categoryStatus) {
         return new OpenSearchProductDocument(UUID.randomUUID().toString(), categoryId, name, brand, key, brand,
-                description, null, new BigDecimal(price), status, categoryStatus, "2026-10-10T00:00:00Z");
+                description, null, new BigDecimal(price), status, categoryStatus, "2026-10-10T00:00:00Z", 1, true);
     }
 }

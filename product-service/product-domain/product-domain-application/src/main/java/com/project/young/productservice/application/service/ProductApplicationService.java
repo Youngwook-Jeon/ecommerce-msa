@@ -34,20 +34,20 @@ public class ProductApplicationService {
     private final ProductDataMapper productDataMapper;
     private final IdGenerator idGenerator;
     private final VariantMainImageSyncPort variantMainImageSyncPort;
-    private final StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
+    private final ProductCatalogChangeService productCatalogChangeService;
 
     public ProductApplicationService(ProductRepository productRepository,
                                      ProductDomainService productDomainService,
                                      ProductDataMapper productDataMapper,
                                      IdGenerator idGenerator,
                                      VariantMainImageSyncPort variantMainImageSyncPort,
-                                     StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService) {
+                                     ProductCatalogChangeService productCatalogChangeService) {
         this.productRepository = productRepository;
         this.productDomainService = productDomainService;
         this.productDataMapper = productDataMapper;
         this.idGenerator = idGenerator;
         this.variantMainImageSyncPort = variantMainImageSyncPort;
-        this.storefrontProductCatalogInvalidationService = storefrontProductCatalogInvalidationService;
+        this.productCatalogChangeService = productCatalogChangeService;
     }
 
     @Transactional
@@ -63,6 +63,7 @@ public class ProductApplicationService {
         ProductId productId = new ProductId(idGenerator.generateId());
         Product newProduct = productDataMapper.toDraftProduct(command, categoryId, productId);
         productRepository.insert(newProduct);
+        recordCatalogChange(newProduct, ProductCatalogChangeType.PRODUCT_CREATED, 0);
 
         log.info("Product saved successfully with id: {}", newProduct.getId().getValue());
 
@@ -70,13 +71,13 @@ public class ProductApplicationService {
     }
 
     @Transactional
-    public UpdateProductResult updateProduct(UUID productIdValue, UpdateProductCommand command) {
+    public UpdateProductResult updateProduct(UUID productIdValue, UpdateProductCommand command, long expectedVersion) {
         validateUpdateRequest(productIdValue, command);
 
         ProductId productId = new ProductId(productIdValue);
         log.info("Attempting to update product with id: {}", productId.getValue());
 
-        Product product = findProductOrThrow(productId);
+        Product product = findProductOrThrow(productId, expectedVersion);
         validateProductCanBeUpdated(product);
 
         boolean isModified = false;
@@ -89,8 +90,9 @@ public class ProductApplicationService {
         isModified |= applyMainImageUrlChange(product, command.getMainImageUrl());
 
         if (isModified) {
+            recordCatalogChange(product, ProductCatalogChangeType.PRODUCT_UPDATED, expectedVersion);
             productRepository.update(product);
-            invalidateStorefrontCatalog(product, ProductCatalogChangeType.PRODUCT_UPDATED);
+
             log.info("Product updated successfully. id: {}", product.getId().getValue());
         }
 
@@ -98,13 +100,13 @@ public class ProductApplicationService {
     }
 
     @Transactional
-    public UpdateProductResult updateProductStatus(UUID productIdValue, UpdateProductStatusCommand command) {
+    public UpdateProductResult updateProductStatus(UUID productIdValue, UpdateProductStatusCommand command, long expectedVersion) {
         validateUpdateStatusRequest(productIdValue, command);
 
         ProductId productId = new ProductId(productIdValue);
         log.info("Attempting to update product status. id: {}, status: {}", productId.getValue(), command.getStatus());
 
-        Product product = findProductOrThrow(productId);
+        Product product = findProductOrThrow(productId, expectedVersion);
         validateProductCanBeUpdated(product);
 
         if (product.getStatus() == command.getStatus()) {
@@ -113,8 +115,9 @@ public class ProductApplicationService {
         }
 
         if (applyStatusChange(product, command.getStatus())) {
+            recordCatalogChange(product, ProductCatalogChangeType.STATUS_CHANGED, expectedVersion);
             productRepository.update(product);
-            invalidateStorefrontCatalog(product, ProductCatalogChangeType.STATUS_CHANGED);
+
             log.info("Product status updated. id: {}", product.getId().getValue());
         }
 
@@ -122,21 +125,21 @@ public class ProductApplicationService {
     }
 
     @Transactional
-    public DeleteProductResult deleteProduct(UUID productIdValue) {
+    public DeleteProductResult deleteProduct(UUID productIdValue, long expectedVersion) {
         validateDeleteRequest(productIdValue);
 
         ProductId productId = new ProductId(productIdValue);
         log.info("Attempting to soft-delete product with id: {}", productId.getValue());
 
-        Product product = findProductOrThrow(productId);
+        Product product = findProductOrThrow(productId, expectedVersion);
         if (product.isDeleted()) {
             log.info("Product already deleted. id: {}", productId.getValue());
             return productDataMapper.toDeleteProductResult(product);
         }
         productDomainService.validateDeletionRules(product);
         product.markAsDeleted();
+        recordCatalogChange(product, ProductCatalogChangeType.DELETED, expectedVersion);
         productRepository.update(product);
-        invalidateStorefrontCatalog(product, ProductCatalogChangeType.DELETED);
 
         log.info("Product deleted successfully. id: {}", product.getId().getValue());
 
@@ -144,12 +147,12 @@ public class ProductApplicationService {
     }
 
     @Transactional
-    public AddProductOptionGroupResult addProductOptionGroup(UUID productIdValue, AddProductOptionGroupCommand command) {
+    public AddProductOptionGroupResult addProductOptionGroup(UUID productIdValue, AddProductOptionGroupCommand command, long expectedVersion) {
         if (productIdValue == null || command == null) {
             throw new IllegalArgumentException("Invalid add product option group request.");
         }
 
-        Product product = findProductOrThrow(new ProductId(productIdValue));
+        Product product = findProductOrThrow(new ProductId(productIdValue), expectedVersion);
         validateProductCanBeUpdated(product);
         validateOptionGroupStructureMutable(product);
 
@@ -169,8 +172,8 @@ public class ProductApplicationService {
         );
 
         product.addOptionGroup(optionGroup);
+        recordCatalogChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productRepository.update(product);
-        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return productDataMapper.toAddProductOptionGroupResult(product, optionGroup);
     }
@@ -179,8 +182,7 @@ public class ProductApplicationService {
     public List<AddProductOptionValueToGroupResult> addProductOptionValues(
             UUID productIdValue,
             UUID productOptionGroupIdValue,
-            AddProductOptionValuesCommand command
-    ) {
+            AddProductOptionValuesCommand command, long expectedVersion) {
         if (productIdValue == null || productOptionGroupIdValue == null || command == null) {
             throw new IllegalArgumentException("Invalid add product option value request.");
         }
@@ -188,7 +190,7 @@ public class ProductApplicationService {
             throw new IllegalArgumentException("Product option values must not be empty.");
         }
 
-        Product product = findProductOrThrow(new ProductId(productIdValue));
+        Product product = findProductOrThrow(new ProductId(productIdValue), expectedVersion);
         validateProductCanBeUpdated(product);
 
         ProductOptionGroupId productOptionGroupId = new ProductOptionGroupId(productOptionGroupIdValue);
@@ -207,8 +209,8 @@ public class ProductApplicationService {
             results.add(productDataMapper.toAddProductOptionValueToGroupResult(product, productOptionGroupId, newValue));
         }
 
+        recordCatalogChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productRepository.update(product);
-        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return results;
     }
@@ -216,21 +218,20 @@ public class ProductApplicationService {
     @Transactional
     public DeleteProductOptionGroupResult deleteProductOptionGroup(
             UUID productIdValue,
-            UUID productOptionGroupIdValue
-    ) {
+            UUID productOptionGroupIdValue, long expectedVersion) {
         if (productIdValue == null || productOptionGroupIdValue == null) {
             throw new IllegalArgumentException("Invalid product option group deactivate request.");
         }
 
-        Product product = findProductOrThrow(new ProductId(productIdValue));
+        Product product = findProductOrThrow(new ProductId(productIdValue), expectedVersion);
         validateProductCanBeUpdated(product);
         validateOptionGroupStructureMutable(product);
 
         ProductOptionGroup deleted = product.deleteProductOptionGroup(
                 new ProductOptionGroupId(productOptionGroupIdValue)
         );
+        recordCatalogChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productRepository.update(product);
-        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return productDataMapper.toDeleteProductOptionGroupResult(product, deleted);
     }
@@ -238,8 +239,7 @@ public class ProductApplicationService {
     @Transactional
     public List<AddProductVariantResult> addProductVariants(
             UUID productIdValue,
-            AddProductVariantsCommand command
-    ) {
+            AddProductVariantsCommand command, long expectedVersion) {
         if (productIdValue == null || command == null) {
             throw new IllegalArgumentException("Invalid add product variants request.");
         }
@@ -248,7 +248,7 @@ public class ProductApplicationService {
             throw new IllegalArgumentException("At least one variant is required.");
         }
 
-        Product product = findProductOrThrow(new ProductId(productIdValue));
+        Product product = findProductOrThrow(new ProductId(productIdValue), expectedVersion);
         validateProductCanBeUpdated(product);
 
         List<AddProductVariantResult> results = new ArrayList<>();
@@ -294,12 +294,12 @@ public class ProductApplicationService {
             results.add(productDataMapper.toAddProductVariantResult(product, variant));
         }
 
+        recordCatalogChange(product, ProductCatalogChangeType.VARIANT_CHANGED, expectedVersion);
         productRepository.update(product);
 
         for (AddProductVariantResult result : results) {
             variantMainImageSyncPort.syncForVariant(result.productVariantId());
         }
-        invalidateStorefrontCatalog(product, ProductCatalogChangeType.VARIANT_CHANGED);
 
         return results;
     }
@@ -308,21 +308,20 @@ public class ProductApplicationService {
     public ChangeProductOptionValuePriceDeltaResult changeProductOptionValuePriceDelta(
             UUID productIdValue,
             UUID productOptionValueIdValue,
-            ChangeProductOptionValuePriceDeltaCommand command
-    ) {
+            ChangeProductOptionValuePriceDeltaCommand command, long expectedVersion) {
         if (productIdValue == null || productOptionValueIdValue == null || command == null) {
             throw new IllegalArgumentException("Invalid product option value price delta change request.");
         }
 
-        Product product = findProductOrThrow(new ProductId(productIdValue));
+        Product product = findProductOrThrow(new ProductId(productIdValue), expectedVersion);
         validateProductCanBeUpdated(product);
 
         ProductOptionValueId optionValueId = new ProductOptionValueId(productOptionValueIdValue);
         Money newPriceDelta = new Money(command.getPriceDelta());
 
         product.changeOptionValuePriceDelta(optionValueId, newPriceDelta);
+        recordCatalogChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productRepository.update(product);
-        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return productDataMapper.toChangeProductOptionValuePriceDeltaResult(product, optionValueId, newPriceDelta);
     }
@@ -331,8 +330,7 @@ public class ProductApplicationService {
     public UpdateProductVariantResult updateProductVariant(
             UUID productIdValue,
             UUID productVariantIdValue,
-            UpdateProductVariantCommand command
-    ) {
+            UpdateProductVariantCommand command, long expectedVersion) {
         if (productIdValue == null || productVariantIdValue == null || command == null) {
             throw new IllegalArgumentException("Invalid product variant update request.");
         }
@@ -340,29 +338,29 @@ public class ProductApplicationService {
             throw new ProductDomainException("Use delete variant endpoint for DELETED status.");
         }
 
-        Product product = findProductOrThrow(new ProductId(productIdValue));
+        Product product = findProductOrThrow(new ProductId(productIdValue), expectedVersion);
         validateProductCanBeUpdated(product);
 
         ProductVariantId variantId = new ProductVariantId(productVariantIdValue);
         ProductVariant updated = product.updateVariantDetails(variantId, command.getStockQuantity(), command.getStatus());
+        recordCatalogChange(product, ProductCatalogChangeType.VARIANT_CHANGED, expectedVersion);
         productRepository.update(product);
-        invalidateStorefrontCatalog(product, ProductCatalogChangeType.VARIANT_CHANGED);
 
         return productDataMapper.toUpdateProductVariantResult(product, updated);
     }
 
     @Transactional
-    public DeleteProductVariantResult deleteProductVariant(UUID productIdValue, UUID productVariantIdValue) {
+    public DeleteProductVariantResult deleteProductVariant(UUID productIdValue, UUID productVariantIdValue, long expectedVersion) {
         if (productIdValue == null || productVariantIdValue == null) {
             throw new IllegalArgumentException("Invalid product variant delete request.");
         }
 
-        Product product = findProductOrThrow(new ProductId(productIdValue));
+        Product product = findProductOrThrow(new ProductId(productIdValue), expectedVersion);
         validateProductCanBeUpdated(product);
 
         ProductVariant deleted = product.deleteVariant(new ProductVariantId(productVariantIdValue));
+        recordCatalogChange(product, ProductCatalogChangeType.VARIANT_CHANGED, expectedVersion);
         productRepository.update(product);
-        invalidateStorefrontCatalog(product, ProductCatalogChangeType.VARIANT_CHANGED);
 
         return productDataMapper.toDeleteProductVariantResult(product, deleted);
     }
@@ -371,13 +369,12 @@ public class ProductApplicationService {
     public ChangeProductOptionGroupStepOrderResult changeProductOptionGroupStepOrder(
             UUID productIdValue,
             UUID productOptionGroupIdValue,
-            ChangeProductOptionGroupStepOrderCommand command
-    ) {
+            ChangeProductOptionGroupStepOrderCommand command, long expectedVersion) {
         if (productIdValue == null || productOptionGroupIdValue == null || command == null) {
             throw new IllegalArgumentException("Invalid product option group step order change request.");
         }
 
-        Product product = findProductOrThrow(new ProductId(productIdValue));
+        Product product = findProductOrThrow(new ProductId(productIdValue), expectedVersion);
         validateProductCanBeUpdated(product);
         validateOptionGroupStructureMutable(product);
 
@@ -386,8 +383,8 @@ public class ProductApplicationService {
         StepOrderPlacement placement = StepOrderPlacement.fromCommand(command);
         double resolvedStepOrder = resolveStepOrder(product, placement, groupId);
         product.changeOptionGroupStepOrder(groupId, resolvedStepOrder);
+        recordCatalogChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productRepository.update(product);
-        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         ProductOptionGroup updated = product.getOptionGroups().stream()
                 .filter(group -> group.getId().equals(groupId))
@@ -399,15 +396,14 @@ public class ProductApplicationService {
     @Transactional
     public ReorderProductOptionGroupsResult reorderProductOptionGroups(
             UUID productIdValue,
-            ReorderProductOptionGroupsCommand command
-    ) {
+            ReorderProductOptionGroupsCommand command, long expectedVersion) {
         if (productIdValue == null || command == null
                 || command.getOrderedProductOptionGroupIds() == null
                 || command.getOrderedProductOptionGroupIds().isEmpty()) {
             throw new IllegalArgumentException("Invalid product option group reorder request.");
         }
 
-        Product product = findProductOrThrow(new ProductId(productIdValue));
+        Product product = findProductOrThrow(new ProductId(productIdValue), expectedVersion);
         validateProductCanBeUpdated(product);
         validateOptionGroupStructureMutable(product);
 
@@ -421,8 +417,9 @@ public class ProductApplicationService {
                     (i + 1) * spacing
             );
         }
+        recordCatalogChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productRepository.update(product);
-        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
+
         return ReorderProductOptionGroupsResult.builder()
                 .productId(product.getId().getValue())
                 .updatedCount(orderedIds.size())
@@ -430,24 +427,24 @@ public class ProductApplicationService {
     }
 
     @Transactional
-    public DeleteProductOptionValueResult deleteProductOptionValue(UUID productIdValue, UUID productOptionValueIdValue) {
+    public DeleteProductOptionValueResult deleteProductOptionValue(UUID productIdValue, UUID productOptionValueIdValue, long expectedVersion) {
         if (productIdValue == null || productOptionValueIdValue == null) {
             throw new IllegalArgumentException("Invalid product option value deactivate request.");
         }
 
-        Product product = findProductOrThrow(new ProductId(productIdValue));
+        Product product = findProductOrThrow(new ProductId(productIdValue), expectedVersion);
         validateProductCanBeUpdated(product);
         validateOptionGroupStructureMutable(product);
 
         ProductOptionValue deleted = product.deleteProductOptionValue(new ProductOptionValueId(productOptionValueIdValue));
+        recordCatalogChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productRepository.update(product);
-        invalidateStorefrontCatalog(product, ProductCatalogChangeType.OPTION_CHANGED);
 
         return productDataMapper.toDeleteProductOptionValueResult(product, deleted);
     }
 
-    private void invalidateStorefrontCatalog(Product product, ProductCatalogChangeType changeType) {
-        storefrontProductCatalogInvalidationService.invalidate(product, changeType);
+    private void recordCatalogChange(Product product, ProductCatalogChangeType changeType, long expectedVersion) {
+        productCatalogChangeService.recordChange(product, changeType, expectedVersion);
     }
 
     private List<ProductOptionValue> mapProductOptionValues(List<AddProductOptionValueCommand> commands) {
@@ -515,7 +512,8 @@ public class ProductApplicationService {
         }
     }
 
-    private Product findProductOrThrow(ProductId productId) {
+    private Product findProductOrThrow(ProductId productId, long expectedVersion) {
+        productCatalogChangeService.verifyVersion(productId.getValue(), expectedVersion);
         return productRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException("Product with id " + productId.getValue() + " not found."));
     }

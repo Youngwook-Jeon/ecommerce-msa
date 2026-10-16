@@ -47,7 +47,7 @@ public class ProductOptionValueImageApplicationService {
     private final ProductImageStoragePort productImageStorage;
     private final ProductOptionValueOwnershipValidator ownershipValidator;
     private final VariantMainImageSyncPort variantMainImageSyncPort;
-    private final StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
+    private final ProductCatalogChangeService productCatalogChangeService;
 
     public ProductOptionValueImageApplicationService(
             ProductRepository productRepository,
@@ -55,14 +55,14 @@ public class ProductOptionValueImageApplicationService {
             ProductImageStoragePort productImageStorage,
             ProductOptionValueOwnershipValidator ownershipValidator,
             VariantMainImageSyncPort variantMainImageSyncPort,
-            StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService
+            ProductCatalogChangeService productCatalogChangeService
     ) {
         this.productRepository = productRepository;
         this.imagePersistence = imagePersistence;
         this.productImageStorage = productImageStorage;
         this.ownershipValidator = ownershipValidator;
         this.variantMainImageSyncPort = variantMainImageSyncPort;
-        this.storefrontProductCatalogInvalidationService = storefrontProductCatalogInvalidationService;
+        this.productCatalogChangeService = productCatalogChangeService;
     }
 
     @Transactional(readOnly = true)
@@ -109,9 +109,8 @@ public class ProductOptionValueImageApplicationService {
     public CommitProductImageResult commitUpload(
             UUID productId,
             UUID productOptionValueId,
-            CommitProductImageCommand command
-    ) {
-        Product product = findProductOrThrow(productId);
+            CommitProductImageCommand command, long expectedVersion) {
+        Product product = findProductOrThrow(productId, expectedVersion);
         ownershipValidator.requireOwnedByProduct(productId, productOptionValueId);
         validateContent(command.getContentType(), command.getFileSize());
         validateRole(command.getRole());
@@ -133,32 +132,22 @@ public class ProductOptionValueImageApplicationService {
         }
 
         String publicUrl = productImageStorage.publicUrlForKey(command.getObjectKey());
+        recordCatalogChange(product, expectedVersion);
         if (command.getRole() == ProductImageRole.MAIN) {
             imagePersistence.demoteActiveMainsToGallery(productOptionValueId);
         }
 
-        UUID imageId;
-        try {
-            imageId = imagePersistence.insert(
-                    productOptionValueId,
-                    command.getObjectKey(),
-                    publicUrl,
-                    command.getRole(),
-                    command.getSortOrder(),
-                    command.getContentType(),
-                    command.getFileSize()
-            );
-        } catch (RuntimeException ex) {
-            Optional<ProductOptionValueImagePersistencePort.ProductImageRow> raced =
-                    imagePersistence.findByStorageKeyAndProductOptionValueId(command.getObjectKey(), productOptionValueId);
-            if (raced.isPresent()) {
-                return toIdempotentCommitResult(command, raced.get());
-            }
-            throw ex;
-        }
+        UUID imageId = imagePersistence.insert(
+                productOptionValueId,
+                command.getObjectKey(),
+                publicUrl,
+                command.getRole(),
+                command.getSortOrder(),
+                command.getContentType(),
+                command.getFileSize()
+        );
 
         variantMainImageSyncPort.syncByProductOptionValueId(productOptionValueId);
-        invalidateStorefrontCatalog(product);
 
         return CommitProductImageResult.builder()
                 .id(imageId)
@@ -169,7 +158,7 @@ public class ProductOptionValueImageApplicationService {
     }
 
     @Transactional
-    public void deleteImage(UUID productId, UUID productOptionValueId, UUID imageId) {
+    public void deleteImage(UUID productId, UUID productOptionValueId, UUID imageId, long expectedVersion) {
         executeWithMainImagePolicy(productId, productOptionValueId, () -> {
             imagePersistence.findActiveByIdAndProductOptionValue(imageId, productOptionValueId)
                     .orElseThrow(() -> new ProductDomainException("Option value image not found."));
@@ -177,15 +166,14 @@ public class ProductOptionValueImageApplicationService {
             if (deleted == 0) {
                 throw new ProductDomainException("Option value image not found or already deleted.");
             }
-        });
+        }, expectedVersion);
     }
 
     @Transactional
     public ReorderProductImagesResult reorderImages(
             UUID productId,
             UUID productOptionValueId,
-            ReorderProductImagesCommand command
-    ) {
+            ReorderProductImagesCommand command, long expectedVersion) {
         return executeWithMainImagePolicy(productId, productOptionValueId, () -> {
             if (command == null || command.getOrderedImageIds() == null) {
                 throw new ProductDomainException("orderedImageIds is required.");
@@ -220,24 +208,24 @@ public class ProductOptionValueImageApplicationService {
                     .reorderedCount(requested.size())
                     .orderedImageIds(List.copyOf(requested))
                     .build();
-        });
+        }, expectedVersion);
     }
 
-    private <T> T executeWithMainImagePolicy(UUID productId, UUID productOptionValueId, ImageMutation<T> mutation) {
-        Product product = findProductOrThrow(productId);
+    private <T> T executeWithMainImagePolicy(UUID productId, UUID productOptionValueId, ImageMutation<T> mutation, long expectedVersion) {
+        Product product = findProductOrThrow(productId, expectedVersion);
         ownershipValidator.requireOwnedByProduct(productId, productOptionValueId);
+        recordCatalogChange(product, expectedVersion);
         T result = mutation.apply();
         applyFirstActiveImageAsMainPolicy(productOptionValueId);
         variantMainImageSyncPort.syncByProductOptionValueId(productOptionValueId);
-        invalidateStorefrontCatalog(product);
         return result;
     }
 
-    private void executeWithMainImagePolicy(UUID productId, UUID productOptionValueId, Runnable mutation) {
+    private void executeWithMainImagePolicy(UUID productId, UUID productOptionValueId, Runnable mutation, long expectedVersion) {
         executeWithMainImagePolicy(productId, productOptionValueId, () -> {
             mutation.run();
             return null;
-        });
+        }, expectedVersion);
     }
 
     private void applyFirstActiveImageAsMainPolicy(UUID productOptionValueId) {
@@ -281,8 +269,8 @@ public class ProductOptionValueImageApplicationService {
                 .build();
     }
 
-    private void invalidateStorefrontCatalog(Product product) {
-        storefrontProductCatalogInvalidationService.invalidate(product, ProductCatalogChangeType.IMAGE_CHANGED);
+    private void recordCatalogChange(Product product, long expectedVersion) {
+        productCatalogChangeService.recordChange(product, ProductCatalogChangeType.IMAGE_CHANGED, expectedVersion);
     }
 
     @FunctionalInterface
@@ -290,7 +278,8 @@ public class ProductOptionValueImageApplicationService {
         T apply();
     }
 
-    private Product findProductOrThrow(UUID productId) {
+    private Product findProductOrThrow(UUID productId, long expectedVersion) {
+        productCatalogChangeService.verifyVersion(productId, expectedVersion);
         Product product = productRepository.findById(new ProductId(productId))
                 .orElseThrow(() -> new ProductNotFoundException("Product not found: " + productId));
         if (product.isDeleted()) {
@@ -300,7 +289,11 @@ public class ProductOptionValueImageApplicationService {
     }
 
     private void validateProductWritable(UUID productId) {
-        findProductOrThrow(productId);
+        Product product = productRepository.findById(new ProductId(productId))
+                .orElseThrow(() -> new ProductNotFoundException("Product not found: " + productId));
+        if (product.isDeleted()) {
+            throw new ProductDomainException("Cannot manage images for a deleted product.");
+        }
     }
 
     private void validateContent(String contentType, long contentLength) {

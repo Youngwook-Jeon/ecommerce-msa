@@ -100,8 +100,8 @@ class ProductStatusTest {
     @Test
     @DisplayName("getDescription: 각 상태별 설명 반환")
     void getDescription_ReturnsDescription() {
-        assertThat(ProductStatus.ACTIVE.getDescription()).isEqualTo("활성");
-        assertThat(ProductStatus.DELETED.getDescription()).isEqualTo("삭제됨");
-        assertThat(ProductStatus.OUT_OF_STOCK.getDescription()).isEqualTo("품절");
+        assertThat(ProductStatus.ACTIVE.getDescription()).isEqualTo("Active");
+        assertThat(ProductStatus.DELETED.getDescription()).isEqualTo("Deleted");
+        assertThat(ProductStatus.OUT_OF_STOCK.getDescription()).isEqualTo("Out of stock");
     }
 }

@@ -21,9 +21,9 @@ class PublicProductSearchResponseTest {
                         new PublicProductSearchResponse.Category(12, "이어폰"), "Wireless Earbuds", null,
                         null, new BigDecimal("89.99"))),
                 0, 24, 1, 1,
-                List.of(new PublicProductSearchFacetResponse.Terms("brand", "브랜드",
+                List.of(new PublicProductSearchFacetResponse.Terms("brand", "Brand",
                                 List.of(new PublicProductSearchFacetResponse.Value("example", "Example", 1)), false),
-                        new PublicProductSearchFacetResponse.Range("price", "가격",
+                        new PublicProductSearchFacetResponse.Range("price", "Price",
                                 new BigDecimal("89.99"), new BigDecimal("89.99")),
                         new PublicProductSearchFacetResponse.Terms("feature:connectivity", "연결 방식",
                                 List.of(new PublicProductSearchFacetResponse.Value("bluetooth", "블루투스", 1)), false)));
@@ -47,8 +47,8 @@ class PublicProductSearchResponseTest {
     void emptyResponseRetainsNullableFieldsAndBothFacets() throws Exception {
         var response = new PublicProductSearchResponse(new PublicProductSearchResponse.Query(null, "newest"),
                 List.of(), 0, 24, 0, 0,
-                List.of(new PublicProductSearchFacetResponse.Terms("brand", "브랜드", List.of(), false),
-                        new PublicProductSearchFacetResponse.Range("price", "가격", null, null)));
+                List.of(new PublicProductSearchFacetResponse.Terms("brand", "Brand", List.of(), false),
+                        new PublicProductSearchFacetResponse.Range("price", "Price", null, null)));
         var json = objectMapper.readTree(objectMapper.writeValueAsString(response));
         assertThat(json.at("/query/q").isNull()).isTrue();
         assertThat(json.at("/content").size()).isZero();

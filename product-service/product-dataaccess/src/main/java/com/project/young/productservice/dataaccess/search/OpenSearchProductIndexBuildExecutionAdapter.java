@@ -103,7 +103,7 @@ public class OpenSearchProductIndexBuildExecutionAdapter implements ProductSearc
             if (sample != null) {
                 checkpoint.run();
                 var stored = client.get(g -> g.index(index).id(sample.id()), OpenSearchProductDocument.class).source();
-                if (stored == null || !sample.name().equals(stored.name()) || sample.categoryId() != stored.categoryId()
+                if (stored == null || !stored.documentReady() || stored.catalogRevision() != sample.catalogRevision() || !sample.name().equals(stored.name()) || !java.util.Objects.equals(sample.categoryId(), stored.categoryId())
                         || !samePrice(sample.basePrice(), stored.basePrice())
                         || !java.util.Objects.equals(sample.brandKey(), stored.brandKey())
                         || !java.util.Objects.equals(sample.description(), stored.description())) {

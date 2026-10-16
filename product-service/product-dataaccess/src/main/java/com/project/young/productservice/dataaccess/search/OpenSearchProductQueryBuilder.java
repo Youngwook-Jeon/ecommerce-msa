@@ -55,6 +55,7 @@ public abstract class OpenSearchProductQueryBuilder {
     /** Common matching rules shared by public search and index verification. */
     public final Query buildQuery(ProductSearchCriteria criteria) {
         BoolQuery.Builder bool = new BoolQuery.Builder()
+                .filter(q -> q.term(t -> t.field("documentReady").value(FieldValue.of(true))))
                 .filter(q -> q.term(t -> t.field("productStatus").value(FieldValue.of("ACTIVE"))))
                 .filter(q -> q.term(t -> t.field("categoryStatus").value(FieldValue.of("ACTIVE"))));
         if (criteria.categoryId() != null) {

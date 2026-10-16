@@ -29,6 +29,9 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, UUID>
     @Query("SELECT p FROM ProductEntity p LEFT JOIN FETCH p.category WHERE p.id > :afterId ORDER BY p.id ASC")
     List<ProductEntity> findNextSearchIndexBatch(@Param("afterId") UUID afterId, Pageable pageable);
 
+    @Query("SELECT p FROM ProductEntity p LEFT JOIN FETCH p.category WHERE p.id = :id")
+    Optional<ProductEntity> findSearchDocumentById(@Param("id") UUID id);
+
     @EntityGraph(attributePaths = {
             "optionGroups",
             "optionGroups.optionValues",

@@ -64,7 +64,7 @@ class ProductOptionValueImageApplicationServiceTest {
     private VariantMainImageSyncPort variantMainImageSyncPort;
 
     @Mock
-    private StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
+    private ProductCatalogChangeService productCatalogChangeService;
 
     @InjectMocks
     private ProductOptionValueImageApplicationService service;
@@ -152,7 +152,7 @@ class ProductOptionValueImageApplicationServiceTest {
                 .thenReturn(Optional.of(existing));
         when(productImageStorage.publicUrlForKey(objectKey)).thenReturn(publicUrl);
 
-        CommitProductImageResult result = service.commitUpload(productId, povId, command);
+        CommitProductImageResult result = service.commitUpload(productId, povId, command, 1L);
 
         assertThat(result.id()).isEqualTo(imageId);
         assertThat(result.role()).isEqualTo("MAIN");
@@ -190,7 +190,7 @@ class ProductOptionValueImageApplicationServiceTest {
                 .thenReturn(Optional.of(existing));
         when(productImageStorage.publicUrlForKey(objectKey)).thenReturn(publicUrl);
 
-        assertThatThrownBy(() -> service.commitUpload(productId, povId, command))
+        assertThatThrownBy(() -> service.commitUpload(productId, povId, command, 1L))
                 .isInstanceOf(ProductDomainException.class)
                 .hasMessageContaining("different role");
     }
@@ -213,7 +213,7 @@ class ProductOptionValueImageApplicationServiceTest {
                 .sortOrder(0)
                 .build();
 
-        assertThatThrownBy(() -> service.commitUpload(productId, povId, command))
+        assertThatThrownBy(() -> service.commitUpload(productId, povId, command, 1L))
                 .isInstanceOf(ProductDomainException.class)
                 .hasMessageContaining("does not belong");
 
@@ -248,7 +248,7 @@ class ProductOptionValueImageApplicationServiceTest {
                 povId, objectKey, publicUrl, ProductImageRole.MAIN, 0, "image/jpeg", 1024L
         )).thenReturn(imageId);
 
-        CommitProductImageResult result = service.commitUpload(productId, povId, command);
+        CommitProductImageResult result = service.commitUpload(productId, povId, command, 1L);
 
         assertThat(result.id()).isEqualTo(imageId);
         verify(imagePersistence).demoteActiveMainsToGallery(povId);
@@ -256,8 +256,8 @@ class ProductOptionValueImageApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("commitUpload: insert 경쟁 실패 시 재조회로 idempotent 처리한다")
-    void commitUpload_raceConditionFallsBackToExisting() {
+    @DisplayName("commitUpload: 저장 오류는 전체 변경이 롤백되도록 전파한다")
+    void commitUpload_insertFailure_propagatesForTransactionRollback() {
         UUID productId = UUID.randomUUID();
         UUID povId = UUID.randomUUID();
         UUID imageId = UUID.randomUUID();
@@ -288,10 +288,8 @@ class ProductOptionValueImageApplicationServiceTest {
                 povId, objectKey, publicUrl, ProductImageRole.GALLERY, 3, "image/jpeg", 2048L
         )).thenThrow(new RuntimeException("duplicate key"));
 
-        CommitProductImageResult result = service.commitUpload(productId, povId, command);
-
-        assertThat(result.id()).isEqualTo(imageId);
-        assertThat(result.role()).isEqualTo("GALLERY");
+        assertThatThrownBy(() -> service.commitUpload(productId, povId, command, 1L))
+                .isInstanceOf(RuntimeException.class).hasMessage("duplicate key");
         verify(variantMainImageSyncPort, never()).syncByProductOptionValueId(povId);
     }
 
@@ -326,7 +324,7 @@ class ProductOptionValueImageApplicationServiceTest {
                 .orderedImageIds(List.of(img2, img1))
                 .build();
 
-        ReorderProductImagesResult result = service.reorderImages(productId, povId, command);
+        ReorderProductImagesResult result = service.reorderImages(productId, povId, command, 1L);
 
         assertThat(result.productId()).isEqualTo(productId);
         assertThat(result.reorderedCount()).isEqualTo(2);
@@ -359,7 +357,7 @@ class ProductOptionValueImageApplicationServiceTest {
                 .orderedImageIds(List.of(img1))
                 .build();
 
-        assertThatThrownBy(() -> service.reorderImages(productId, povId, command))
+        assertThatThrownBy(() -> service.reorderImages(productId, povId, command, 1L))
                 .isInstanceOf(ProductDomainException.class)
                 .hasMessageContaining("must include all active");
 
@@ -391,7 +389,7 @@ class ProductOptionValueImageApplicationServiceTest {
                 )
         ));
 
-        service.deleteImage(productId, povId, imageId);
+        service.deleteImage(productId, povId, imageId, 1L);
 
         verify(imagePersistence).softDelete(imageId, povId);
         verify(imagePersistence).demoteActiveMainsToGallery(povId);
@@ -407,7 +405,7 @@ class ProductOptionValueImageApplicationServiceTest {
         UUID imageId = UUID.randomUUID();
         when(productRepository.findById(any(ProductId.class))).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.deleteImage(productId, povId, imageId))
+        assertThatThrownBy(() -> service.deleteImage(productId, povId, imageId, 1L))
                 .isInstanceOf(ProductNotFoundException.class);
 
         verify(imagePersistence, never()).softDelete(any(), any());

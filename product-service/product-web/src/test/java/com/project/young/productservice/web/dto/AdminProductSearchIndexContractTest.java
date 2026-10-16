@@ -82,8 +82,8 @@ class AdminProductSearchIndexContractTest {
     void failedJobResponse_includesSafeFailureCodeAndMessage() {
         var now = Instant.parse("2026-10-12T00:00:00Z");
         var job = ProductSearchIndexBuildJob.queue(UUID.randomUUID(), UUID.randomUUID(), "admin-sub", "request-1", 500, now)
-                .fail("INVALID_DOCUMENT", "검색 문서 생성 실패", now);
+                .fail("INVALID_DOCUMENT", "Search document generation failed", now);
         var response = new AdminProductSearchIndexResponseMapper().toJobResponse(job);
-        assertThat(response.failure()).isEqualTo(new AdminProductSearchIndexBuildJobResponse.Failure("INVALID_DOCUMENT", "검색 문서 생성 실패"));
+        assertThat(response.failure()).isEqualTo(new AdminProductSearchIndexBuildJobResponse.Failure("INVALID_DOCUMENT", "Search document generation failed"));
     }
 }

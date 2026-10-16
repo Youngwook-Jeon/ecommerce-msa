@@ -3,9 +3,9 @@ package com.project.young.productservice.domain.valueobject;
 import com.project.young.productservice.domain.exception.CategoryDomainException;
 
 public enum CategoryStatus {
-    ACTIVE("활성"),
-    INACTIVE("비활성"),
-    DELETED("삭제됨");
+    ACTIVE("Active"),
+    INACTIVE("Inactive"),
+    DELETED("Deleted");
 
     private final String description;
 

@@ -11,6 +11,7 @@ import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import com.project.young.productservice.domain.repository.ProductRepository;
 import jakarta.persistence.EntityManager;
+import com.project.young.productservice.dataaccess.catalog.ProductCatalogRevisionStore;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,17 +27,19 @@ public class ProductRepositoryImpl implements ProductRepository {
     private final ProductDataAccessMapper productDataAccessMapper;
     private final ProductAggregateMapper productAggregateMapper;
     private final EntityManager entityManager;
+    private final ProductCatalogRevisionStore revisions;
 
     public ProductRepositoryImpl(ProductJpaRepository productJpaRepository,
                                  CategoryJpaRepository categoryJpaRepository,
                                  ProductDataAccessMapper productDataAccessMapper,
                                  ProductAggregateMapper productAggregateMapper,
-                                 EntityManager entityManager) {
+                                 EntityManager entityManager, ProductCatalogRevisionStore revisions) {
         this.productJpaRepository = productJpaRepository;
         this.categoryJpaRepository = categoryJpaRepository;
         this.productDataAccessMapper = productDataAccessMapper;
         this.productAggregateMapper = productAggregateMapper;
         this.entityManager = entityManager;
+        this.revisions = revisions;
     }
 
     @Override
@@ -55,6 +58,8 @@ public class ProductRepositoryImpl implements ProductRepository {
 
         ProductEntity toPersist = productDataAccessMapper.productToProductEntity(product, categoryRef);
         entityManager.persist(toPersist);
+        entityManager.flush();
+        revisions.initialize(product.getId().getValue());
     }
 
     @Override

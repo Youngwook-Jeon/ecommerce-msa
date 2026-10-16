@@ -50,6 +50,10 @@ product-service:
     request-budget-millis: ${PRODUCT_SEARCH_REQUEST_BUDGET_MILLIS:10000}
     mapping:
       resource: ${PRODUCT_SEARCH_MAPPING_RESOURCE:classpath:opensearch/products-index.json}
+    sync:
+      enabled: ${PRODUCT_SEARCH_SYNC_ENABLED:true}
+      dlt-topic: ${PRODUCT_SEARCH_SYNC_DLT_TOPIC:product.catalog.changed.search.DLT}
+      dlt-replay-enabled: ${PRODUCT_SEARCH_SYNC_DLT_REPLAY_ENABLED:true}
     reconciliation:
       enabled: ${PRODUCT_SEARCH_RECONCILIATION_ENABLED:true}
       poll-interval-millis: ${PRODUCT_SEARCH_RECONCILIATION_POLL_INTERVAL_MILLIS:30000}

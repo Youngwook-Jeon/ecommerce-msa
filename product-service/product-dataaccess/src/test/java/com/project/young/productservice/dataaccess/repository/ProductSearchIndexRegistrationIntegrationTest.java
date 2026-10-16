@@ -144,7 +144,7 @@ class ProductSearchIndexRegistrationIntegrationTest {
         assertCode(() -> service.register(command("request-1", 100)), "IDEMPOTENCY_KEY_CONFLICT");
         assertCode(() -> service.register(command("request-2", 500)), "INDEX_BUILD_IN_PROGRESS");
         var entity = jobs.findById(first.id()).orElseThrow();
-        var failed = first.fail("INVALID_DOCUMENT", "문서 생성 실패", first.updatedAt());
+        var failed = first.fail("INVALID_DOCUMENT", "Document generation failed", first.updatedAt());
         entity.setStatus(failed.status());
         entity.setFinishedAt(failed.finishedAt());
         entity.setFailureCode(failed.failureCode());

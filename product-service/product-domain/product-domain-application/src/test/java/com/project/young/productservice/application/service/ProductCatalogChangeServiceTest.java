@@ -22,7 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class StorefrontProductCatalogInvalidationServiceTest {
+class ProductCatalogChangeServiceTest {
 
     @Mock
     private ProductCatalogOutboxPort productCatalogOutboxPort;
@@ -34,20 +34,19 @@ class StorefrontProductCatalogInvalidationServiceTest {
     private ApplicationEventPublisher applicationEventPublisher;
 
     @InjectMocks
-    private StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
+    private ProductCatalogChangeService productCatalogChangeService;
 
     @Test
-    @DisplayName("invalidate는 outbox enqueue 후 post-commit Redis evict 이벤트를 발행한다")
-    void invalidate_enqueuesOutboxAndPublishesEvictEvent() {
+    @DisplayName("recordChange는 outbox enqueue 후 post-commit Redis evict 이벤트를 발행한다")
+    void recordChange_enqueuesOutboxAndPublishesEvictEvent() {
         UUID productId = UUID.randomUUID();
         UUID eventId = UUID.randomUUID();
         when(idGenerator.generateId()).thenReturn(eventId);
 
-        storefrontProductCatalogInvalidationService.invalidate(
+        productCatalogChangeService.recordChange(
                 new ProductId(productId),
                 4L,
-                ProductCatalogChangeType.PRODUCT_UPDATED
-        );
+                ProductCatalogChangeType.PRODUCT_UPDATED, 1L);
 
         verify(productCatalogOutboxPort).enqueue(any());
 

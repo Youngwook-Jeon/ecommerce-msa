@@ -84,7 +84,7 @@ public class CategoryApiIntegrationTest {
             try {
                 entityManager.createNativeQuery("ALTER SEQUENCE categories_id_seq RESTART WITH 1").executeUpdate();
             } catch (Exception ex) {
-                System.out.println("시퀀스 초기화 실패: " + ex.getMessage());
+                System.out.println("Failed to reset the sequence: " + ex.getMessage());
             }
         }
     }

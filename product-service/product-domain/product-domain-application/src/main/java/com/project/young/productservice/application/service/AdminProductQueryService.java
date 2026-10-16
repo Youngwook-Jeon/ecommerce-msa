@@ -7,6 +7,7 @@ import com.project.young.productservice.application.dto.condition.AdminProductSe
 import com.project.young.productservice.application.port.output.AdminProductReadRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.util.List;
 
@@ -20,6 +21,7 @@ public class AdminProductQueryService {
         this.adminProductReadRepository = adminProductReadRepository;
     }
 
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public AdminProductDetailResult getProductDetail(AdminProductDetailQuery query) {
         return adminProductReadRepository.getProductDetail(query);
     }

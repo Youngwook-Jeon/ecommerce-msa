@@ -63,7 +63,7 @@ public class ProductSearchIndexReconciliationAdapter implements ProductSearchInd
             entity.setStatus(ProductSearchIndexReconciliationStatus.EXPIRED);
             entity.setFinishedAt(now());
             entity.setFailureCode("RECONCILIATION_LEASE_EXPIRED");
-            entity.setFailureMessage("조정 확인 작업의 실행 소유권이 만료되었습니다.");
+            entity.setFailureMessage("The reconciliation attempt execution lease expired.");
             log.warn("Reconciliation attempt expired: jobId={}, attemptId={}", entity.getJobId(), id);
         }
     }
@@ -135,7 +135,7 @@ public class ProductSearchIndexReconciliationAdapter implements ProductSearchInd
         if (!unchanged) {
             attempt.setStatus(ProductSearchIndexReconciliationStatus.STALE);
             attempt.setFailureCode("RECONCILIATION_STATE_CHANGED");
-            attempt.setFailureMessage("확인 중 인덱스 관리 상태가 변경되어 결과를 반영하지 않았습니다.");
+            attempt.setFailureMessage("The result was not applied because the index management state changed during verification.");
             log.warn("Reconciliation snapshot became stale: jobId={}, attemptId={}, observation={}", job.getId(), attempt.getId(), observation);
         } else if (observation == ProductSearchIndexAliasObservation.TARGET_CONFIRMED) {
             ProductSearchIndexActivationCompletion.complete(job, versions, metadataMapper, now);
@@ -144,7 +144,7 @@ public class ProductSearchIndexReconciliationAdapter implements ProductSearchInd
         } else if (observed == null) {
             attempt.setStatus(ProductSearchIndexReconciliationStatus.FAILED);
             attempt.setFailureCode("ALIAS_LOOKUP_FAILED");
-            attempt.setFailureMessage("OpenSearch alias 상태를 조회하지 못했습니다.");
+            attempt.setFailureMessage("Failed to read the OpenSearch alias state.");
         } else {
             attempt.setStatus(ProductSearchIndexReconciliationStatus.UNRESOLVED);
             if (observation == ProductSearchIndexAliasObservation.MULTIPLE_INDICES

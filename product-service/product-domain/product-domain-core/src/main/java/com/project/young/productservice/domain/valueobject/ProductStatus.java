@@ -3,12 +3,12 @@ package com.project.young.productservice.domain.valueobject;
 import com.project.young.productservice.domain.exception.ProductDomainException;
 
 public enum ProductStatus {
-    DRAFT("임시저장"),
-    ACTIVE("활성"),
-    INACTIVE("비활성"),
-    DISCONTINUED("단종"),
-    OUT_OF_STOCK("품절"),
-    DELETED("삭제됨");
+    DRAFT("Draft"),
+    ACTIVE("Active"),
+    INACTIVE("Inactive"),
+    DISCONTINUED("Discontinued"),
+    OUT_OF_STOCK("Out of stock"),
+    DELETED("Deleted");
 
     private final String description;
 

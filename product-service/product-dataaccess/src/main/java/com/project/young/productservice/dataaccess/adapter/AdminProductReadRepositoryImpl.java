@@ -31,6 +31,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
+import com.project.young.productservice.dataaccess.catalog.ProductCatalogRevisionStore;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -44,6 +46,7 @@ import java.util.UUID;
 @Transactional(readOnly = true)
 public class AdminProductReadRepositoryImpl implements AdminProductReadRepository {
 
+    private final ProductCatalogRevisionStore revisions;
     private final AdminProductJpaRepository adminProductJpaRepository;
     private final AdminProductSearchQueryRepository adminProductSearchQueryRepository;
     private final ProductDataAccessMapper productDataAccessMapper;
@@ -54,7 +57,8 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                                           AdminProductSearchQueryRepository adminProductSearchQueryRepository,
                                           ProductDataAccessMapper productDataAccessMapper,
                                           ProductImageJpaRepository productImageJpaRepository,
-                                          ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository) {
+                                          ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository, ProductCatalogRevisionStore revisions) {
+        this.revisions = revisions;
         this.adminProductJpaRepository = adminProductJpaRepository;
         this.adminProductSearchQueryRepository = adminProductSearchQueryRepository;
         this.productDataAccessMapper = productDataAccessMapper;
@@ -63,6 +67,7 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
     }
 
     @Override
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public AdminProductDetailResult getProductDetail(AdminProductDetailQuery query) {
         if (query == null) {
             throw new IllegalArgumentException("AdminProductDetailQuery cannot be null");
@@ -175,6 +180,7 @@ public class AdminProductReadRepositoryImpl implements AdminProductReadRepositor
                 .toList();
 
         return AdminProductDetailResult.builder()
+                .version(revisions.current(entity.getId()))
                 .id(entity.getId())
                 .categoryId(categoryId)
                 .name(entity.getName())

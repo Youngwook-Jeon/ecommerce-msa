@@ -15,6 +15,8 @@ import com.project.young.productservice.dataaccess.search.OpenSearchProductQuery
 import com.project.young.productservice.dataaccess.search.OpenSearchProductSearchAdapter;
 import com.project.young.productservice.dataaccess.search.ProductSearchIndexBatchReader;
 import org.junit.jupiter.api.Test;
+import com.project.young.productservice.dataaccess.search.ProductSearchSynchronizationReader;
+import com.project.young.productservice.dataaccess.search.ProductSearchSynchronizationTargetReader;
 import com.project.young.productservice.dataaccess.search.ProductSearchCategoryNameReader;
 import com.project.young.productservice.application.port.output.ProductSearchIndexReconciliationPort;
 import com.project.young.productservice.application.service.ProductSearchIndexActivationReconciler;
@@ -62,6 +64,8 @@ class ProductSearchConfigurationTest {
     void enabledSearchRegistersExactlyOneRealAdapter() {
         new ApplicationContextRunner().withUserConfiguration(ProductSearchConfiguration.class, OpenSearchProductConfiguration.class)
                 .withBean(ProductSearchCategoryNameReader.class, () -> mock(ProductSearchCategoryNameReader.class))
+                .withBean(ProductSearchSynchronizationReader.class, () -> mock(ProductSearchSynchronizationReader.class))
+                .withBean(ProductSearchSynchronizationTargetReader.class, () -> mock(ProductSearchSynchronizationTargetReader.class))
                 .withBean(ProductSearchIndexBatchReader.class, () -> mock(ProductSearchIndexBatchReader.class))
                 .withBean(ObjectMapper.class, ObjectMapper::new).run(context -> {
                     assertThat(context).hasSingleBean(ProductSearchPort.class);
@@ -76,6 +80,8 @@ class ProductSearchConfigurationTest {
         OpenSearchProductQueryBuilder customBuilder = new CrossFieldsProductQueryBuilder();
         new ApplicationContextRunner().withUserConfiguration(ProductSearchConfiguration.class, OpenSearchProductConfiguration.class)
                 .withBean(ProductSearchCategoryNameReader.class, () -> mock(ProductSearchCategoryNameReader.class))
+                .withBean(ProductSearchSynchronizationReader.class, () -> mock(ProductSearchSynchronizationReader.class))
+                .withBean(ProductSearchSynchronizationTargetReader.class, () -> mock(ProductSearchSynchronizationTargetReader.class))
                 .withBean(ProductSearchIndexBatchReader.class, () -> mock(ProductSearchIndexBatchReader.class))
                 .withBean(ObjectMapper.class, ObjectMapper::new)
                 .withBean("customQueryBuilder", OpenSearchProductQueryBuilder.class, () -> customBuilder)
@@ -97,6 +103,8 @@ class ProductSearchConfigurationTest {
         new ApplicationContextRunner().withUserConfiguration(OpenSearchProductConfiguration.class, ProductSearchIndexBuildConfiguration.class)
                 .withBean(ObjectMapper.class, ObjectMapper::new)
                 .withBean(ProductSearchCategoryNameReader.class, () -> mock(ProductSearchCategoryNameReader.class))
+                .withBean(ProductSearchSynchronizationReader.class, () -> mock(ProductSearchSynchronizationReader.class))
+                .withBean(ProductSearchSynchronizationTargetReader.class, () -> mock(ProductSearchSynchronizationTargetReader.class))
                 .withBean(ProductSearchIndexBatchReader.class, () -> mock(ProductSearchIndexBatchReader.class))
                 .withBean(ProductSearchIndexVerificationReader.class, () -> mock(ProductSearchIndexVerificationReader.class))
                 .withBean(ProductSearchIndexBuildWorkPort.class, () -> mock(ProductSearchIndexBuildWorkPort.class))
@@ -117,6 +125,8 @@ class ProductSearchConfigurationTest {
                         ProductSearchIndexBuildConfiguration.class, ProductSearchIndexActivationConfiguration.class, ProductSearchIndexReconciliationConfiguration.class)
                 .withBean(ObjectMapper.class, ObjectMapper::new)
                 .withBean(ProductSearchCategoryNameReader.class, () -> mock(ProductSearchCategoryNameReader.class))
+                .withBean(ProductSearchSynchronizationReader.class, () -> mock(ProductSearchSynchronizationReader.class))
+                .withBean(ProductSearchSynchronizationTargetReader.class, () -> mock(ProductSearchSynchronizationTargetReader.class))
                 .withBean(ProductSearchIndexBatchReader.class, () -> mock(ProductSearchIndexBatchReader.class))
                 .withBean(ProductSearchIndexVerificationReader.class, () -> mock(ProductSearchIndexVerificationReader.class))
                 .withBean(ProductSearchIndexBuildWorkPort.class, () -> mock(ProductSearchIndexBuildWorkPort.class))

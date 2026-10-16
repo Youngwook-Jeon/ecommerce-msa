@@ -10,6 +10,7 @@ import java.util.UUID;
 @Builder
 public record AdminProductDetailResponse(
         UUID id,
+        long version,
         Long categoryId,
         String name,
         String description,

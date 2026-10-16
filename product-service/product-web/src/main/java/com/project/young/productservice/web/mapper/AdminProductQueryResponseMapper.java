@@ -38,6 +38,7 @@ public class AdminProductQueryResponseMapper {
     public AdminProductDetailResponse toAdminProductDetailResponse(AdminProductDetailResult result) {
         return AdminProductDetailResponse.builder()
                 .id(result.id())
+                .version(result.version())
                 .categoryId(result.categoryId())
                 .name(result.name())
                 .description(result.description())

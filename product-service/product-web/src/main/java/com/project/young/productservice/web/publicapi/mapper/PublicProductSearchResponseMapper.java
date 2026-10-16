@@ -24,7 +24,7 @@ public class PublicProductSearchResponseMapper {
         return new PublicProductSearchResponse(
                 new PublicProductSearchResponse.Query(criteria.q(), criteria.sort().apiValue()),
                 products, criteria.page(), criteria.size(), result.totalElements(), page.totalPages(),
-                List.of(new PublicProductSearchFacetResponse.Terms("brand", "브랜드", brands, result.hasMoreBrands()),
-                        new PublicProductSearchFacetResponse.Range("price", "가격", result.minPrice(), result.maxPrice())));
+                List.of(new PublicProductSearchFacetResponse.Terms("brand", "Brand", brands, result.hasMoreBrands()),
+                        new PublicProductSearchFacetResponse.Range("price", "Price", result.minPrice(), result.maxPrice())));
     }
 }

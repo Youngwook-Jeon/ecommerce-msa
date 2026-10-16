@@ -45,7 +45,7 @@ class ProductOptionGroupVisualApplicationServiceTest {
     private VariantMainImageSyncPort variantMainImageSyncPort;
 
     @Mock
-    private StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
+    private ProductCatalogChangeService productCatalogChangeService;
 
     @InjectMocks
     private ProductOptionGroupVisualApplicationService service;
@@ -56,7 +56,7 @@ class ProductOptionGroupVisualApplicationServiceTest {
         UUID productId = UUID.randomUUID();
         UUID pogId = UUID.randomUUID();
 
-        assertThatThrownBy(() -> service.updateVisualFlag(productId, pogId, null))
+        assertThatThrownBy(() -> service.updateVisualFlag(productId, pogId, null, 1L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("required");
 
@@ -73,8 +73,7 @@ class ProductOptionGroupVisualApplicationServiceTest {
         assertThatThrownBy(() -> service.updateVisualFlag(
                 productId,
                 pogId,
-                UpdateProductOptionGroupVisualCommand.builder().drivesVariantImages(true).build()
-        )).isInstanceOf(ProductNotFoundException.class);
+                UpdateProductOptionGroupVisualCommand.builder().drivesVariantImages(true).build(), 1L)).isInstanceOf(ProductNotFoundException.class);
 
         verify(productOptionGroupVisualPort, never()).setDrivesVariantImages(any(), any(), eq(true));
     }
@@ -90,8 +89,7 @@ class ProductOptionGroupVisualApplicationServiceTest {
         assertThatThrownBy(() -> service.updateVisualFlag(
                 productId,
                 pogId,
-                UpdateProductOptionGroupVisualCommand.builder().drivesVariantImages(true).build()
-        )).isInstanceOf(ProductDomainException.class)
+                UpdateProductOptionGroupVisualCommand.builder().drivesVariantImages(true).build(), 1L)).isInstanceOf(ProductDomainException.class)
                 .hasMessageContaining("deleted");
 
         verify(productOptionGroupVisualPort, never()).setDrivesVariantImages(any(), any(), eq(true));
@@ -108,8 +106,7 @@ class ProductOptionGroupVisualApplicationServiceTest {
         UpdateProductOptionGroupVisualResult result = service.updateVisualFlag(
                 productId,
                 pogId,
-                UpdateProductOptionGroupVisualCommand.builder().drivesVariantImages(true).build()
-        );
+                UpdateProductOptionGroupVisualCommand.builder().drivesVariantImages(true).build(), 1L);
 
         assertThat(result.productId()).isEqualTo(productId);
         assertThat(result.productOptionGroupId()).isEqualTo(pogId);
@@ -130,8 +127,7 @@ class ProductOptionGroupVisualApplicationServiceTest {
         UpdateProductOptionGroupVisualResult result = service.updateVisualFlag(
                 productId,
                 pogId,
-                UpdateProductOptionGroupVisualCommand.builder().drivesVariantImages(false).build()
-        );
+                UpdateProductOptionGroupVisualCommand.builder().drivesVariantImages(false).build(), 1L);
 
         assertThat(result.drivesVariantImages()).isFalse();
         verify(productOptionGroupVisualPort).setDrivesVariantImages(productId, pogId, false);

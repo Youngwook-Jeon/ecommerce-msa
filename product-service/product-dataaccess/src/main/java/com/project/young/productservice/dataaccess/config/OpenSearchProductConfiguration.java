@@ -1,6 +1,10 @@
 package com.project.young.productservice.dataaccess.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.young.productservice.application.port.output.ProductSearchSynchronizationPort;
+import com.project.young.productservice.dataaccess.search.ProductSearchSynchronizationReader;
+import com.project.young.productservice.dataaccess.search.ProductSearchSynchronizationTargetReader;
+import com.project.young.productservice.dataaccess.search.OpenSearchProductSynchronizationAdapter;
 import com.project.young.productservice.application.port.output.ProductSearchPort;
 import com.project.young.productservice.application.port.output.ProductSearchIndexAliasPort;
 import com.project.young.productservice.dataaccess.search.OpenSearchProductIndexAliasAdapter;
@@ -39,6 +43,15 @@ public class OpenSearchProductConfiguration {
     }
 
     @Bean
+    ProductSearchSynchronizationPort productSearchSynchronization(ProductSearchSynchronizationReader documents,
+                                                                  ProductSearchSynchronizationTargetReader targets,
+                                                                  OpenSearchProductBulkWriter writer,
+                                                                  ProductSearchIndexAliasPort aliases,
+                                                                  OpenSearchProductProperties properties) {
+        return new OpenSearchProductSynchronizationAdapter(documents, targets, writer, aliases, properties);
+    }
+
+    @Bean
     ProductSearchIndexAliasPort productSearchIndexAliases(OpenSearchClient client, ProductSearchIndexMappingProperties mapping) {
         return new OpenSearchProductIndexAliasAdapter(client, mapping);
     }
@@ -61,14 +74,14 @@ public class OpenSearchProductConfiguration {
 
     @Bean
     ProductSearchInitialLoader productSearchInitialLoader(ProductSearchIndexBatchReader reader,
-                                                         OpenSearchProductBulkWriter writer) {
+                                                          OpenSearchProductBulkWriter writer) {
         return new ProductSearchInitialLoader(reader, writer);
     }
 
     @Bean
     ProductSearchPort openSearchProductSearchPort(OpenSearchClient productSearchClient,
-                                                OpenSearchProductQueryBuilder productSearchQueryBuilder,
-                                                OpenSearchProductProperties properties, ProductSearchCategoryNameReader categoryNames) {
+                                                  OpenSearchProductQueryBuilder productSearchQueryBuilder,
+                                                  OpenSearchProductProperties properties, ProductSearchCategoryNameReader categoryNames) {
         return new OpenSearchProductSearchAdapter(productSearchClient, productSearchQueryBuilder, properties, categoryNames);
     }
 }

@@ -133,7 +133,7 @@ class ProductSearchIndexMetadataRepositoryTest {
         var second = registered(2);
         versions.saveAndFlush(mapper.toEntity(first, 0));
         versions.saveAndFlush(mapper.toEntity(second, 0));
-        jobs.saveAndFlush(mapper.toEntity(queued(first, "request-1").fail("INVALID_DOCUMENT", "문서 생성 실패", now), 0));
+        jobs.saveAndFlush(mapper.toEntity(queued(first, "request-1").fail("INVALID_DOCUMENT", "Document generation failed", now), 0));
         assertThatThrownBy(() -> jobs.saveAndFlush(mapper.toEntity(queued(second, "request-1"), 0)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }

@@ -90,6 +90,8 @@ class ProductSearchInitialLoadIntegrationTest {
                         .conditionType(ConditionTypeEntity.NEW).status(i == 0 ? ProductStatusEntity.ACTIVE : ProductStatusEntity.DELETED)
                         .createdAt(Instant.now()).updatedAt(Instant.now()).build());
             }
+            entityManager.flush();
+            entityManager.createNativeQuery("INSERT INTO product_catalog_versions(product_id, revision) SELECT id, 1 FROM products ON CONFLICT DO NOTHING").executeUpdate();
         });
         transaction.executeWithoutResult(s -> {
             var first = repository.findFirstSearchIndexBatch(PageRequest.of(0, 2));

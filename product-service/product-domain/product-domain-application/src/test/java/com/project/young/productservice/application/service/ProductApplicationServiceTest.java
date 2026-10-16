@@ -58,7 +58,7 @@ class ProductApplicationServiceTest {
     private VariantMainImageSyncPort variantMainImageSyncPort;
 
     @Mock
-    private StorefrontProductCatalogInvalidationService storefrontProductCatalogInvalidationService;
+    private ProductCatalogChangeService productCatalogChangeService;
 
     @InjectMocks
     private ProductApplicationService productApplicationService;
@@ -120,6 +120,8 @@ class ProductApplicationServiceTest {
 
             // When
             CreateProductResult result = productApplicationService.createProduct(command);
+            verify(productCatalogChangeService).recordChange(any(Product.class),
+                    eq(com.project.young.productservice.application.dto.event.ProductCatalogChangeType.PRODUCT_CREATED), eq(0L));
 
             // Then
             assertThat(result).isNotNull();
@@ -190,7 +192,7 @@ class ProductApplicationServiceTest {
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void updateProduct_InvalidRequest_ThrowsException() {
-            assertThatThrownBy(() -> productApplicationService.updateProduct(null, null))
+            assertThatThrownBy(() -> productApplicationService.updateProduct(null, null, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid product update request");
         }
@@ -211,7 +213,7 @@ class ProductApplicationServiceTest {
             when(productRepository.findById(new ProductId(rawId))).thenReturn(Optional.empty());
 
             // When & Then
-            assertThatThrownBy(() -> productApplicationService.updateProduct(rawId, command))
+            assertThatThrownBy(() -> productApplicationService.updateProduct(rawId, command, 1L))
                     .isInstanceOf(ProductNotFoundException.class)
                     .hasMessageContaining("Product with id");
 
@@ -264,7 +266,7 @@ class ProductApplicationServiceTest {
             when(productDataMapper.toUpdateProductResult(product)).thenReturn(expected);
 
             // When
-            UpdateProductResult result = productApplicationService.updateProduct(rawId, command);
+            UpdateProductResult result = productApplicationService.updateProduct(rawId, command, 1L);
 
             // Then
             assertThat(result).isNotNull();
@@ -282,7 +284,7 @@ class ProductApplicationServiceTest {
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void updateProductStatus_InvalidRequest_ThrowsException() {
-            assertThatThrownBy(() -> productApplicationService.updateProductStatus(null, null))
+            assertThatThrownBy(() -> productApplicationService.updateProductStatus(null, null, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid product status update request");
         }
@@ -327,7 +329,7 @@ class ProductApplicationServiceTest {
                             .build()
             );
 
-            UpdateProductResult result = productApplicationService.updateProductStatus(rawId, command);
+            UpdateProductResult result = productApplicationService.updateProductStatus(rawId, command, 1L);
 
             assertThat(result.status()).isEqualTo(ProductStatus.INACTIVE);
             verify(productDomainService).validateStatusChangeRules(product, ProductStatus.INACTIVE);
@@ -360,7 +362,7 @@ class ProductApplicationServiceTest {
 
             when(productRepository.findById(productId)).thenReturn(Optional.of(draftProduct));
 
-            assertThatThrownBy(() -> productApplicationService.updateProductStatus(rawId, command))
+            assertThatThrownBy(() -> productApplicationService.updateProductStatus(rawId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Cannot publish product without at least one active variant");
 
@@ -402,7 +404,7 @@ class ProductApplicationServiceTest {
 
             when(productRepository.findById(productId)).thenReturn(Optional.of(draftProduct));
 
-            assertThatThrownBy(() -> productApplicationService.updateProductStatus(rawId, command))
+            assertThatThrownBy(() -> productApplicationService.updateProductStatus(rawId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
                     .hasMessageContaining("Cannot publish product without at least one active variant");
 
@@ -417,7 +419,7 @@ class ProductApplicationServiceTest {
         @Test
         @DisplayName("null id이면 IllegalArgumentException")
         void deleteProduct_NullId_ThrowsException() {
-            assertThatThrownBy(() -> productApplicationService.deleteProduct(null))
+            assertThatThrownBy(() -> productApplicationService.deleteProduct(null, 1L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Product ID for delete cannot be null.");
 
@@ -456,7 +458,7 @@ class ProductApplicationServiceTest {
             when(productDataMapper.toDeleteProductResult(deleted)).thenReturn(expected);
 
             // When
-            DeleteProductResult result = productApplicationService.deleteProduct(rawId);
+            DeleteProductResult result = productApplicationService.deleteProduct(rawId, 1L);
 
             // Then
             assertThat(result).isNotNull();

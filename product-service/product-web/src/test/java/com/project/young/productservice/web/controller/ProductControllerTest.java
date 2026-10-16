@@ -51,6 +51,28 @@ class ProductControllerTest {
     @MockitoBean
     private ProductResponseMapper productResponseMapper;
 
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void delete_missingOrNonPositiveExpectedVersion_returns400() throws Exception {
+        var id = UUID.randomUUID();
+        mockMvc.perform(delete("/admin/products/{productId}", id).with(csrf()))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(delete("/admin/products/{productId}", id).param("expectedVersion", "0").with(csrf()))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(productApplicationService);
+    }
+
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void delete_versionConflict_returns409WithStableCode() throws Exception {
+        var id = UUID.randomUUID();
+        when(productApplicationService.deleteProduct(id, 7L))
+                .thenThrow(new com.project.young.productservice.application.exception.ProductVersionConflictException(id, 7L));
+        mockMvc.perform(delete("/admin/products/{productId}", id).param("expectedVersion", "7").with(csrf()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRODUCT_VERSION_CONFLICT"));
+    }
+
     @Nested
     @DisplayName("create")
     class CreateTests {
@@ -165,13 +187,13 @@ class ProductControllerTest {
                     .message("Product updated successfully.")
                     .build();
 
-            when(productApplicationService.updateProduct(eq(productId), any(UpdateProductCommand.class)))
+            when(productApplicationService.updateProduct(eq(productId), any(UpdateProductCommand.class), eq(1L)))
                     .thenReturn(serviceResult);
             when(productResponseMapper.toUpdateProductResponse(serviceResult))
                     .thenReturn(expectedResponse);
 
             // When & Then
-            mockMvc.perform(put("/admin/products/{productId}", productId)
+            mockMvc.perform(put("/admin/products/{productId}", productId).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -181,7 +203,7 @@ class ProductControllerTest {
                     .andExpect(jsonPath("$.status").value("DRAFT"))
                     .andExpect(jsonPath("$.message").exists());
 
-            verify(productApplicationService).updateProduct(eq(productId), any(UpdateProductCommand.class));
+            verify(productApplicationService).updateProduct(eq(productId), any(UpdateProductCommand.class), org.mockito.ArgumentMatchers.eq(1L));
             verify(productResponseMapper).toUpdateProductResponse(serviceResult);
         }
 
@@ -199,13 +221,13 @@ class ProductControllerTest {
                     .categoryId(1L)
                     .build();
 
-            mockMvc.perform(put("/admin/products/{productId}", productId)
+            mockMvc.perform(put("/admin/products/{productId}", productId).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
                     .andExpect(status().isForbidden());
 
-            verify(productApplicationService, never()).updateProduct(any(), any());
+            verify(productApplicationService, never()).updateProduct(any(), any(), org.mockito.ArgumentMatchers.eq(1L));
         }
     }
 
@@ -247,12 +269,12 @@ class ProductControllerTest {
                     .message("Product status updated successfully")
                     .build();
 
-            when(productApplicationService.updateProductStatus(eq(productId), any(UpdateProductStatusCommand.class)))
+            when(productApplicationService.updateProductStatus(eq(productId), any(UpdateProductStatusCommand.class), eq(1L)))
                     .thenReturn(serviceResult);
             when(productResponseMapper.toUpdateProductStatusResponse(serviceResult))
                     .thenReturn(expectedResponse);
 
-            mockMvc.perform(patch("/admin/products/{productId}/status", productId)
+            mockMvc.perform(patch("/admin/products/{productId}/status", productId).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -261,7 +283,7 @@ class ProductControllerTest {
                     .andExpect(jsonPath("$.status").value("ACTIVE"))
                     .andExpect(jsonPath("$.message").value("Product status updated successfully"));
 
-            verify(productApplicationService).updateProductStatus(eq(productId), any(UpdateProductStatusCommand.class));
+            verify(productApplicationService).updateProductStatus(eq(productId), any(UpdateProductStatusCommand.class), org.mockito.ArgumentMatchers.eq(1L));
             verify(productResponseMapper).toUpdateProductStatusResponse(serviceResult);
         }
 
@@ -274,13 +296,13 @@ class ProductControllerTest {
                     .status(ProductStatus.INACTIVE)
                     .build();
 
-            mockMvc.perform(patch("/admin/products/{productId}/status", productId)
+            mockMvc.perform(patch("/admin/products/{productId}/status", productId).param("expectedVersion", "1")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
                     .andExpect(status().isForbidden());
 
-            verify(productApplicationService, never()).updateProductStatus(any(), any());
+            verify(productApplicationService, never()).updateProductStatus(any(), any(), org.mockito.ArgumentMatchers.eq(1L));
         }
     }
 
@@ -301,19 +323,19 @@ class ProductControllerTest {
                     .message("Product deleted successfully.")
                     .build();
 
-            when(productApplicationService.deleteProduct(productId)).thenReturn(serviceResult);
+            when(productApplicationService.deleteProduct(productId, 1L)).thenReturn(serviceResult);
             when(productResponseMapper.toDeleteProductResponse(serviceResult))
                     .thenReturn(expectedResponse);
 
             // When & Then
-            mockMvc.perform(delete("/admin/products/{productId}", productId)
+            mockMvc.perform(delete("/admin/products/{productId}", productId).param("expectedVersion", "1")
                             .with(csrf()))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.id").value(productId.toString()))
                     .andExpect(jsonPath("$.name").value("와이드핏 데님"))
                     .andExpect(jsonPath("$.message").exists());
 
-            verify(productApplicationService).deleteProduct(productId);
+            verify(productApplicationService).deleteProduct(productId, 1L);
             verify(productResponseMapper).toDeleteProductResponse(serviceResult);
         }
 
@@ -323,11 +345,11 @@ class ProductControllerTest {
         void delete_WithoutAdminAuthority_Returns403() throws Exception {
             UUID productId = UUID.randomUUID();
 
-            mockMvc.perform(delete("/admin/products/{productId}", productId)
+            mockMvc.perform(delete("/admin/products/{productId}", productId).param("expectedVersion", "1")
                             .with(csrf()))
                     .andExpect(status().isForbidden());
 
-            verify(productApplicationService, never()).deleteProduct(any());
+            verify(productApplicationService, never()).deleteProduct(any(), org.mockito.ArgumentMatchers.eq(1L));
         }
     }
 }

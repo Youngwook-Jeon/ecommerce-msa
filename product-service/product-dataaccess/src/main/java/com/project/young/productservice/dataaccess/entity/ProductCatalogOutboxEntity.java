@@ -37,6 +37,9 @@ public class ProductCatalogOutboxEntity {
     @Column(name = "product_id", nullable = false, columnDefinition = "UUID")
     private UUID productId;
 
+    @Column(name = "catalog_revision")
+    private Long catalogRevision;
+
     @Column(name = "category_id")
     private Long categoryId;
 

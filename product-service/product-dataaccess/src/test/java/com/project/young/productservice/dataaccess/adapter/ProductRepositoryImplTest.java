@@ -9,6 +9,7 @@ import com.project.young.productservice.dataaccess.mapper.ProductAggregateMapper
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
+import com.project.young.productservice.dataaccess.catalog.ProductCatalogRevisionStore;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import com.project.young.productservice.domain.valueobject.ConditionType;
@@ -47,6 +48,9 @@ class ProductRepositoryImplTest {
 
     @Mock
     private EntityManager entityManager;
+
+    @Mock
+    private ProductCatalogRevisionStore revisions;
 
     @InjectMocks
     private ProductRepositoryImpl productRepository;
@@ -88,7 +92,10 @@ class ProductRepositoryImplTest {
             productRepository.insert(product);
 
             verify(productDataAccessMapper).productToProductEntity(eq(product), isNull());
-            verify(entityManager).persist(toPersistEntity);
+            var order = inOrder(entityManager, revisions);
+            order.verify(entityManager).persist(toPersistEntity);
+            order.verify(entityManager).flush();
+            order.verify(revisions).initialize(product.getId().getValue());
             verify(productJpaRepository, never()).save(any());
         }
 

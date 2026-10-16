@@ -23,6 +23,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import com.project.young.productservice.dataaccess.catalog.ProductCatalogRevisionStore;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
@@ -59,6 +60,9 @@ class AdminProductReadRepositoryImplTest {
     @Mock
     private ProductOptionValueImageJpaRepository productOptionValueImageJpaRepository;
 
+    @Mock
+    private ProductCatalogRevisionStore revisions;
+
     @InjectMocks
     private AdminProductReadRepositoryImpl adminProductReadRepository;
 
@@ -67,6 +71,7 @@ class AdminProductReadRepositoryImplTest {
     void getProductDetail_MapsEntityToDetailResult() {
         // Given
         UUID productId = UUID.randomUUID();
+        org.mockito.Mockito.lenient().when(revisions.current(productId)).thenReturn(1L);
         Instant now = Instant.now();
         CategoryEntity category = CategoryEntity.builder()
                 .id(1L)

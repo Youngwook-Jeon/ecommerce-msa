@@ -3,6 +3,7 @@ package com.project.young.productservice.web.exception.handler;
 import com.project.young.common.application.web.ErrorDTO;
 import com.project.young.common.application.web.GlobalExceptionHandler;
 import com.project.young.productservice.application.exception.ProductSearchRequestException;
+import com.project.young.productservice.application.exception.ProductVersionConflictException;
 import com.project.young.productservice.domain.exception.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -10,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -17,6 +19,22 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 @Slf4j
 @ControllerAdvice
 public class ProductServiceGlobalExceptionHandler extends GlobalExceptionHandler {
+
+    @ResponseBody
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorDTO handleMethodValidation(HandlerMethodValidationException exception) {
+        return ErrorDTO.builder().code("INVALID_REQUEST").message("Invalid request parameters.").build();
+    }
+
+    @ResponseBody
+    @ExceptionHandler(ProductVersionConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorDTO handleVersionConflict(ProductVersionConflictException exception) {
+        log.info("Catalog version conflict: {}", exception.getMessage());
+        return ErrorDTO.builder().code("PRODUCT_VERSION_CONFLICT")
+                .message("The product has changed. Reload the latest product before editing.").build();
+    }
 
     @ResponseBody
     @ExceptionHandler(ProductSearchRequestException.class)

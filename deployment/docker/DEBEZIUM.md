@@ -3,6 +3,8 @@
 `product_catalog_outbox` 테이블 INSERT를 PostgreSQL WAL → Debezium → Kafka `product.catalog.changed` 로 relay합니다.  
 앱 내부 폴링(`ProductCatalogOutboxPublisher`)을 대체하는 **인프라 레이어**입니다.
 
+같은 토픽을 검색 동기화의 별도 consumer group도 소비합니다. `catalog_revision` 열을 기존 CDC 메시지로 전달하며 검색 오류는 전용 `product.catalog.changed.search.DLT`로 보냅니다. [검색 동기화와 재처리 절차](../../product-service/docs/PRODUCT_SEARCH_SYNCHRONIZATION.md)를 참고하세요.
+
 ## 아키텍처
 
 ```mermaid
@@ -38,6 +40,9 @@ flowchart LR
   subgraph consumer [product-service]
     Listener[Cache invalidation listener]
     Topic --> Listener
+    Search[Search synchronization listener]
+    Topic --> Search
+    Search --> SearchDLT[product.catalog.changed.search.DLT]
   end
 ```
 
@@ -57,7 +62,7 @@ flowchart LR
 |------|------|
 | `kafka_connect.yml` | `quay.io/debezium/connect:3.0` (REST `:8083`) |
 | `backing_services.yml` | Postgres `wal_level=logical` |
-| `init_kafka.yml` | `_connect_*` 내부 토픽 + `product.catalog.changed` |
+| `init_kafka.yml` | `_connect_*` 내부 토픽 + `product.catalog.changed` + 검색 DLT |
 | `connectors/product-catalog-outbox-connector.json` | Connector 정의 |
 | `scripts/setup-debezium.sh` | grant + connector 등록 |
 

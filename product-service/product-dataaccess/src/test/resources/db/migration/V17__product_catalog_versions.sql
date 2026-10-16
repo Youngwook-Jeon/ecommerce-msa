@@ -1,0 +1,2 @@
+ALTER TABLE product_search_sync_state RENAME TO product_catalog_versions;
+ALTER TABLE product_catalog_outbox RENAME COLUMN search_revision TO catalog_revision;

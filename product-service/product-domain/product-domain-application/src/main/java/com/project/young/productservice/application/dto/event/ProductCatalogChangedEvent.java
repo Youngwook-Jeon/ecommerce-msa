@@ -8,7 +8,8 @@ public record ProductCatalogChangedEvent(
         UUID productId,
         Long categoryId,
         ProductCatalogChangeType changeType,
-        Instant occurredAt
+        Instant occurredAt,
+        long expectedVersion
 ) {
     public ProductCatalogChangedEvent {
         if (eventId == null) {
@@ -19,6 +20,9 @@ public record ProductCatalogChangedEvent(
         }
         if (changeType == null) {
             throw new IllegalArgumentException("changeType must not be null");
+        }
+        if (changeType == ProductCatalogChangeType.PRODUCT_CREATED ? expectedVersion != 0 : expectedVersion < 1) {
+            throw new IllegalArgumentException("Expected version must be zero for creation and positive for changes");
         }
         if (occurredAt == null) {
             occurredAt = Instant.now();
