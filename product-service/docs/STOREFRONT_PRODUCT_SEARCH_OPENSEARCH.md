@@ -16,20 +16,13 @@
 | `PRODUCT_SEARCH_QUERY_TIMEOUT_SECONDS` | `3` | 각 검색의 서버 타임아웃 |
 | `PRODUCT_SEARCH_REQUEST_BUDGET_MILLIS` | `10000` | PIT 생성부터 집계 반복까지의 시간 예산. 다음 집계 요청 전에 검사하며 진행 중 HTTP 요청/정리 시간만큼 초과 가능 |
 
-Spring 시작 시 네트워크 연결이나 인덱스 자동 생성은 수행하지 않는다. 인덱스 부재, 통신 오류, 검색 타임아웃/부분 shard 실패, 불완전한 집계/문서는 `SEARCH_UNAVAILABLE`로 처리한다. PostgreSQL 검색으로 대체하지 않는다.
+기본 설정에서는 앱 시작 시 `ProductSearchInitializer`가 ACTIVE 인덱스를 확인한다. 없으면 기존 관리 작업을 등록해 인덱스 생성·초기 적재·검증·alias 활성화가 완료될 때까지 기다린다. 실패하면 앱 시작도 실패한다. ACTIVE 인덱스가 있으면 초기 적재를 건너뛴다. `PRODUCT_SEARCH_INITIAL_LOAD_ENABLED=false`이면 자동 초기 적재를 끈다. 인덱스 부재, 통신 오류, 검색 타임아웃/부분 shard 실패, 불완전한 집계/문서는 `SEARCH_UNAVAILABLE`로 처리한다. PostgreSQL 검색으로 대체하지 않는다.
 
 ## 인덱스와 문서
 
 매핑 JSON 위치는 `product-service.search.mapping.resource`(환경 변수 `PRODUCT_SEARCH_MAPPING_RESOURCE`)로 설정하며 기본값은 `classpath:opensearch/products-index.json`이다. 명시적인 매핑은 [products-index.json](../product-dataaccess/src/main/resources/opensearch/products-index.json)을 사용한다. 로컬 Nori 이미지가 필요하다. 기본 매핑은 primary shards 2개, replicas 0개이며 운영 배치 시 조정한다.
 
-새 클러스터에서 초기 인덱스를 준비하려면 **ecommerce-msa 디렉터리**에서 다음 명령을 실행한다. 이미 존재하는 인덱스를 삭제/재생성하지 않는다. 이미 alias를 사용하는 경우 새 버전의 전환 절차를 별도로 정한다.
-
-```bash
-curl --fail -H 'Content-Type: application/json' -X PUT \
-  http://localhost:9200/products-v1 \
-  --data-binary @product-service/product-dataaccess/src/main/resources/opensearch/products-index.json
-curl --fail -X PUT http://localhost:9200/products-v1/_alias/products-read
-```
+새 클러스터에서는 OpenSearch를 먼저 실행한 뒤 앱을 시작하면 초기 인덱스를 준비한다. 별도 curl 생성이나 alias 등록은 필요하지 않다. 인덱스 버전과 작업 이력도 PostgreSQL에 기록한다. 상세 설정은 [어드민 인덱스 관리](ADMIN_PRODUCT_SEARCH_INDEX_MANAGEMENT.md#앱-시작-시-초기-적재)를 참고한다.
 
 인덱싱 단위는 상품이며 `_id`와 문서 `id`는 상품 UUID를 사용한다. 검색 문서는 `OpenSearchProductDocument`의 필드를 따른다.
 
@@ -58,7 +51,7 @@ curl --fail -X PUT http://localhost:9200/products-v1/_alias/products-read
 
 ## 초기 적재 파이프라인
 
-`ProductSearchInitialLoader.load(targetIndex, batchSize)`가 배치 조회 → 매퍼 → Bulk 저장을 연결한다. search.enabled=true일 때 Spring bean으로 등록하며 자동 실행하지 않는다. 기본 배치 크기 상수는 500이며 허용 범위는 1~1000이다. 어드민 등록 작업의 실행기가 인덱스 생성과 최종 refresh·검증까지 수행한다. 검증 후 별도 어드민 활성화 API로 alias를 전환한다. 실행 조건과 lease는 [어드민 인덱스 관리](ADMIN_PRODUCT_SEARCH_INDEX_MANAGEMENT.md)를 참고한다.
+`ProductSearchInitialLoader.load(targetIndex, batchSize)`가 배치 조회 → 매퍼 → Bulk 저장을 연결한다. search.enabled=true일 때 Spring bean으로 등록하며, 기본 설정에서는 앱 시작 시 초기 적재 작업의 실행기를 통해 호출한다. 기본 배치 크기 상수는 500이며 허용 범위는 1~1000이다. 어드민 등록 작업의 실행기가 인덱스 생성과 최종 refresh·검증까지 수행한다. 자동 초기 적재는 검증 후 활성화 작업도 등록한다. 수동 적재는 별도 어드민 활성화 API로 alias를 전환한다. 실행 조건과 lease는 [어드민 인덱스 관리](ADMIN_PRODUCT_SEARCH_INDEX_MANAGEMENT.md)를 참고한다.
 
 - 상품·카테고리 쓰기를 멈춘 상태에서 실행해야 한다. 배치마다 새 트랜잭션을 사용하므로 전체 적재가 하나의 스냅샷은 아니다.
 - 대상은 사전에 매핑을 적용해 생성한 실제 인덱스 이름이다. alias, wildcard, 존재하지 않는 대상은 시작 전에 거부한다. 읽기 alias를 그대로 대상으로 사용하지 않는다.

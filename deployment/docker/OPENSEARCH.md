@@ -18,6 +18,8 @@ Docker 디렉터리에서 직접 실행하려면:
 bash scripts/start-opensearch.sh
 ```
 
+상품 앱은 기본 설정에서 시작 시 최초 인덱스 생성·DB 상품 적재·alias 활성화를 자동 실행한다. ACTIVE 인덱스가 있으면 건너뛰며 초기화 실패 시 앱 시작도 실패한다. 앱을 시작하기 전에 OpenSearch를 실행한다. 수동 관리만 사용하려면 백엔드 환경 변수 `PRODUCT_SEARCH_INITIAL_LOAD_ENABLED=false`로 끈다. 상세 설정은 [인덱스 관리 문서](../../product-service/docs/ADMIN_PRODUCT_SEARCH_INDEX_MANAGEMENT.md#앱-시작-시-초기-적재)를 참고한다.
+
 ## 연결과 설정
 
 | 항목 | 기본값 |

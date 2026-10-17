@@ -48,6 +48,10 @@ product-service:
     response-timeout-millis: ${PRODUCT_SEARCH_RESPONSE_TIMEOUT_MILLIS:5000}
     query-timeout-seconds: ${PRODUCT_SEARCH_QUERY_TIMEOUT_SECONDS:3}
     request-budget-millis: ${PRODUCT_SEARCH_REQUEST_BUDGET_MILLIS:10000}
+    initial-load:
+      enabled: ${PRODUCT_SEARCH_INITIAL_LOAD_ENABLED:true}
+      batch-size: ${PRODUCT_SEARCH_INITIAL_LOAD_BATCH_SIZE:500}
+      timeout-millis: ${PRODUCT_SEARCH_INITIAL_LOAD_TIMEOUT_MILLIS:300000}
     mapping:
       resource: ${PRODUCT_SEARCH_MAPPING_RESOURCE:classpath:opensearch/products-index.json}
     sync:

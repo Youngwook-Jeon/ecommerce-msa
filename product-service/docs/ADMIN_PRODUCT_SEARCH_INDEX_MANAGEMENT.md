@@ -6,6 +6,20 @@
 
 첫 버전은 적재 시작부터 검증과 활성화 완료까지 상품·카테고리 쓰기가 멈춰 있어야 한다. catalogWritesPaused=true는 관리자의 확인이며 실제 쓰기 차단 장치를 대신하지 않는다. 변경 이벤트 동기화와 온라인 재색인 조정은 후속이다.
 
+## 앱 시작 시 초기 적재
+
+`ProductSearchInitializer`가 ApplicationRunner로 실행된다. ACTIVE 인덱스가 있으면 건너뛰고, 없으면 기존 등록 서비스와 실행기를 사용해 인덱스 생성 → PostgreSQL 배치 적재 → 검증 → alias 활성화까지 완료한 후 앱 시작을 마친다. 별도의 초기 적재 경로나 쓰기 차단 장치는 추가하지 않는다. 초기 적재 중에는 상품·카테고리를 변경하지 않는 전제로 사용한다.
+
+| 환경 변수 | 기본값 | 의미 |
+|---|---|---|
+| `PRODUCT_SEARCH_INITIAL_LOAD_ENABLED` | `true` | 앱 시작 시 초기 적재. search.enabled=false이면 함께 비활성화 |
+| `PRODUCT_SEARCH_INITIAL_LOAD_BATCH_SIZE` | `500` | 배치 크기, 1~1000 |
+| `PRODUCT_SEARCH_INITIAL_LOAD_TIMEOUT_MILLIS` | `300000` | 적재·활성화 작업 완료 대기 한도(ms) |
+
+작업 실행기가 필요하므로 `PRODUCT_SEARCH_WORKER_ENABLED=true`여야 한다. 기존 스케줄러가 등록된 작업을 처리하며 초기화 코드는 DB 트랜잭션 없이 작업 완료를 기다린다. 초기화 중 오류, 실패/중단된 적재, 실패/미확정 활성화, 대기 시간 초과는 예외를 전파해 앱 시작을 실패시킨다. 로그의 jobId와 failureCode로 원인을 확인한다.
+
+요청자는 `system-initial-load`이고 적재 멱등 키는 `initial-load`다. 재시작 시 같은 작업을 조회하며 실패한 작업을 자동 재생성하지 않는다. 수동 복구가 필요하면 자동 초기 적재를 끄고 기존 어드민 API를 사용한다. ACTIVE 인덱스를 재색인하거나 여러 인스턴스의 초기화를 조정하는 기능은 이번 범위에 포함하지 않는다. 일반 API 통합 테스트에서는 자동 초기 적재를 끈다.
+
 ## 모델과 상태
 
 인덱스 버전·적재 작업·활성화 작업 모델과 상태 enum은 product-domain-application의 `application.searchindex.model`에 둔다. 검색 인덱스 운영 생명주기는 상품 domain-core의 비즈니스 애그리거트와 분리한다. JPA 엔티티와 repository는 product-dataaccess에 유지하며 모델에는 Spring/JPA/OpenSearch 타입을 사용하지 않는다.

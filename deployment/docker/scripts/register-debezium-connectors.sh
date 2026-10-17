@@ -19,7 +19,7 @@ if [[ ${#configs[@]} -eq 0 ]]; then
   exit 1
 fi
 
-# Immediately after create/update, /status can 404 briefly — retry before failing.
+# Wait for both the connector and its tasks; HTTP 200 alone does not mean CDC is running.
 print_connector_status() {
   local name="$1"
   local attempts="${2:-20}"
@@ -29,12 +29,21 @@ print_connector_status() {
     http="$(printf '%s\n' "${body}" | tail -n 1)"
     body="$(printf '%s\n' "${body}" | sed '$d')"
     if [[ "${http}" == "200" ]]; then
-      printf '%s\n' "${body}" | jq .
-      return 0
+      if jq -e '.connector.state == "FAILED" or any(.tasks[]?; .state == "FAILED")' \
+          <<< "${body}" >/dev/null; then
+        echo "Debezium connector or task failed: ${name}" >&2
+        printf '%s\n' "${body}" | jq . >&2
+        return 1
+      fi
+      if jq -e '.connector.state == "RUNNING" and (.tasks | length > 0) and all(.tasks[]; .state == "RUNNING")' \
+          <<< "${body}" >/dev/null; then
+        printf '%s\n' "${body}" | jq .
+        return 0
+      fi
     fi
     sleep 1
   done
-  echo "Timed out waiting for connector status: ${name} (last HTTP ${http:-none})" >&2
+  echo "Timed out waiting for RUNNING connector and tasks: ${name} (last HTTP ${http:-none})" >&2
   if [[ -n "${body}" ]]; then
     printf '%s\n' "${body}" >&2
   fi

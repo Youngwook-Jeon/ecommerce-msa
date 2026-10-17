@@ -12,9 +12,9 @@ services:
       - -c
       - wal_level=logical
       - -c
-      - max_replication_slots=8
+      - max_replication_slots=16
       - -c
-      - max_wal_senders=8
+      - max_wal_senders=16
     environment:
       - POSTGRES_USER=user
       - POSTGRES_PASSWORD=password

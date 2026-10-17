@@ -105,12 +105,32 @@ bash ecommerce-msa/deployment/docker/scripts/tests/PostgresReadinessTest.sh
 
 ```text
 wal_level = logical
-max_replication_slots = 8
-max_wal_senders = 8
+max_replication_slots = 16
+max_wal_senders = 16
 ```
 
-> **주의:** 기존 Postgres 볼륨이 있으면 `wal_level` 이 반영되지 않습니다.  
-> `shutdown.sh` 로 볼륨 삭제 후 재기동하거나, 수동으로 `ALTER SYSTEM` + 재시작이 필요합니다.
+현재 PostgreSQL 커넥터는 9개이며 커넥터마다 replication slot과 WAL sender 연결을 사용한다. 기존 한도 8에서는 상품 커넥터 등 일부 작업이 `FAILED`가 되어 초기 적재 이후 변경이 Kafka/검색에 반영되지 않을 수 있다. 기본 한도를 16으로 두어 재연결과 커넥터 추가 여유를 확보한다.
+
+이 값은 Compose의 `postgres -c` 시작 인자로 적용하므로 기존 데이터 볼륨에서도 컨테이너를 재생성하면 반영된다. 데이터를 삭제할 필요는 없다. 다음 명령은 **Docker 디렉터리**에서 실행하며 PostgreSQL 재기동 중 앱 DB 연결은 잠시 끊긴다.
+
+```bash
+docker compose -f common.yml -f backing_services.yml up -d --no-deps eco-postgres
+bash scripts/wait-postgres.sh
+```
+
+DB 복구 후 `make debezium`으로 등록 상태를 재확인한다. 이미 `FAILED`인 작업이 같은 설정의 PUT만으로 재시작되지 않으면 아래 REST 호출로 실패한 작업을 재시작한다.
+
+```bash
+curl --fail -X POST 'http://localhost:8083/connectors/product-catalog-outbox-connector/restart?includeTasks=true&onlyFailed=true'
+```
+
+등록 스크립트는 HTTP 200뿐 아니라 connector와 하나 이상의 task가 모두 `RUNNING`인지 기다린다. 어느 하나가 `FAILED`이면 trace를 출력하고 `make debezium`/`make up`을 실패시킨다. 슬롯이 생성되기 전에 발생한 outbox INSERT는 `snapshot.mode=no_data` 때문에 이후 자동 재발행되지 않으므로, 누락 여부를 확인해 별도 재처리해야 한다.
+
+스크립트 상태 검사 회귀 테스트:
+
+```bash
+bash ecommerce-msa/deployment/docker/scripts/tests/DebeziumConnectorStatusTest.sh
+```
 
 ### Debezium DB 사용자 (`init.sql`)
 

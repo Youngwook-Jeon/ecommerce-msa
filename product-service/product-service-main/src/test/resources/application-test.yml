@@ -29,6 +29,9 @@ spring:
     locations: classpath:db/migration
 
 product-service:
+  search:
+    initial-load:
+      enabled: false
   storefront-cache:
     enabled: false
 

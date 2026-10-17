@@ -102,6 +102,16 @@ public class ProductSearchIndexMetadataAdapter implements ProductSearchIndexMeta
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<ProductSearchIndexVersion> findActiveVersion() {
+        try {
+            return versions.findByStatus(ProductSearchIndexStatus.ACTIVE).map(mapper::toDomain);
+        } catch (DataAccessException | IllegalArgumentException exception) {
+            throw unavailable(exception);
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public ProductSearchIndexVersionPageResult listVersions(int page, int size) {
         try {
             var result = versions.findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt", "id")));

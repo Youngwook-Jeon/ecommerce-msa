@@ -13,6 +13,8 @@ import com.project.young.productservice.application.service.AdminProductSearchIn
 import com.project.young.productservice.dataaccess.adapter.ProductSearchIndexMetadataAdapter;
 import com.project.young.productservice.dataaccess.adapter.ProductSearchIndexBuildWorkAdapter;
 import com.project.young.productservice.application.port.output.ProductSearchIndexBuildWorkPort;
+import com.project.young.productservice.application.port.output.ProductSearchIndexMetadataPort;
+import com.project.young.productservice.application.searchindex.model.ProductSearchIndexVersion;
 import com.project.young.productservice.application.exception.ProductSearchIndexOwnershipLostException;
 import com.project.young.productservice.application.searchindex.model.ProductSearchIndexBuildStatus;
 import com.project.young.productservice.application.searchindex.model.ProductSearchIndexStatus;
@@ -102,9 +104,24 @@ class ProductSearchIndexRegistrationIntegrationTest {
     @Autowired
     private ProductSearchCategoryNameReader categoryNames;
 
+    @Autowired
+    private ProductSearchIndexMetadataPort metadata;
+
     @BeforeEach
     void resetMetadata() {
         jdbcTemplate.execute("TRUNCATE product_search_index_build_jobs, product_search_index_versions CASCADE");
+    }
+
+    @Test
+    void activeVersionLookup_returnsEmptyBeforeActivationAndCurrentVersionAfterwards() {
+        assertThat(metadata.findActiveVersion()).isEmpty();
+        var job = service.register(command("active-lookup", 500));
+        assertThat(metadata.findActiveVersion()).isEmpty();
+        jdbcTemplate.update("UPDATE product_search_index_versions SET status = 'ACTIVE', activated_at = now(), updated_at = now() WHERE id = ?",
+                job.indexVersionId());
+        assertThat(metadata.findActiveVersion()).get().extracting(
+                ProductSearchIndexVersion::id)
+                .isEqualTo(job.indexVersionId());
     }
 
     @Test
