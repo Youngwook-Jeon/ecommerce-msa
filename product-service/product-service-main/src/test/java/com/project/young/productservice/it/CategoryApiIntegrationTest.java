@@ -73,6 +73,7 @@ public class CategoryApiIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        entityManager.createNativeQuery("DELETE FROM product.category_attributes").executeUpdate();
         // 모든 카테고리 데이터 삭제
         categoryJpaRepository.deleteAll();
         categoryJpaRepository.flush();

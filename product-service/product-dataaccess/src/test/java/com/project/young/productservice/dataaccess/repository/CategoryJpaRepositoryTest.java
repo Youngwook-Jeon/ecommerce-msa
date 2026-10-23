@@ -57,6 +57,7 @@ class CategoryJpaRepositoryTest {
 
     @BeforeEach
     void setUp() {
+        testEntityManager.getEntityManager().createNativeQuery("DELETE FROM category_attributes").executeUpdate();
         categoryJpaRepository.deleteAll();
         testEntityManager.flush();
     }
