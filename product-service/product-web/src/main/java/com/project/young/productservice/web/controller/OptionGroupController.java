@@ -30,6 +30,10 @@ public class OptionGroupController {
         this.optionGroupResponseMapper = optionGroupResponseMapper;
     }
 
+    /**
+     * Creates a dictionary group bound to one active attribute definition. The binding is immutable.
+     * A definition can have only one dictionary group, including inactive or deleted groups.
+     */
     @PostMapping
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<CreateOptionGroupResponse> createGroup(@Valid @RequestBody CreateOptionGroupCommand command) {
@@ -57,6 +61,11 @@ public class OptionGroupController {
                 optionGroupApplicationService.deleteOptionGroup(groupId)));
     }
 
+    /**
+     * Adds choices referencing canonical values of the group's active attribute definition.
+     * Bindings cannot be reassigned through update endpoints; labels and option codes remain editable.
+     * Legacy unlinked groups cannot accept new values until explicitly migrated.
+     */
     @PostMapping("/{groupId}/option-values")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<AddOptionValuesResponse> addValues(

@@ -9,6 +9,7 @@ import java.util.UUID;
 @Builder
 public record ReadOptionGroupView(
         UUID id,
+        UUID attributeId,
         String name,
         String displayName,
         OptionStatus status,

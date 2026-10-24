@@ -35,15 +35,18 @@ public class OptionGroupApplicationService {
     private final OptionGroupDomainService optionGroupDomainService;
     private final OptionGroupDataMapper optionGroupDataMapper;
     private final IdGenerator idGenerator;
+    private final OptionAttributeValidator optionAttributeValidator;
 
     public OptionGroupApplicationService(OptionGroupRepository optionGroupRepository,
                                          OptionGroupDomainService optionGroupDomainService,
                                          OptionGroupDataMapper optionGroupDataMapper,
-                                         IdGenerator idGenerator) {
+                                         IdGenerator idGenerator,
+                                         OptionAttributeValidator optionAttributeValidator) {
         this.optionGroupRepository = optionGroupRepository;
         this.optionGroupDomainService = optionGroupDomainService;
         this.optionGroupDataMapper = optionGroupDataMapper;
         this.idGenerator = idGenerator;
+        this.optionAttributeValidator = optionAttributeValidator;
     }
 
     @Transactional
@@ -55,6 +58,8 @@ public class OptionGroupApplicationService {
             log.warn("Option group name already exists: {}", command.getName());
             throw new DuplicateOptionGroupNameException("Option group name '" + command.getName() + "' already exists.");
         }
+
+        optionAttributeValidator.validateDefinition(command.getAttributeId());
 
         OptionGroupId newGroupId = new OptionGroupId(idGenerator.generateId());
         OptionGroup newGroup = optionGroupDataMapper.toOptionGroup(command, newGroupId);
@@ -75,6 +80,8 @@ public class OptionGroupApplicationService {
                 .orElseThrow(() -> new OptionGroupNotFoundException("Option group not found."));
 
         validateOptionGroupCanBeModified(optionGroup);
+
+        optionAttributeValidator.validateValues(optionGroup, command.getOptionValues());
 
         List<AddOptionValueResult> results = new ArrayList<>();
 

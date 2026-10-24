@@ -50,6 +50,9 @@ class OptionGroupApplicationServiceTest {
     @Mock
     private IdGenerator idGenerator;
 
+    @Mock
+    private OptionAttributeValidator optionAttributeValidator;
+
     @InjectMocks
     private OptionGroupApplicationService optionGroupApplicationService;
 
@@ -91,6 +94,7 @@ class OptionGroupApplicationServiceTest {
         @DisplayName("이름이 이미 존재하면 DuplicateOptionGroupNameException")
         void createOptionGroup_DuplicateName_ThrowsException() {
             CreateOptionGroupCommand command = CreateOptionGroupCommand.builder()
+                    .attributeId(UUID.randomUUID())
                     .name("COLOR")
                     .displayName("색상")
                     .build();
@@ -110,6 +114,7 @@ class OptionGroupApplicationServiceTest {
         @DisplayName("정상 생성 시 mapper와 repository를 통해 OptionGroup 생성")
         void createOptionGroup_Success() {
             CreateOptionGroupCommand command = CreateOptionGroupCommand.builder()
+                    .attributeId(UUID.randomUUID())
                     .name("SIZE")
                     .displayName("사이즈")
                     .build();
@@ -157,6 +162,7 @@ class OptionGroupApplicationServiceTest {
             AddOptionValuesCommand command = AddOptionValuesCommand.builder()
                     .optionValues(List.of(
                             AddOptionValueCommand.builder()
+                                    .attributeValueId(UUID.randomUUID())
                                     .value("RED")
                                     .displayName("빨강")
                                     .sortOrder(0)
@@ -194,6 +200,7 @@ class OptionGroupApplicationServiceTest {
             AddOptionValuesCommand command = AddOptionValuesCommand.builder()
                     .optionValues(List.of(
                             AddOptionValueCommand.builder()
+                                    .attributeValueId(UUID.randomUUID())
                                     .value("RED")
                                     .displayName("빨강")
                                     .sortOrder(0)
@@ -217,6 +224,7 @@ class OptionGroupApplicationServiceTest {
             AddOptionValuesCommand command = AddOptionValuesCommand.builder()
                     .optionValues(List.of(
                             AddOptionValueCommand.builder()
+                                    .attributeValueId(UUID.randomUUID())
                                     .value("RED")
                                     .displayName("빨강")
                                     .sortOrder(0)
@@ -242,11 +250,13 @@ class OptionGroupApplicationServiceTest {
             UUID valueId2 = UUID.randomUUID();
 
             AddOptionValueCommand cmd1 = AddOptionValueCommand.builder()
+                    .attributeValueId(UUID.randomUUID())
                     .value("BLUE")
                     .displayName("파랑")
                     .sortOrder(1)
                     .build();
             AddOptionValueCommand cmd2 = AddOptionValueCommand.builder()
+                    .attributeValueId(UUID.randomUUID())
                     .value("GREEN")
                     .displayName("초록")
                     .sortOrder(2)

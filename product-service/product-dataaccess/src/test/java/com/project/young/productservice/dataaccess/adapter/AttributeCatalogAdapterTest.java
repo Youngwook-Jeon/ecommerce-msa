@@ -1,12 +1,25 @@
 package com.project.young.productservice.dataaccess.adapter;
 
 import com.project.young.common.domain.valueobject.AttributeValueId;
+import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.AttributeDefinitionId;
 import com.fasterxml.uuid.Generators;
 import com.project.young.productservice.application.dto.command.CreateAttributeDefinitionCommand;
 import com.project.young.productservice.application.dto.command.CreateAttributeValueCommand;
 import com.project.young.productservice.application.dto.command.SetCategoryAttributeCommand;
 import com.project.young.productservice.application.service.AttributeCatalogService;
+import com.project.young.productservice.application.service.OptionGroupApplicationService;
+import com.project.young.productservice.application.service.OptionAttributeValidator;
+import com.project.young.productservice.application.dto.command.CreateOptionGroupCommand;
+import com.project.young.productservice.application.dto.command.AddOptionValueCommand;
+import com.project.young.productservice.application.dto.command.AddOptionValuesCommand;
+import com.project.young.productservice.application.mapper.OptionGroupDataMapper;
+import com.project.young.productservice.dataaccess.mapper.OptionGroupDataAccessMapper;
+import com.project.young.productservice.dataaccess.mapper.OptionGroupAggregateMapper;
+import com.project.young.productservice.domain.repository.OptionGroupRepository;
+import com.project.young.productservice.domain.service.OptionGroupDomainService;
+import com.project.young.productservice.domain.service.OptionGroupDomainServiceImpl;
+import com.project.young.productservice.domain.exception.OptionDomainException;
 import com.project.young.productservice.application.port.output.IdGenerator;
 import com.project.young.productservice.dataaccess.config.ProductDataAccessConfig;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
@@ -15,6 +28,7 @@ import com.project.young.productservice.dataaccess.mapper.AttributeCatalogDataAc
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.dataaccess.repository.AttributeDefinitionJpaRepository;
 import com.project.young.productservice.dataaccess.repository.AttributeValueJpaRepository;
+import com.project.young.productservice.dataaccess.repository.AttributeValueQueryRepository;
 import com.project.young.productservice.domain.entity.AttributeDefinition;
 import com.project.young.productservice.domain.entity.AttributeValue;
 import com.project.young.productservice.domain.exception.AttributeNotFoundException;
@@ -43,6 +57,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Set;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -69,6 +84,10 @@ class AttributeCatalogAdapterTest {
 
     @Autowired
     AttributeCatalogService service;
+    @Autowired
+    OptionGroupApplicationService optionService;
+    @Autowired
+    OptionGroupRepository optionRepository;
     @Autowired
     CategoryJpaRepository categories;
     @Autowired
@@ -137,6 +156,33 @@ class AttributeCatalogAdapterTest {
 
         statistics.clear();
         assertThat(adapter.findDefinitionsByIds(Set.of())).isEmpty();
+        assertThat(statistics.getPrepareStatementCount()).isZero();
+    }
+
+    @Test
+    void loadsValueIdsInOneQueryScopedToTheAttribute() {
+        var first = definition("test_batch_value_ram", AttributeDataType.NUMBER);
+        var second = definition("test_batch_value_storage", AttributeDataType.NUMBER);
+        var firstValue = service.createValue(first.getId().getValue(),
+                new CreateAttributeValueCommand("16 GB", null, new BigDecimal("16"), null, null));
+        var secondValue = service.createValue(first.getId().getValue(),
+                new CreateAttributeValueCommand("32 GB", null, new BigDecimal("32"), null, null));
+        var unrelated = service.createValue(second.getId().getValue(),
+                new CreateAttributeValueCommand("512 GB", null, new BigDecimal("512"), null, null));
+        entityManager.flush();
+        entityManager.clear();
+        var statistics = entityManager.unwrap(Session.class).getSessionFactory().getStatistics();
+        statistics.setStatisticsEnabled(true);
+        statistics.clear();
+
+        var found = adapter.findValueIds(first.getId().getValue(), Set.of(firstValue.getId().getValue(),
+                secondValue.getId().getValue(), unrelated.getId().getValue(), UUID.randomUUID()));
+
+        assertThat(found).containsExactlyInAnyOrder(firstValue.getId().getValue(), secondValue.getId().getValue());
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+        assertThat(statistics.getEntityLoadCount()).isZero();
+        statistics.clear();
+        assertThat(adapter.findValueIds(first.getId().getValue(), Set.of())).isEmpty();
         assertThat(statistics.getPrepareStatementCount()).isZero();
     }
 
@@ -429,6 +475,99 @@ class AttributeCatalogAdapterTest {
         assertThat(jdbc.update("DELETE FROM categories WHERE id = ?", category.getId())).isEqualTo(1);
     }
 
+    @Test
+    void persistsDictionaryBindingsAndKeepsThemOnUpdates() {
+        var definition = definition("test_option_ram", AttributeDataType.NUMBER);
+        var value = service.createValue(definition.getId().getValue(),
+                new CreateAttributeValueCommand("16 GB", null, new BigDecimal("16"), null, null));
+        UUID groupId = optionGroup(definition, "TEST_RAM");
+        var added = optionService.addOptionValues(groupId, new AddOptionValuesCommand(List.of(
+                new AddOptionValueCommand(value.getId().getValue(), "RAM16", "16 GB", 0))));
+        entityManager.flush();
+        entityManager.clear();
+
+        var group = optionRepository.findById(new OptionGroupId(groupId)).orElseThrow();
+        assertThat(group.getAttributeId()).isEqualTo(definition.getId());
+        assertThat(group.getOptionValues()).singleElement().satisfies(option ->
+                assertThat(option.getAttributeValueId()).isEqualTo(value.getId()));
+        group.changeDisplayName("Memory choices");
+        optionRepository.update(group);
+        entityManager.flush();
+        entityManager.clear();
+        var updated = optionRepository.findById(group.getId()).orElseThrow();
+        assertThat(updated.getAttributeId()).isEqualTo(definition.getId());
+        assertThat(updated.getOptionValues().getFirst().getId().getValue()).isEqualTo(added.getFirst().id());
+        assertThat(updated.getOptionValues().getFirst().getAttributeValueId()).isEqualTo(value.getId());
+    }
+
+    @Test
+    void rejectsAttributeDeletionReferencedOnlyByAnOptionGroup() {
+        var definition = definition("test_option_group_reference", AttributeDataType.NUMBER);
+        optionGroup(definition, "TEST_GROUP_REFERENCE");
+        entityManager.flush();
+        assertThatThrownBy(() -> service.deleteDefinition(definition.getId().getValue()))
+                .isInstanceOf(AttributeInUseException.class);
+    }
+
+    @Test
+    void rejectsDeletionOfReferencedCanonicalValueEvenAfterOptionSoftDeletion() {
+        var definition = definition("test_option_value_reference", AttributeDataType.NUMBER);
+        var value = service.createValue(definition.getId().getValue(),
+                new CreateAttributeValueCommand("16 GB", null, new BigDecimal("16"), null, null));
+        UUID groupId = optionGroup(definition, "TEST_VALUE_REFERENCE");
+        optionService.addOptionValues(groupId, new AddOptionValuesCommand(List.of(
+                new AddOptionValueCommand(value.getId().getValue(), "RAM16", "16 GB", 0))));
+        optionService.deleteOptionGroup(groupId);
+        entityManager.flush();
+
+        assertThatThrownBy(() -> service.deleteValue(definition.getId().getValue(), value.getId().getValue()))
+                .isInstanceOf(AttributeInUseException.class);
+    }
+
+    @Test
+    void databaseRejectsMultipleGroupsForSameAttribute() {
+        var definition = definition("test_duplicate_option_group", AttributeDataType.NUMBER);
+        optionGroup(definition, "TEST_UNIQUE_ONE");
+        entityManager.flush();
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO option_groups (id, name, display_name, attribute_id) VALUES (?, 'TEST_UNIQUE_TWO', 'Second group', ?)",
+                UUID.randomUUID(), definition.getId().getValue()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void databaseRejectsCanonicalValueFromAnotherAttribute() {
+        var first = definition("test_fk_ram", AttributeDataType.NUMBER);
+        var second = definition("test_fk_storage", AttributeDataType.NUMBER);
+        var value = service.createValue(second.getId().getValue(),
+                new CreateAttributeValueCommand("512 GB", null, new BigDecimal("512"), null, null));
+        UUID groupId = optionGroup(first, "TEST_COMPOSITE_FK");
+        entityManager.flush();
+        assertThatThrownBy(() -> jdbc.update(
+                "INSERT INTO option_values (id, option_group_id, attribute_id, attribute_value_id, value, display_name, sort_order, status) "
+                        + "VALUES (?, ?, ?, ?, 'WRONG', 'Wrong value', 0, 'ACTIVE')",
+                UUID.randomUUID(), groupId, first.getId().getValue(), value.getId().getValue()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void rejectsSameCanonicalValueUnderDifferentOptionCodes() {
+        var definition = definition("test_duplicate_canonical", AttributeDataType.NUMBER);
+        var value = service.createValue(definition.getId().getValue(),
+                new CreateAttributeValueCommand("16 GB", null, new BigDecimal("16"), null, null));
+        UUID groupId = optionGroup(definition, "TEST_DUPLICATE_CANONICAL");
+        optionService.addOptionValues(groupId, new AddOptionValuesCommand(List.of(
+                new AddOptionValueCommand(value.getId().getValue(), "RAM16", "16 GB", 0))));
+        entityManager.flush();
+        assertThatThrownBy(() -> optionService.addOptionValues(groupId, new AddOptionValuesCommand(List.of(
+                new AddOptionValueCommand(value.getId().getValue(), "ALIAS16", "16 GB alias", 1)))))
+                .isInstanceOf(OptionDomainException.class);
+    }
+
+    private UUID optionGroup(AttributeDefinition definition, String name) {
+        return optionService.createOptionGroup(new CreateOptionGroupCommand(definition.getId().getValue(), name, name)).id();
+    }
+
     private AttributeDefinition definition(String code, AttributeDataType type) {
         return service.createDefinition(new CreateAttributeDefinitionCommand(code, code, type,
                 type == AttributeDataType.NUMBER ? "GB" : null));
@@ -440,9 +579,16 @@ class AttributeCatalogAdapterTest {
     }
 
     @Configuration
-    @Import({ProductDataAccessConfig.class, AttributeCatalogAdapter.class,
-            AttributeCatalogDataAccessMapper.class, AttributeCatalogService.class})
+    @Import({ProductDataAccessConfig.class, AttributeCatalogAdapter.class, AttributeValueQueryRepository.class,
+            AttributeCatalogDataAccessMapper.class, AttributeCatalogService.class,
+            OptionGroupRepositoryImpl.class, OptionGroupDataAccessMapper.class, OptionGroupAggregateMapper.class,
+            OptionGroupDataMapper.class, OptionAttributeValidator.class, OptionGroupApplicationService.class})
     static class Config {
+        @Bean
+        OptionGroupDomainService optionGroupDomainService(OptionGroupRepository repository) {
+            return new OptionGroupDomainServiceImpl(repository);
+        }
+
         @Bean
         IdGenerator idGenerator() {
             return Generators.timeBasedEpochGenerator()::generate;

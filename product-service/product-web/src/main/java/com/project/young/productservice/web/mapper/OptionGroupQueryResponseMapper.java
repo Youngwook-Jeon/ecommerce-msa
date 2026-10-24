@@ -29,6 +29,7 @@ public class OptionGroupQueryResponseMapper {
 
         return ReadOptionGroupQueryResponse.builder()
                 .id(view.id())
+                .attributeId(view.attributeId())
                 .name(view.name())
                 .displayName(view.displayName())
                 .status(optionStatusWebConverter.toStringValue(view.status()))
@@ -50,6 +51,7 @@ public class OptionGroupQueryResponseMapper {
         Objects.requireNonNull(view, "ReadOptionValueView is null");
         return ReadOptionValueQueryResponse.builder()
                 .id(view.id())
+                .attributeValueId(view.attributeValueId())
                 .value(view.value())
                 .displayName(view.displayName())
                 .sortOrder(view.sortOrder())

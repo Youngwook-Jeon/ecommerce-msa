@@ -8,6 +8,7 @@ import java.util.UUID;
 @Builder
 public record ReadOptionValueView(
         UUID id,
+        UUID attributeValueId,
         String value,
         String displayName,
         int sortOrder,

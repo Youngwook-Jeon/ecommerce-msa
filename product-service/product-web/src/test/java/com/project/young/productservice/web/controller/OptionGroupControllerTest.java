@@ -5,15 +5,27 @@ import com.project.young.productservice.application.dto.command.*;
 import com.project.young.productservice.application.dto.result.*;
 import com.project.young.productservice.application.service.OptionGroupApplicationService;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
+import com.project.young.productservice.domain.exception.AttributeInactiveException;
+import com.project.young.productservice.domain.exception.AttributeDomainException;
+import com.project.young.productservice.domain.exception.AttributeInUseException;
+import com.project.young.productservice.domain.exception.AttributeNotFoundException;
+import com.project.young.productservice.domain.exception.OptionDomainException;
+import com.project.young.productservice.web.exception.handler.AttributeCatalogExceptionHandler;
+import com.project.young.productservice.web.exception.handler.AttributeDomainExceptionHandler;
+import com.project.young.productservice.web.exception.handler.ProductServiceGlobalExceptionHandler;
 import com.project.young.productservice.web.config.SecurityConfig;
 import com.project.young.productservice.web.dto.*;
 import com.project.young.productservice.web.mapper.OptionGroupResponseMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -21,10 +33,12 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -32,7 +46,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(OptionGroupController.class)
-@Import({SecurityConfig.class, TestConfig.class})
+@Import({SecurityConfig.class, TestConfig.class, AttributeCatalogExceptionHandler.class,
+        AttributeDomainExceptionHandler.class, ProductServiceGlobalExceptionHandler.class})
 class OptionGroupControllerTest {
 
     @Autowired
@@ -47,6 +62,60 @@ class OptionGroupControllerTest {
     @MockitoBean
     private OptionGroupResponseMapper optionGroupResponseMapper;
 
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void rejectsGroupWithoutAttributeId() throws Exception {
+        mockMvc.perform(post("/option-groups").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"name":"RAM", "displayName":"Memory"}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("Bad Request"));
+        verifyNoInteractions(optionGroupApplicationService);
+    }
+
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void rejectsValueWithoutCanonicalValueId() throws Exception {
+        mockMvc.perform(post("/option-groups/{groupId}/option-values", UUID.randomUUID()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"optionValues":[{"value":"RAM16", "displayName":"16 GB", "sortOrder":0}]}
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("Bad Request"));
+        verifyNoInteractions(optionGroupApplicationService);
+    }
+
+    @ParameterizedTest
+    @MethodSource("optionFailures")
+    @WithMockUser(authorities = "ADMIN")
+    void routesAttributeErrorsToSharedHandlerAndOtherErrorsToExistingHandler(
+            RuntimeException exception, int statusCode, String errorCode) throws Exception {
+        when(optionGroupApplicationService.createOptionGroup(any())).thenThrow(exception);
+        var command = CreateOptionGroupCommand.builder()
+                .attributeId(UUID.randomUUID())
+                .name("RAM").displayName("Memory").build();
+        mockMvc.perform(post("/option-groups").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(command)))
+                .andExpect(status().is(statusCode))
+                .andExpect(jsonPath("$.code").value(errorCode));
+    }
+
+    static Stream<Arguments> optionFailures() {
+        return Stream.of(
+                Arguments.of(new AttributeInactiveException(), 409, "ATTRIBUTE_INACTIVE"),
+                Arguments.of(new AttributeInUseException(), 409, "ATTRIBUTE_IN_USE"),
+                Arguments.of(new AttributeNotFoundException("Attribute not found"), 404, "ATTRIBUTE_CATALOG_NOT_FOUND"),
+                Arguments.of(new AttributeDomainException("Invalid attribute binding"), 400, "INVALID_ATTRIBUTE_CATALOG_REQUEST"),
+                Arguments.of(new OptionDomainException("Invalid option"), 400, "Bad Request"),
+                Arguments.of(new DataIntegrityViolationException("Option dictionary conflict"), 409, "Conflict"),
+                Arguments.of(new IllegalStateException("Option dictionary consistency failure"), 500, "Internal Server Error")
+        );
+    }
+
     @Nested
     @DisplayName("POST /option-groups")
     @WithMockUser(authorities = "ADMIN")
@@ -56,6 +125,7 @@ class OptionGroupControllerTest {
         @DisplayName("옵션 그룹 생성 성공 시 201 Created")
         void createGroup_Success() throws Exception {
             CreateOptionGroupCommand command = CreateOptionGroupCommand.builder()
+                    .attributeId(UUID.randomUUID())
                     .name("COLOR")
                     .displayName("색상")
                     .build();
@@ -180,6 +250,7 @@ class OptionGroupControllerTest {
             AddOptionValuesCommand command = AddOptionValuesCommand.builder()
                     .optionValues(List.of(
                             AddOptionValueCommand.builder()
+                                    .attributeValueId(UUID.randomUUID())
                                     .value("RED")
                                     .displayName("빨강")
                                     .sortOrder(1)

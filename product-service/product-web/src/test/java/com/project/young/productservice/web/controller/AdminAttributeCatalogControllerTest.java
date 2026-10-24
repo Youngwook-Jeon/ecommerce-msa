@@ -12,6 +12,7 @@ import com.project.young.productservice.domain.valueobject.AttributeDataType;
 import com.project.young.productservice.domain.valueobject.CategoryAttributePolicy;
 import com.project.young.productservice.web.config.SecurityConfig;
 import com.project.young.productservice.web.exception.handler.AttributeCatalogExceptionHandler;
+import com.project.young.productservice.web.exception.handler.AttributeDomainExceptionHandler;
 import com.project.young.productservice.web.mapper.AttributeCatalogResponseMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(AdminAttributeCatalogController.class)
-@Import({SecurityConfig.class, TestConfig.class, AttributeCatalogResponseMapper.class, AttributeCatalogExceptionHandler.class})
+@Import({SecurityConfig.class, TestConfig.class, AttributeCatalogResponseMapper.class, AttributeCatalogExceptionHandler.class, AttributeDomainExceptionHandler.class})
 class AdminAttributeCatalogControllerTest {
     @Autowired
     MockMvc mvc;

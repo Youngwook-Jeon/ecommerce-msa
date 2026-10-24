@@ -1,6 +1,8 @@
 package com.project.young.productservice.application.dto.command;
 
 import jakarta.validation.constraints.Min;
+import java.util.UUID;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -14,6 +16,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class AddOptionValueCommand {
+
+    @NotNull(message = "attributeValueId must not be null.")
+    private UUID attributeValueId;
 
     @NotBlank(message = "Value cannot be blank.")
     @Size(min = 2, max = 100, message = "Value must be between 2 and 100 characters.")

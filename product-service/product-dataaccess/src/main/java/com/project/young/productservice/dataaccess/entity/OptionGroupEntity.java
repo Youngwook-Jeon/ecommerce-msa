@@ -33,6 +33,9 @@ public class OptionGroupEntity {
     @Column(name = "id", columnDefinition = "UUID")
     private UUID id;
 
+    @Column(name = "attribute_id", updatable = false, unique = true)
+    private UUID attributeId;
+
     @Column(nullable = false, length = 100, unique = true)
     private String name;
 
@@ -69,6 +72,7 @@ public class OptionGroupEntity {
         }
         this.optionValues.add(optionValue);
         optionValue.setOptionGroup(this);
+        optionValue.setAttributeId(this.attributeId);
     }
 
     @Override

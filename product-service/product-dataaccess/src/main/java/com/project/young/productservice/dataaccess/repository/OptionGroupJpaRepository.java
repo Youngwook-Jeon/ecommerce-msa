@@ -15,6 +15,8 @@ public interface OptionGroupJpaRepository extends JpaRepository<OptionGroupEntit
 
     boolean existsByName(String name);
 
+    boolean existsByAttributeId(UUID attributeId);
+
     @EntityGraph(attributePaths = {"optionValues"})
     Optional<OptionGroupEntity> findAggregateById(@NonNull UUID id);
 

@@ -69,6 +69,7 @@ public class OptionGroupReadRepositoryImpl implements OptionGroupReadRepository 
         Objects.requireNonNull(entity, "optionValue entity must not be null.");
         return ReadOptionValueView.builder()
                 .id(entity.getId())
+                .attributeValueId(entity.getAttributeValueId())
                 .value(entity.getValue())
                 .displayName(entity.getDisplayName())
                 .sortOrder(entity.getSortOrder())
@@ -98,6 +99,7 @@ public class OptionGroupReadRepositoryImpl implements OptionGroupReadRepository 
     private ReadOptionGroupView buildView(OptionGroupEntity entity, List<ReadOptionValueView> optionValues) {
         return ReadOptionGroupView.builder()
                 .id(entity.getId())
+                .attributeId(entity.getAttributeId())
                 .name(entity.getName())
                 .displayName(entity.getDisplayName())
                 .status(optionGroupDataAccessMapper.toDomainStatus(entity.getStatus()))

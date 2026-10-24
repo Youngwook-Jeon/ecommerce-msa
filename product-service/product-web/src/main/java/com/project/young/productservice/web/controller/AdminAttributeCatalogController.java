@@ -107,6 +107,7 @@ public class AdminAttributeCatalogController {
         return ResponseEntity.ok(mapper.value(service.renameValue(attributeId, valueId, request.displayName())));
     }
 
+    /** Referenced option dictionary values cannot be deleted and return 409 ATTRIBUTE_IN_USE. */
     @DeleteMapping("/attributes/{attributeId}/values/{valueId}")
     public ResponseEntity<Void> deleteValue(@PathVariable UUID attributeId, @PathVariable UUID valueId) {
         service.deleteValue(attributeId, valueId);

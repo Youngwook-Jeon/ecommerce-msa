@@ -43,6 +43,12 @@ public class OptionValueEntity {
     @JoinColumn(name = "option_group_id", nullable = false)
     private OptionGroupEntity optionGroup;
 
+    @Column(name = "attribute_id", updatable = false)
+    private UUID attributeId;
+
+    @Column(name = "attribute_value_id", updatable = false)
+    private UUID attributeValueId;
+
     @Column(nullable = false, length = 100)
     private String value;
 

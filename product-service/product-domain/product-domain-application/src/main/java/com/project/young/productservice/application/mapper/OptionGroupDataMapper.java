@@ -1,6 +1,8 @@
 package com.project.young.productservice.application.mapper;
 
 import com.project.young.common.domain.valueobject.OptionGroupId;
+import com.project.young.common.domain.valueobject.AttributeDefinitionId;
+import com.project.young.common.domain.valueobject.AttributeValueId;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.application.dto.command.AddOptionValueCommand;
 import com.project.young.productservice.application.dto.command.CreateOptionGroupCommand;
@@ -29,6 +31,7 @@ public class OptionGroupDataMapper {
 
         return OptionGroup.builder()
                 .id(optionGroupId)
+                .attributeId(new AttributeDefinitionId(command.getAttributeId()))
                 .name(command.getName())
                 .displayName(command.getDisplayName())
                 .build();
@@ -59,6 +62,7 @@ public class OptionGroupDataMapper {
 
         return OptionValue.builder()
                 .id(optionValueId)
+                .attributeValueId(new AttributeValueId(command.getAttributeValueId()))
                 .value(command.getValue())
                 .displayName(command.getDisplayName())
                 .sortOrder(command.getSortOrder())

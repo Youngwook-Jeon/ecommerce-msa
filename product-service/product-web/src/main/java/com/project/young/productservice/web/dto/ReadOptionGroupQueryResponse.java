@@ -8,6 +8,7 @@ import java.util.UUID;
 @Builder
 public record ReadOptionGroupQueryResponse(
         UUID id,
+        UUID attributeId,
         String name,
         String displayName,
         String status,

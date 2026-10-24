@@ -1,6 +1,7 @@
 package com.project.young.productservice.domain.entity;
 
 import com.project.young.common.domain.entity.AggregateRoot;
+import com.project.young.common.domain.valueobject.AttributeDefinitionId;
 import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.domain.exception.OptionDomainException;
@@ -20,6 +21,8 @@ public class OptionGroup extends AggregateRoot<OptionGroupId> {
     // 사용자 노출용 이름 (예: "색상", "저장용량").
     private String displayName;
 
+    private final AttributeDefinitionId attributeId;
+
     private OptionStatus status;
 
     // 자식 엔티티 컬렉션
@@ -33,14 +36,16 @@ public class OptionGroup extends AggregateRoot<OptionGroupId> {
         super.setId(builder.id);
         this.name = builder.name;
         this.displayName = builder.displayName;
+        this.attributeId = builder.attributeId;
         this.status = builder.status;
         this.optionValues = builder.optionValues != null ? builder.optionValues : new ArrayList<>();
     }
 
-    private OptionGroup(OptionGroupId id, String name, String displayName, OptionStatus status, List<OptionValue> optionValues) {
+    private OptionGroup(OptionGroupId id, String name, String displayName, OptionStatus status, List<OptionValue> optionValues, AttributeDefinitionId attributeId) {
         super.setId(id);
         this.name = name;
         this.displayName = displayName;
+        this.attributeId = attributeId;
         this.status = status;
         this.optionValues = optionValues != null ? new ArrayList<>(optionValues) : new ArrayList<>();
     }
@@ -88,6 +93,16 @@ public class OptionGroup extends AggregateRoot<OptionGroupId> {
     public void addOptionValue(OptionValue newValue) {
         if (isDeleted()) {
             throw new OptionDomainException("Cannot add option value to a deleted option group.");
+        }
+        if (newValue == null) {
+            throw new OptionDomainException("Option value cannot be null.");
+        }
+        if (attributeId != null && newValue.getAttributeValueId() == null) {
+            throw new OptionDomainException("An attribute-linked option group requires an attribute value.");
+        }
+        if (newValue.getAttributeValueId() != null && optionValues.stream()
+                .anyMatch(value -> newValue.getAttributeValueId().equals(value.getAttributeValueId()))) {
+            throw new OptionDomainException("Attribute value is already assigned to this option group.");
         }
         // 데이터 정합성 방어: 동일한 내부 value(예: "RED")가 이미 존재하는지 검증
         boolean valueExists = this.optionValues.stream()
@@ -198,7 +213,11 @@ public class OptionGroup extends AggregateRoot<OptionGroupId> {
     // FOR PERSISTENCE MAPPING ONLY
     // ========================================================================
     public static OptionGroup reconstitute(OptionGroupId id, String name, String displayName, OptionStatus status, List<OptionValue> optionValues) {
-        return new OptionGroup(id, name, displayName, status, optionValues);
+        return new OptionGroup(id, name, displayName, status, optionValues, null);
+    }
+
+    public static OptionGroup reconstitute(OptionGroupId id, String name, String displayName, OptionStatus status, List<OptionValue> optionValues, AttributeDefinitionId attributeId) {
+        return new OptionGroup(id, name, displayName, status, optionValues, attributeId);
     }
 
     // ========================================================================
@@ -206,10 +225,16 @@ public class OptionGroup extends AggregateRoot<OptionGroupId> {
     // ========================================================================
     public static class Builder {
         private OptionGroupId id;
+        private AttributeDefinitionId attributeId;
         private String name;
         private String displayName;
         private OptionStatus status = OptionStatus.ACTIVE;
         private List<OptionValue> optionValues = new ArrayList<>();
+
+        public Builder attributeId(AttributeDefinitionId attributeId) {
+            this.attributeId = attributeId;
+            return this;
+        }
 
         public Builder id(OptionGroupId id) {
             this.id = id;

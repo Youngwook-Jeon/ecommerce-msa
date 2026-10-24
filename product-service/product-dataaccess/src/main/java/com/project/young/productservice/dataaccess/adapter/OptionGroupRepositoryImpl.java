@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -85,6 +86,10 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
     }
 
     private void mergeDomainIntoEntity(OptionGroup domain, OptionGroupEntity entity) {
+        UUID attributeId = domain.getAttributeId() == null ? null : domain.getAttributeId().getValue();
+        if (!Objects.equals(entity.getAttributeId(), attributeId)) {
+            throw new IllegalArgumentException("An option group's attribute mapping cannot be changed.");
+        }
         entity.setName(domain.getName());
         entity.setDisplayName(domain.getDisplayName());
         entity.setStatus(optionGroupDataAccessMapper.toEntityStatus(domain.getStatus()));
@@ -102,6 +107,10 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
             OptionValue domainVal = domainValuesMap.get(valEntity.getId());
 
             if (domainVal != null) {
+                UUID attributeValueId = domainVal.getAttributeValueId() == null ? null : domainVal.getAttributeValueId().getValue();
+                if (!Objects.equals(valEntity.getAttributeValueId(), attributeValueId)) {
+                    throw new IllegalArgumentException("An option value's attribute mapping cannot be changed.");
+                }
                 valEntity.setValue(domainVal.getValue());
                 valEntity.setDisplayName(domainVal.getDisplayName());
                 valEntity.setSortOrder(domainVal.getSortOrder());

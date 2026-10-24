@@ -19,6 +19,7 @@ public class OptionGroupDataAccessMapper {
 
         OptionGroupEntity entity = OptionGroupEntity.builder()
                 .id(domain.getId().getValue())
+                .attributeId(domain.getAttributeId() == null ? null : domain.getAttributeId().getValue())
                 .name(domain.getName())
                 .displayName(domain.getDisplayName())
                 .status(toEntityStatus(domain.getStatus()))
@@ -40,6 +41,7 @@ public class OptionGroupDataAccessMapper {
 
         return OptionValueEntity.builder()
                 .id(domain.getId().getValue())
+                .attributeValueId(domain.getAttributeValueId() == null ? null : domain.getAttributeValueId().getValue())
                 .value(domain.getValue())
                 .displayName(domain.getDisplayName())
                 .sortOrder(domain.getSortOrder())

@@ -1,6 +1,7 @@
 package com.project.young.productservice.domain.entity;
 
 import com.project.young.common.domain.entity.BaseEntity;
+import com.project.young.common.domain.valueobject.AttributeValueId;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.domain.exception.OptionDomainException;
 
@@ -18,6 +19,8 @@ public class OptionValue extends BaseEntity<OptionValueId> {
 
     private int sortOrder;
 
+    private final AttributeValueId attributeValueId;
+
     private OptionStatus status;
 
     public static Builder builder() {
@@ -29,14 +32,16 @@ public class OptionValue extends BaseEntity<OptionValueId> {
         this.value = builder.value;
         this.displayName = builder.displayName;
         this.sortOrder = builder.sortOrder;
+        this.attributeValueId = builder.attributeValueId;
         this.status = builder.status;
     }
 
-    private OptionValue(OptionValueId id, String value, String displayName, int sortOrder, OptionStatus status) {
+    private OptionValue(OptionValueId id, String value, String displayName, int sortOrder, OptionStatus status, AttributeValueId attributeValueId) {
         super.setId(id);
         this.value = value;
         this.displayName = displayName;
         this.sortOrder = sortOrder;
+        this.attributeValueId = attributeValueId;
         this.status = status;
     }
 
@@ -114,7 +119,11 @@ public class OptionValue extends BaseEntity<OptionValueId> {
     // FOR PERSISTENCE MAPPING ONLY
     // ========================================================================
     public static OptionValue reconstitute(OptionValueId id, String value, String displayName, int sortOrder, OptionStatus status) {
-        return new OptionValue(id, value, displayName, sortOrder, status);
+        return new OptionValue(id, value, displayName, sortOrder, status, null);
+    }
+
+    public static OptionValue reconstitute(OptionValueId id, String value, String displayName, int sortOrder, OptionStatus status, AttributeValueId attributeValueId) {
+        return new OptionValue(id, value, displayName, sortOrder, status, attributeValueId);
     }
 
     // ========================================================================
@@ -122,10 +131,16 @@ public class OptionValue extends BaseEntity<OptionValueId> {
     // ========================================================================
     public static class Builder {
         private OptionValueId id;
+        private AttributeValueId attributeValueId;
         private String value;
         private String displayName;
         private int sortOrder = 0;
         private OptionStatus status = OptionStatus.ACTIVE;
+
+        public Builder attributeValueId(AttributeValueId attributeValueId) {
+            this.attributeValueId = attributeValueId;
+            return this;
+        }
 
         public Builder id(OptionValueId id) {
             this.id = id;

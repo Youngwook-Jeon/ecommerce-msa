@@ -81,6 +81,7 @@ class OptionGroupDataMapperTest {
     void toOptionGroup_Success() {
         OptionGroupId groupId = new OptionGroupId(UUID.randomUUID());
         CreateOptionGroupCommand command = CreateOptionGroupCommand.builder()
+                .attributeId(UUID.randomUUID())
                 .name("SIZE")
                 .displayName("사이즈")
                 .build();
@@ -89,6 +90,7 @@ class OptionGroupDataMapperTest {
 
         assertThat(optionGroup).isNotNull();
         assertThat(optionGroup.getId()).isEqualTo(groupId);
+        assertThat(optionGroup.getAttributeId().getValue()).isEqualTo(command.getAttributeId());
         assertThat(optionGroup.getName()).isEqualTo("SIZE");
         assertThat(optionGroup.getDisplayName()).isEqualTo("사이즈");
         assertThat(optionGroup.getStatus()).isEqualTo(OptionStatus.ACTIVE);
@@ -164,6 +166,7 @@ class OptionGroupDataMapperTest {
     void toOptionValue_Success() {
         OptionValueId valueId = new OptionValueId(UUID.randomUUID());
         AddOptionValueCommand command = AddOptionValueCommand.builder()
+                .attributeValueId(UUID.randomUUID())
                 .value("RED")
                 .displayName("빨강")
                 .sortOrder(1)
@@ -173,6 +176,7 @@ class OptionGroupDataMapperTest {
 
         assertThat(optionValue).isNotNull();
         assertThat(optionValue.getId()).isEqualTo(valueId);
+        assertThat(optionValue.getAttributeValueId().getValue()).isEqualTo(command.getAttributeValueId());
         assertThat(optionValue.getValue()).isEqualTo("RED");
         assertThat(optionValue.getDisplayName()).isEqualTo("빨강");
         assertThat(optionValue.getSortOrder()).isEqualTo(1);

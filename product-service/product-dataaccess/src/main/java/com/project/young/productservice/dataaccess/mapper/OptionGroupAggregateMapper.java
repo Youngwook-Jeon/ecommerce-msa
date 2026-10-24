@@ -1,6 +1,8 @@
 package com.project.young.productservice.dataaccess.mapper;
 
 import com.project.young.common.domain.valueobject.OptionGroupId;
+import com.project.young.common.domain.valueobject.AttributeDefinitionId;
+import com.project.young.common.domain.valueobject.AttributeValueId;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.dataaccess.entity.OptionGroupEntity;
 import com.project.young.productservice.dataaccess.entity.OptionValueEntity;
@@ -34,7 +36,8 @@ public class OptionGroupAggregateMapper {
                 entity.getName(),
                 entity.getDisplayName(),
                 toDomainStatus(entity.getStatus()),
-                optionValues
+                optionValues,
+                entity.getAttributeId() == null ? null : new AttributeDefinitionId(entity.getAttributeId())
         );
     }
 
@@ -47,7 +50,8 @@ public class OptionGroupAggregateMapper {
                 entity.getValue(),
                 entity.getDisplayName(),
                 entity.getSortOrder(),
-                toDomainStatus(entity.getStatus())
+                toDomainStatus(entity.getStatus()),
+                entity.getAttributeValueId() == null ? null : new AttributeValueId(entity.getAttributeValueId())
         );
     }
 

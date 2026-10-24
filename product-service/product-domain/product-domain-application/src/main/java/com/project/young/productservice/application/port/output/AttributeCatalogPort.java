@@ -31,6 +31,8 @@ public interface AttributeCatalogPort {
 
     Optional<AttributeValue> findValue(UUID attributeId, UUID valueId);
 
+    Set<UUID> findValueIds(UUID attributeId, Set<UUID> valueIds);
+
     void insertValue(AttributeValue value);
 
     void updateValue(AttributeValue value);

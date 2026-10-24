@@ -8,8 +8,11 @@ import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.mapper.AttributeCatalogDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.AttributeDefinitionJpaRepository;
 import com.project.young.productservice.dataaccess.repository.AttributeValueJpaRepository;
+import com.project.young.productservice.dataaccess.repository.AttributeValueQueryRepository;
 import com.project.young.productservice.dataaccess.repository.CategoryAttributeJpaRepository;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
+import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepository;
+import com.project.young.productservice.dataaccess.repository.OptionValueJpaRepository;
 import com.project.young.productservice.domain.entity.AttributeDefinition;
 import com.project.young.productservice.domain.entity.AttributeValue;
 import com.project.young.productservice.domain.exception.AttributeNotFoundException;
@@ -29,16 +32,20 @@ import java.util.UUID;
 public class AttributeCatalogAdapter implements AttributeCatalogPort {
     private final AttributeDefinitionJpaRepository definitions;
     private final AttributeValueJpaRepository values;
+    private final AttributeValueQueryRepository valueQueries;
     private final CategoryAttributeJpaRepository policies;
     private final CategoryJpaRepository categories;
     private final AttributeCatalogDataAccessMapper mapper;
     private final EntityManager entityManager;
     private final IdGenerator idGenerator;
+    private final OptionGroupJpaRepository optionGroups;
+    private final OptionValueJpaRepository optionValues;
 
     public AttributeCatalogAdapter(AttributeDefinitionJpaRepository definitions, AttributeValueJpaRepository values,
                                    CategoryAttributeJpaRepository policies, CategoryJpaRepository categories,
                                    AttributeCatalogDataAccessMapper mapper, EntityManager entityManager,
-                                   IdGenerator idGenerator) {
+                                   IdGenerator idGenerator, OptionGroupJpaRepository optionGroups,
+                                   OptionValueJpaRepository optionValues, AttributeValueQueryRepository valueQueries) {
         this.definitions = definitions;
         this.values = values;
         this.policies = policies;
@@ -46,6 +53,9 @@ public class AttributeCatalogAdapter implements AttributeCatalogPort {
         this.mapper = mapper;
         this.entityManager = entityManager;
         this.idGenerator = idGenerator;
+        this.optionGroups = optionGroups;
+        this.optionValues = optionValues;
+        this.valueQueries = valueQueries;
     }
 
     @Override
@@ -73,7 +83,7 @@ public class AttributeCatalogAdapter implements AttributeCatalogPort {
 
     @Override
     public boolean hasDefinitionReferences(UUID id) {
-        return values.existsByAttributeId(id) || policies.existsByAttributeId(id);
+        return values.existsByAttributeId(id) || policies.existsByAttributeId(id) || optionGroups.existsByAttributeId(id);
     }
 
     @Override
@@ -113,6 +123,11 @@ public class AttributeCatalogAdapter implements AttributeCatalogPort {
     }
 
     @Override
+    public Set<UUID> findValueIds(UUID attributeId, Set<UUID> valueIds) {
+        return valueQueries.findValueIds(attributeId, valueIds);
+    }
+
+    @Override
     @Transactional
     public void insertValue(AttributeValue value) {
         var entity = mapper.toEntity(value);
@@ -129,8 +144,15 @@ public class AttributeCatalogAdapter implements AttributeCatalogPort {
 
     @Override
     public void deleteValue(UUID valueId) {
-        values.deleteById(valueId);
-        values.flush();
+        if (optionValues.existsByAttributeValueId(valueId)) {
+            throw new AttributeInUseException("Attribute value is referenced by an option dictionary and cannot be deleted");
+        }
+        try {
+            values.deleteById(valueId);
+            values.flush();
+        } catch (DataIntegrityViolationException exception) {
+            throw new AttributeInUseException("Attribute value is referenced and cannot be deleted");
+        }
     }
 
     @Override
