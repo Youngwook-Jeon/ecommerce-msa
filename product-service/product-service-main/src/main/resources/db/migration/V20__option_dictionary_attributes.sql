@@ -6,7 +6,8 @@ ALTER TABLE option_groups
     ADD CONSTRAINT uk_option_group_attribute UNIQUE (attribute_id),
     ADD CONSTRAINT uk_option_group_id_attribute UNIQUE (id, attribute_id);
 
--- attribute_id is repeated to enforce ownership using composite foreign keys.
+-- Duplicate the group's attribute_id on each option value so composite foreign keys
+-- ensure the option group and canonical attribute value belong to the same attribute definition.
 ALTER TABLE option_values
     ADD COLUMN attribute_id UUID,
     ADD COLUMN attribute_value_id UUID,
