@@ -8,15 +8,19 @@ import com.project.young.productservice.application.dto.command.CreateOptionGrou
 import com.project.young.productservice.application.dto.command.UpdateOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.UpdateOptionValueCommand;
 import com.project.young.productservice.application.dto.result.*;
+import com.project.young.productservice.application.exception.OptionGroupVersionConflictException;
 import com.project.young.productservice.application.mapper.OptionGroupDataMapper;
 import com.project.young.productservice.application.port.output.IdGenerator;
+import com.project.young.productservice.application.port.output.OptionGroupDetailsPort;
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.OptionValue;
+import com.project.young.productservice.domain.exception.AttributeInactiveException;
 import com.project.young.productservice.domain.exception.DuplicateOptionGroupNameException;
 import com.project.young.productservice.domain.exception.OptionDomainException;
 import com.project.young.productservice.domain.exception.OptionGroupNotFoundException;
 import com.project.young.productservice.domain.repository.OptionGroupRepository;
 import com.project.young.productservice.domain.service.OptionGroupDomainService;
+import com.project.young.productservice.domain.valueobject.OptionGroupDetails;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -52,6 +56,9 @@ class OptionGroupApplicationServiceTest {
 
     @Mock
     private OptionAttributeValidator optionAttributeValidator;
+
+    @Mock
+    private OptionGroupDetailsPort optionGroupDetailsPort;
 
     @InjectMocks
     private OptionGroupApplicationService optionGroupApplicationService;
@@ -208,7 +215,8 @@ class OptionGroupApplicationServiceTest {
                     ))
                     .build();
 
-            when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.empty());
+            when(optionAttributeValidator.lockGroupAndValidateValues(new OptionGroupId(groupId), command.getOptionValues()))
+                    .thenThrow(new OptionGroupNotFoundException("Option group not found."));
 
             assertThatThrownBy(() -> optionGroupApplicationService.addOptionValues(groupId, command))
                     .isInstanceOf(OptionGroupNotFoundException.class)
@@ -233,7 +241,7 @@ class OptionGroupApplicationServiceTest {
                     .build();
 
             OptionGroup deleted = deletedGroup(groupId);
-            when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(deleted));
+            when(optionAttributeValidator.lockGroupAndValidateValues(new OptionGroupId(groupId), command.getOptionValues())).thenReturn(deleted);
 
             assertThatThrownBy(() -> optionGroupApplicationService.addOptionValues(groupId, command))
                     .isInstanceOf(OptionDomainException.class)
@@ -292,7 +300,7 @@ class OptionGroupApplicationServiceTest {
                     .value("GREEN")
                     .build();
 
-            when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(optionGroup));
+            when(optionAttributeValidator.lockGroupAndValidateValues(new OptionGroupId(groupId), bulkCommand.getOptionValues())).thenReturn(optionGroup);
             when(idGenerator.generateId()).thenReturn(valueId1, valueId2);
 
             when(optionGroupDataMapper.toOptionValue(cmd1, new OptionValueId(valueId1))).thenReturn(newValue1);
@@ -322,11 +330,12 @@ class OptionGroupApplicationServiceTest {
         @Test
         @DisplayName("요청이 null이면 IllegalArgumentException")
         void updateOptionGroup_InvalidRequest_ThrowsException() {
-            assertThatThrownBy(() -> optionGroupApplicationService.updateOptionGroup(null, null))
+            assertThatThrownBy(() -> optionGroupApplicationService.updateOptionGroup(null, null, 0L))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("Invalid option group update request");
 
-            verify(optionGroupRepository, never()).update(any());
+            verify(optionGroupDetailsPort, never()).update(any());
+            verifyNoInteractions(optionGroupRepository);
         }
 
         @Test
@@ -339,13 +348,14 @@ class OptionGroupApplicationServiceTest {
                     .status(OptionStatus.ACTIVE)
                     .build();
 
-            when(optionGroupRepository.findById(new OptionGroupId(rawId))).thenReturn(Optional.empty());
+            when(optionGroupDetailsPort.find(new OptionGroupId(rawId))).thenReturn(Optional.empty());
 
-            assertThatThrownBy(() -> optionGroupApplicationService.updateOptionGroup(rawId, command))
+            assertThatThrownBy(() -> optionGroupApplicationService.updateOptionGroup(rawId, command, 0L))
                     .isInstanceOf(OptionGroupNotFoundException.class)
                     .hasMessageContaining("Option group not found");
 
-            verify(optionGroupRepository, never()).update(any());
+            verify(optionGroupDetailsPort, never()).update(any());
+            verifyNoInteractions(optionGroupRepository);
         }
 
         @Test
@@ -358,14 +368,15 @@ class OptionGroupApplicationServiceTest {
                     .status(OptionStatus.INACTIVE)
                     .build();
 
-            OptionGroup deleted = deletedGroup(rawId);
-            when(optionGroupRepository.findById(new OptionGroupId(rawId))).thenReturn(Optional.of(deleted));
+            OptionGroupDetails deleted = new OptionGroupDetails(new OptionGroupId(rawId), "COLOR", "색상", OptionStatus.DELETED, 0L);
+            when(optionGroupDetailsPort.find(new OptionGroupId(rawId))).thenReturn(Optional.of(deleted));
 
-            assertThatThrownBy(() -> optionGroupApplicationService.updateOptionGroup(rawId, command))
+            assertThatThrownBy(() -> optionGroupApplicationService.updateOptionGroup(rawId, command, 0L))
                     .isInstanceOf(OptionDomainException.class)
                     .hasMessageContaining("Cannot modify an option group that has been deleted");
 
-            verify(optionGroupRepository, never()).update(any());
+            verify(optionGroupDetailsPort, never()).update(any());
+            verifyNoInteractions(optionGroupRepository);
         }
 
         @Test
@@ -378,15 +389,16 @@ class OptionGroupApplicationServiceTest {
                     .status(OptionStatus.ACTIVE)
                     .build();
 
-            OptionGroup optionGroup = activeGroup(rawId, List.of());
-            when(optionGroupRepository.findById(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
+            OptionGroupDetails optionGroup = new OptionGroupDetails(new OptionGroupId(rawId), "COLOR", "색상", OptionStatus.ACTIVE, 0L);
+            when(optionGroupDetailsPort.find(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
             when(optionGroupDomainService.isValidOptionGroupName("DUPLICATE")).thenReturn(false);
 
-            assertThatThrownBy(() -> optionGroupApplicationService.updateOptionGroup(rawId, command))
+            assertThatThrownBy(() -> optionGroupApplicationService.updateOptionGroup(rawId, command, 0L))
                     .isInstanceOf(DuplicateOptionGroupNameException.class)
                     .hasMessageContaining("DUPLICATE");
 
-            verify(optionGroupRepository, never()).update(any());
+            verify(optionGroupDetailsPort, never()).update(any());
+            verifyNoInteractions(optionGroupRepository);
         }
 
         @Test
@@ -399,27 +411,28 @@ class OptionGroupApplicationServiceTest {
                     .status(OptionStatus.INACTIVE)
                     .build();
 
-            OptionGroup optionGroup = activeGroup(rawId, List.of());
-            when(optionGroupRepository.findById(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
+            OptionGroupDetails optionGroup = new OptionGroupDetails(new OptionGroupId(rawId), "COLOR", "색상", OptionStatus.ACTIVE, 0L);
+            when(optionGroupDetailsPort.find(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
             when(optionGroupDomainService.isValidOptionGroupName("NEWNAME")).thenReturn(true);
-            doNothing().when(optionGroupRepository).update(optionGroup);
 
+            var updated = new OptionGroupDetails(new OptionGroupId(rawId), "NEWNAME", "새노출명", OptionStatus.INACTIVE, 0L);
             UpdateOptionGroupResult expected = UpdateOptionGroupResult.builder()
                     .id(rawId)
                     .name("NEWNAME")
                     .displayName("새노출명")
                     .status(OptionStatus.INACTIVE)
                     .build();
-            when(optionGroupDataMapper.toUpdateOptionGroupResult(optionGroup)).thenReturn(expected);
+            when(optionGroupDataMapper.toUpdateOptionGroupResult(updated)).thenReturn(expected);
 
-            UpdateOptionGroupResult result = optionGroupApplicationService.updateOptionGroup(rawId, command);
+            UpdateOptionGroupResult result = optionGroupApplicationService.updateOptionGroup(rawId, command, 0L);
 
             assertThat(result.name()).isEqualTo("NEWNAME");
             assertThat(result.displayName()).isEqualTo("새노출명");
             assertThat(result.status()).isEqualTo(OptionStatus.INACTIVE);
 
-            verify(optionGroupRepository).update(optionGroup);
-            verify(optionGroupDataMapper).toUpdateOptionGroupResult(optionGroup);
+            verify(optionGroupDetailsPort).update(updated);
+            verifyNoInteractions(optionGroupRepository);
+            verify(optionGroupDataMapper).toUpdateOptionGroupResult(updated);
         }
 
         @Test
@@ -432,8 +445,8 @@ class OptionGroupApplicationServiceTest {
                     .status(OptionStatus.ACTIVE)
                     .build();
 
-            OptionGroup optionGroup = activeGroup(rawId, List.of());
-            when(optionGroupRepository.findById(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
+            OptionGroupDetails optionGroup = new OptionGroupDetails(new OptionGroupId(rawId), "COLOR", "색상", OptionStatus.ACTIVE, 0L);
+            when(optionGroupDetailsPort.find(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
 
             UpdateOptionGroupResult expected = UpdateOptionGroupResult.builder()
                     .id(rawId)
@@ -443,12 +456,70 @@ class OptionGroupApplicationServiceTest {
                     .build();
             when(optionGroupDataMapper.toUpdateOptionGroupResult(optionGroup)).thenReturn(expected);
 
-            UpdateOptionGroupResult result = optionGroupApplicationService.updateOptionGroup(rawId, command);
+            UpdateOptionGroupResult result = optionGroupApplicationService.updateOptionGroup(rawId, command, 0L);
 
             assertThat(result.status()).isEqualTo(OptionStatus.ACTIVE);
-            verify(optionGroupRepository, never()).update(any());
+            verify(optionGroupDetailsPort, never()).update(any());
+            verifyNoInteractions(optionGroupRepository);
             verify(optionGroupDataMapper).toUpdateOptionGroupResult(optionGroup);
         }
+    }
+
+    @Test
+    void reactivation_validates_the_definition_before_updating_group_information() {
+        var id = new OptionGroupId(UUID.randomUUID());
+        var original = new OptionGroupDetails(id, "RAM", "Memory", OptionStatus.INACTIVE, 3L);
+        when(optionGroupDetailsPort.find(id)).thenReturn(Optional.of(original));
+
+        optionGroupApplicationService.updateOptionGroup(id.getValue(),
+                UpdateOptionGroupCommand.builder().status(OptionStatus.ACTIVE).build(), 3L);
+
+        var ordered = inOrder(optionAttributeValidator, optionGroupDetailsPort);
+        ordered.verify(optionGroupDetailsPort).find(id);
+        ordered.verify(optionAttributeValidator).validateActivation(id);
+        ordered.verify(optionGroupDetailsPort).update(original.changeStatus(OptionStatus.ACTIVE));
+        verifyNoInteractions(optionGroupRepository);
+    }
+
+    @Test
+    void failed_reactivation_does_not_apply_other_information_changes() {
+        var id = new OptionGroupId(UUID.randomUUID());
+        var original = new OptionGroupDetails(id, "RAM", "Memory", OptionStatus.INACTIVE, 0L);
+        when(optionGroupDetailsPort.find(id)).thenReturn(Optional.of(original));
+        doThrow(new AttributeInactiveException())
+                .when(optionAttributeValidator).validateActivation(id);
+
+        assertThatThrownBy(() -> optionGroupApplicationService.updateOptionGroup(id.getValue(),
+                UpdateOptionGroupCommand.builder().displayName("New name").status(OptionStatus.ACTIVE).build(), 0L))
+                .isInstanceOf(AttributeInactiveException.class);
+
+        verify(optionGroupDetailsPort, never()).update(any());
+        verifyNoInteractions(optionGroupDataMapper);
+    }
+
+    @Test
+    void ordinary_edits_and_deactivation_do_not_validate_the_definition() {
+        var id = new OptionGroupId(UUID.randomUUID());
+        var original = new OptionGroupDetails(id, "RAM", "Memory", OptionStatus.ACTIVE, 0L);
+        when(optionGroupDetailsPort.find(id)).thenReturn(Optional.of(original));
+
+        optionGroupApplicationService.updateOptionGroup(id.getValue(),
+                UpdateOptionGroupCommand.builder().displayName("New name").status(OptionStatus.INACTIVE).build(), 0L);
+
+        verifyNoInteractions(optionAttributeValidator, optionGroupRepository);
+    }
+
+    @Test
+    void stale_version_is_rejected_even_when_requested_information_is_unchanged() {
+        UUID id = UUID.randomUUID();
+        var current = new OptionGroupDetails(new OptionGroupId(id), "RAM", "Memory", OptionStatus.ACTIVE, 1L);
+        when(optionGroupDetailsPort.find(new OptionGroupId(id))).thenReturn(Optional.of(current));
+        var command = UpdateOptionGroupCommand.builder().name("RAM").displayName("Memory").status(OptionStatus.ACTIVE).build();
+
+        assertThatThrownBy(() -> optionGroupApplicationService.updateOptionGroup(id, command, 0L))
+                .isInstanceOf(OptionGroupVersionConflictException.class);
+        verify(optionGroupDetailsPort, never()).update(any());
+        verifyNoInteractions(optionGroupRepository, optionGroupDataMapper, optionAttributeValidator);
     }
 
     @Nested
@@ -494,7 +565,7 @@ class OptionGroupApplicationServiceTest {
                     .status(OptionStatus.ACTIVE)
                     .build();
 
-            when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.empty());
+            when(optionGroupRepository.findByIdForUpdate(new OptionGroupId(groupId))).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> optionGroupApplicationService.updateOptionValue(groupId, valueId, command))
                     .isInstanceOf(OptionGroupNotFoundException.class);
@@ -534,7 +605,7 @@ class OptionGroupApplicationServiceTest {
                     OptionStatus.INACTIVE
             );
 
-            when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(optionGroup));
+            when(optionGroupRepository.findByIdForUpdate(new OptionGroupId(groupId))).thenReturn(Optional.of(optionGroup));
             doNothing().when(optionGroupRepository).update(optionGroup);
             when(optionGroupDataMapper.toUpdateOptionValueResult(existing)).thenReturn(expected);
 
@@ -567,7 +638,7 @@ class OptionGroupApplicationServiceTest {
         @DisplayName("그룹이 없으면 OptionGroupNotFoundException")
         void deleteOptionGroup_NotFound_ThrowsException() {
             UUID rawId = UUID.randomUUID();
-            when(optionGroupRepository.findById(new OptionGroupId(rawId))).thenReturn(Optional.empty());
+            when(optionGroupRepository.findByIdForUpdate(new OptionGroupId(rawId))).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> optionGroupApplicationService.deleteOptionGroup(rawId))
                     .isInstanceOf(OptionGroupNotFoundException.class);
@@ -586,7 +657,7 @@ class OptionGroupApplicationServiceTest {
                     .name("COLOR")
                     .build();
 
-            when(optionGroupRepository.findById(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
+            when(optionGroupRepository.findByIdForUpdate(new OptionGroupId(rawId))).thenReturn(Optional.of(optionGroup));
             doNothing().when(optionGroupRepository).update(any(OptionGroup.class));
             when(optionGroupDataMapper.toDeleteOptionGroupResult(any(OptionGroup.class))).thenReturn(expected);
 
@@ -625,7 +696,7 @@ class OptionGroupApplicationServiceTest {
         void deleteOptionValue_GroupNotFound_ThrowsException() {
             UUID groupId = UUID.randomUUID();
             UUID valueId = UUID.randomUUID();
-            when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.empty());
+            when(optionGroupRepository.findByIdForUpdate(new OptionGroupId(groupId))).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> optionGroupApplicationService.deleteOptionValue(groupId, valueId))
                     .isInstanceOf(OptionGroupNotFoundException.class);
@@ -639,7 +710,7 @@ class OptionGroupApplicationServiceTest {
             UUID groupId = UUID.randomUUID();
             UUID valueId = UUID.randomUUID();
             OptionGroup deleted = deletedGroup(groupId);
-            when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(deleted));
+            when(optionGroupRepository.findByIdForUpdate(new OptionGroupId(groupId))).thenReturn(Optional.of(deleted));
 
             assertThatThrownBy(() -> optionGroupApplicationService.deleteOptionValue(groupId, valueId))
                     .isInstanceOf(OptionDomainException.class)
@@ -670,7 +741,7 @@ class OptionGroupApplicationServiceTest {
                     .value("GREEN")
                     .build();
 
-            when(optionGroupRepository.findById(new OptionGroupId(groupId))).thenReturn(Optional.of(optionGroup));
+            when(optionGroupRepository.findByIdForUpdate(new OptionGroupId(groupId))).thenReturn(Optional.of(optionGroup));
             doNothing().when(optionGroupRepository).update(optionGroup);
             when(optionGroupDataMapper.toDeleteOptionValueResult(existing)).thenReturn(expected);
 

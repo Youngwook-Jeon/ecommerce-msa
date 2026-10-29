@@ -1,14 +1,15 @@
 package com.project.young.productservice.it;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.project.young.productservice.ProductServiceMain;
 import com.project.young.productservice.application.dto.command.AddProductOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.AddProductOptionValueCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantCommand;
 import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
-import com.project.young.productservice.application.dto.command.ReorderProductOptionGroupsCommand;
-import com.project.young.productservice.ProductServiceMain;
 import com.project.young.productservice.application.dto.command.CreateCategoryCommand;
 import com.project.young.productservice.application.dto.command.CreateProductCommand;
+import com.project.young.productservice.application.dto.command.ReorderProductOptionGroupsCommand;
+import com.project.young.productservice.application.dto.command.UpdateOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductStatusCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductVariantCommand;
@@ -22,6 +23,7 @@ import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
 import com.project.young.productservice.domain.valueobject.ConditionType;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import jakarta.persistence.EntityManager;
 import org.hibernate.SessionFactory;
@@ -45,8 +47,8 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.math.BigDecimal;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -162,6 +164,66 @@ class ProductApiIntegrationTest {
                 .setParameter("id", id).getSingleResult()).isEqualTo(2L);
     }
 
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void rejectedOptionPolicyDoesNotChangeProductVersionOrOutbox() throws Exception {
+        Long categoryId = createCategory("Policy validation category");
+        var create = CreateProductCommand.builder().name("Policy product")
+                .description("Product used to verify option policy rejection")
+                .brand("Brand").basePrice(new BigDecimal("10.00"))
+                .categoryId(categoryId).conditionType(ConditionType.NEW).build();
+        String response = mockMvc.perform(post("/admin/products").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(create)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        UUID productId = UUID.fromString(objectMapper.readTree(response).get("id").asText());
+        var fixture = createGlobalOptionGroupWithValues("policy-validation");
+        entityManager.flush();
+        entityManager.createNativeQuery("UPDATE category_attributes SET option_allowed = false WHERE category_id = :id")
+                .setParameter("id", categoryId).executeUpdate();
+        entityManager.clear();
+        String version = versionOf(productId);
+        Object outboxCount = entityManager.createNativeQuery("SELECT count(*) FROM product_catalog_outbox WHERE product_id = :id")
+                .setParameter("id", productId).getSingleResult();
+        var add = AddProductOptionGroupCommand.builder().optionGroupId(fixture.optionGroupId()).required(true)
+                .optionValues(List.of(AddProductOptionValueCommand.builder().optionValueId(fixture.optionValueIds().getFirst())
+                        .priceDelta(BigDecimal.ZERO).isDefault(true).isActive(true).build())).build();
+
+        mockMvc.perform(post("/admin/products/{productId}/option-groups", productId).param("expectedVersion", version)
+                        .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(add)))
+                .andExpect(status().isBadRequest());
+
+        org.assertj.core.api.Assertions.assertThat(versionOf(productId)).isEqualTo(version);
+        org.assertj.core.api.Assertions.assertThat(entityManager.createNativeQuery(
+                        "SELECT count(*) FROM product_option_groups WHERE product_id = :id")
+                .setParameter("id", productId).getSingleResult()).isEqualTo(0L);
+        org.assertj.core.api.Assertions.assertThat(entityManager.createNativeQuery(
+                        "SELECT count(*) FROM product_catalog_outbox WHERE product_id = :id")
+                .setParameter("id", productId).getSingleResult()).isEqualTo(outboxCount);
+    }
+
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void option_group_information_edits_require_the_version_returned_by_admin_queries() throws Exception {
+        createCategory("Versioned option group category");
+        var fixture = createGlobalOptionGroupWithValues("versioned-information");
+        String initial = mockMvc.perform(get("/admin/queries/option-groups/{id}", fixture.optionGroupId()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").isNumber())
+                .andReturn().getResponse().getContentAsString();
+        long version = objectMapper.readTree(initial).get("version").asLong();
+        var command = UpdateOptionGroupCommand.builder().name("VERSIONED_GROUP").displayName("Updated choices")
+                .status(OptionStatus.INACTIVE).build();
+
+        mockMvc.perform(put("/option-groups/{id}", fixture.optionGroupId()).param("expectedVersion", Long.toString(version))
+                        .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(command)))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/admin/queries/option-groups/{id}", fixture.optionGroupId()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.version").value(version + 1))
+                .andExpect(jsonPath("$.displayName").value("Updated choices"));
+        mockMvc.perform(put("/option-groups/{id}", fixture.optionGroupId()).param("expectedVersion", Long.toString(version))
+                        .with(csrf()).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(command)))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("OPTION_GROUP_VERSION_CONFLICT"));
+    }
+
     private record OptionFixture(UUID optionGroupId, List<UUID> optionValueIds) {
     }
 
@@ -189,6 +251,8 @@ class ProductApiIntegrationTest {
 
         group.addOptionValue(small);
         group.addOptionValue(medium);
+        OptionPolicyFixtures.link(entityManager, group,
+                entityManager.createQuery("select c.id from CategoryEntity c", Long.class).getResultList());
         OptionGroupEntity saved = optionGroupJpaRepository.save(group);
 
         return new OptionFixture(
@@ -215,6 +279,8 @@ class ProductApiIntegrationTest {
             group.addOptionValue(value);
         }
 
+        OptionPolicyFixtures.link(entityManager, group,
+                entityManager.createQuery("select c.id from CategoryEntity c", Long.class).getResultList());
         OptionGroupEntity saved = optionGroupJpaRepository.save(group);
         return new OptionFixture(
                 saved.getId(),
@@ -251,6 +317,8 @@ class ProductApiIntegrationTest {
 
         group.addOptionValue(first);
         group.addOptionValue(second);
+        OptionPolicyFixtures.link(entityManager, group,
+                entityManager.createQuery("select c.id from CategoryEntity c", Long.class).getResultList());
         OptionGroupEntity saved = optionGroupJpaRepository.save(group);
 
         return new OptionFixture(
@@ -1270,4 +1338,3 @@ class ProductApiIntegrationTest {
         }
     }
 }
-

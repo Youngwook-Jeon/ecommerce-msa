@@ -1,7 +1,7 @@
 package com.project.young.productservice.application.service;
 
-import com.project.young.common.domain.valueobject.AttributeValueId;
 import com.project.young.common.domain.valueobject.AttributeDefinitionId;
+import com.project.young.common.domain.valueobject.AttributeValueId;
 import com.project.young.productservice.application.dto.command.CreateAttributeDefinitionCommand;
 import com.project.young.productservice.application.dto.command.CreateAttributeValueCommand;
 import com.project.young.productservice.application.dto.command.SetCategoryAttributeCommand;
@@ -12,8 +12,8 @@ import com.project.young.productservice.application.port.output.view.AttributeCa
 import com.project.young.productservice.domain.entity.AttributeDefinition;
 import com.project.young.productservice.domain.entity.AttributeValue;
 import com.project.young.productservice.domain.exception.AttributeDomainException;
-import com.project.young.productservice.domain.exception.AttributeNotFoundException;
 import com.project.young.productservice.domain.exception.AttributeInUseException;
+import com.project.young.productservice.domain.exception.AttributeNotFoundException;
 import com.project.young.productservice.domain.valueobject.CategoryAttributePolicy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -129,7 +129,7 @@ public class AttributeCatalogService {
 
     public void removePolicy(Long categoryId, UUID attributeId) {
         category(categoryId);
-        definition(attributeId);
+        definitionForUpdate(attributeId);
         catalog.deletePolicy(categoryId, attributeId);
         log.info("Category attribute policy removed: categoryId={}, attributeId={}", categoryId, attributeId);
     }

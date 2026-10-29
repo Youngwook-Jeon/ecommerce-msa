@@ -1,8 +1,8 @@
 package com.project.young.productservice.dataaccess.mapper;
 
-import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.AttributeDefinitionId;
 import com.project.young.common.domain.valueobject.AttributeValueId;
+import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.dataaccess.entity.OptionGroupEntity;
 import com.project.young.productservice.dataaccess.entity.OptionValueEntity;
@@ -10,24 +10,26 @@ import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.OptionValue;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-/**
- * Maps a fully loaded {@link OptionGroupEntity} (e.g. {@code findById} with entity graph including option values)
- * to the domain model. Do not use on partially initialized associations — that risks N+1 selects.
- */
+/** Converts explicitly loaded parent and value data without triggering lazy association queries. */
 @Component
 public class OptionGroupAggregateMapper {
 
-    public OptionGroup toOptionGroup(OptionGroupEntity entity) {
+    public OptionGroup toOptionGroup(OptionGroupEntity entity, List<OptionValueEntity> values) {
         Objects.requireNonNull(entity, "entity must not be null.");
-        Objects.requireNonNull(entity.getId(), "entity ID must not be null.");
 
-        List<OptionValue> optionValues = entity.getOptionValues().stream()
+        Objects.requireNonNull(values, "option values must not be null.");
+        if (!Hibernate.isInitialized(entity) || !Hibernate.isInitialized(values)) {
+            throw new IllegalStateException("Option group and values must be explicitly loaded before mapping.");
+        }
+        Objects.requireNonNull(entity.getId(), "entity ID must not be null.");
+        List<OptionValue> optionValues = values.stream()
                 .map(this::optionValueEntityToDomain)
                 .collect(Collectors.toList());
 
@@ -43,6 +45,9 @@ public class OptionGroupAggregateMapper {
 
     private OptionValue optionValueEntityToDomain(OptionValueEntity entity) {
         Objects.requireNonNull(entity, "optionValueEntity must not be null.");
+        if (!Hibernate.isInitialized(entity)) {
+            throw new IllegalStateException("Option values must be explicitly loaded before mapping.");
+        }
         Objects.requireNonNull(entity.getId(), "optionValueEntity ID must not be null.");
 
         return OptionValue.reconstitute(

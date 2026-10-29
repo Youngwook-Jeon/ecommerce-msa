@@ -529,6 +529,8 @@ class PublicProductApiIntegrationTest {
                 .build();
 
         group.addOptionValue(value);
+        OptionPolicyFixtures.link(entityManager, group,
+                entityManager.createQuery("select c.id from CategoryEntity c", Long.class).getResultList());
         OptionGroupEntity saved = optionGroupJpaRepository.save(group);
 
         return new OptionFixture(

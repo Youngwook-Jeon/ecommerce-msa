@@ -30,6 +30,7 @@ public class OptionGroupQueryResponseMapper {
         return ReadOptionGroupQueryResponse.builder()
                 .id(view.id())
                 .attributeId(view.attributeId())
+                .version(view.version())
                 .name(view.name())
                 .displayName(view.displayName())
                 .status(optionStatusWebConverter.toStringValue(view.status()))

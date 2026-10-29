@@ -8,6 +8,7 @@ import com.project.young.productservice.application.service.OptionGroupApplicati
 import com.project.young.productservice.web.dto.*;
 import com.project.young.productservice.web.mapper.OptionGroupResponseMapper;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,14 +44,23 @@ public class OptionGroupController {
                         optionGroupApplicationService.createOptionGroup(command)));
     }
 
+    /**
+     * Edits group information without loading or modifying option values.
+     * Requires expectedVersion from the admin query response. Stale or concurrent edits return
+     * 409 OPTION_GROUP_VERSION_CONFLICT. Reload the query after success to obtain the next version.
+     * Information edits use optimistic locking; the delete endpoint retains group locking for cascading deletion.
+     * Reactivation requires a linked, active attribute definition and locks that definition before updating the group.
+     * Other information edits and deactivation do not require an active attribute definition.
+     */
     @PutMapping("/{groupId}")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<UpdateOptionGroupResponse> updateGroup(
             @PathVariable("groupId") UUID groupId,
-            @Valid @RequestBody UpdateOptionGroupCommand command) {
+            @Valid @RequestBody UpdateOptionGroupCommand command,
+            @RequestParam("expectedVersion") @PositiveOrZero long expectedVersion) {
         log.info("A put request to update Option Group with id: {}", groupId);
         return ResponseEntity.ok(optionGroupResponseMapper.toUpdateOptionGroupResponse(
-                optionGroupApplicationService.updateOptionGroup(groupId, command)));
+                optionGroupApplicationService.updateOptionGroup(groupId, command, expectedVersion)));
     }
 
     @DeleteMapping("/{groupId}")

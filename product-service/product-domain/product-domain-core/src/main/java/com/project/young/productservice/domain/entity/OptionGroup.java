@@ -5,12 +5,14 @@ import com.project.young.common.domain.valueobject.AttributeDefinitionId;
 import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.domain.exception.OptionDomainException;
-
 import com.project.young.productservice.domain.valueobject.OptionStatus;
 import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.project.young.productservice.domain.validation.OptionGroupRules.validateName;
+import static com.project.young.productservice.domain.validation.OptionGroupRules.validateDisplayName;
 
 @Getter
 public class OptionGroup extends AggregateRoot<OptionGroupId> {
@@ -185,28 +187,6 @@ public class OptionGroup extends AggregateRoot<OptionGroupId> {
         }
         this.status = OptionStatus.DELETED;
         this.optionValues.forEach(OptionValue::markAsDeleted);
-    }
-
-    // ========================================================================
-    // 검증 로직 (Validation)
-    // ========================================================================
-
-    private static void validateName(String name) {
-        if (name == null || name.isBlank()) {
-            throw new OptionDomainException("Option group name cannot be null or blank.");
-        }
-        if (name.length() > 100) {
-            throw new OptionDomainException("Option group name must be 100 characters or less.");
-        }
-    }
-
-    private static void validateDisplayName(String displayName) {
-        if (displayName == null || displayName.isBlank()) {
-            throw new OptionDomainException("Option group display name cannot be null or blank.");
-        }
-        if (displayName.length() > 100) {
-            throw new OptionDomainException("Option group display name must be 100 characters or less.");
-        }
     }
 
     // ========================================================================

@@ -11,6 +11,7 @@ import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepo
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.OptionValue;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -37,6 +38,8 @@ class OptionGroupRepositoryImplTest {
 
     @Mock
     private EntityManager entityManager;
+    @Mock
+    private JPAQueryFactory queryFactory;
 
     private OptionGroupDataAccessMapper optionGroupDataAccessMapper;
     private OptionGroupAggregateMapper optionGroupAggregateMapper;
@@ -50,7 +53,8 @@ class OptionGroupRepositoryImplTest {
                 optionGroupJpaRepository,
                 optionGroupDataAccessMapper,
                 optionGroupAggregateMapper,
-                entityManager
+                entityManager,
+                queryFactory
         );
     }
 

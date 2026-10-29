@@ -35,19 +35,22 @@ public class ProductApplicationService {
     private final IdGenerator idGenerator;
     private final VariantMainImageSyncPort variantMainImageSyncPort;
     private final ProductCatalogChangeService productCatalogChangeService;
+    private final ProductOptionPolicyValidator productOptionPolicyValidator;
 
     public ProductApplicationService(ProductRepository productRepository,
                                      ProductDomainService productDomainService,
                                      ProductDataMapper productDataMapper,
                                      IdGenerator idGenerator,
                                      VariantMainImageSyncPort variantMainImageSyncPort,
-                                     ProductCatalogChangeService productCatalogChangeService) {
+                                     ProductCatalogChangeService productCatalogChangeService,
+                                     ProductOptionPolicyValidator productOptionPolicyValidator) {
         this.productRepository = productRepository;
         this.productDomainService = productDomainService;
         this.productDataMapper = productDataMapper;
         this.idGenerator = idGenerator;
         this.variantMainImageSyncPort = variantMainImageSyncPort;
         this.productCatalogChangeService = productCatalogChangeService;
+        this.productOptionPolicyValidator = productOptionPolicyValidator;
     }
 
     @Transactional
@@ -158,7 +161,7 @@ public class ProductApplicationService {
 
         ProductOptionGroupId productOptionGroupId = new ProductOptionGroupId(idGenerator.generateId());
         OptionGroupId globalOptionGroupId = new OptionGroupId(command.getOptionGroupId());
-        validateGlobalOptionValueMembership(globalOptionGroupId, command.getOptionValues());
+        productOptionPolicyValidator.validate(product, globalOptionGroupId, command.getOptionValues());
         List<ProductOptionValue> optionValues = mapProductOptionValues(command.getOptionValues());
         double resolvedStepOrder = command.getStepOrder() == null
                 ? resolveStepOrder(product, StepOrderPlacement.append(), null)
@@ -198,8 +201,11 @@ public class ProductApplicationService {
                 .filter(group -> group.getId().equals(productOptionGroupId))
                 .findFirst()
                 .orElseThrow(() -> new ProductDomainException("Product option group not found in this product."));
+        if (targetGroup.getStatus() == null || targetGroup.getStatus().isDeleted()) {
+            throw new ProductDomainException("Cannot add option values to a deleted product option group.");
+        }
         List<AddProductOptionValueToGroupResult> results = new ArrayList<>();
-        validateGlobalOptionValueMembership(targetGroup.getOptionGroupId(), command.getOptionValues());
+        productOptionPolicyValidator.validate(product, targetGroup.getOptionGroupId(), command.getOptionValues());
         for (AddProductOptionValueCommand valueCommand : command.getOptionValues()) {
             if (valueCommand == null) {
                 throw new IllegalArgumentException("Product option value command must not be null.");
@@ -463,22 +469,6 @@ public class ProductApplicationService {
         }
 
         return productDataMapper.toProductOptionValue(command, new ProductOptionValueId(idGenerator.generateId()));
-    }
-
-    private void validateGlobalOptionValueMembership(OptionGroupId optionGroupId, List<AddProductOptionValueCommand> optionValueCommands) {
-        if (optionGroupId == null || optionValueCommands == null) {
-            return;
-        }
-        Set<OptionValueId> optionValueIds = optionValueCommands.stream()
-                .filter(Objects::nonNull)
-                .map(AddProductOptionValueCommand::getOptionValueId)
-                .filter(Objects::nonNull)
-                .map(OptionValueId::new)
-                .collect(Collectors.toSet());
-        if (optionValueIds.isEmpty()) {
-            return;
-        }
-        productDomainService.validateOptionValuesBelongToGroup(optionGroupId, optionValueIds);
     }
 
     private void validateCreateRequest(CreateProductCommand command) {

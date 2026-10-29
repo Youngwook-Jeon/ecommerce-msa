@@ -115,4 +115,12 @@ class OptionGroupQueryResponseMapperTest {
             assertThat(response.optionGroups().get(1).name()).isEqualTo("B");
         }
     }
+
+    @Test
+    void exposes_the_group_version_for_subsequent_edits() {
+        var view = ReadOptionGroupView.builder().id(UUID.randomUUID()).name("RAM").displayName("Memory")
+                .status(OptionStatus.ACTIVE).version(7L).optionValues(List.of()).build();
+        assertThat(mapper.toReadOptionGroupQueryResponse(view).version()).isEqualTo(7L);
+    }
+
 }

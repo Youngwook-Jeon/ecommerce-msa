@@ -1,10 +1,14 @@
 package com.project.young.productservice.application.service;
 
+import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.productservice.application.dto.command.AddOptionValueCommand;
 import com.project.young.productservice.application.port.output.AttributeCatalogPort;
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.exception.AttributeDomainException;
 import com.project.young.productservice.domain.exception.AttributeNotFoundException;
+import com.project.young.productservice.domain.exception.OptionDomainException;
+import com.project.young.productservice.domain.exception.OptionGroupNotFoundException;
+import com.project.young.productservice.domain.repository.OptionGroupRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
@@ -16,9 +20,11 @@ import java.util.UUID;
 @Component
 public class OptionAttributeValidator {
     private final AttributeCatalogPort catalog;
+    private final OptionGroupRepository optionGroups;
 
-    public OptionAttributeValidator(AttributeCatalogPort catalog) {
+    public OptionAttributeValidator(AttributeCatalogPort catalog, OptionGroupRepository optionGroups) {
         this.catalog = catalog;
+        this.optionGroups = optionGroups;
     }
 
     public void validateDefinition(UUID attributeId) {
@@ -31,12 +37,34 @@ public class OptionAttributeValidator {
                 .requireActive();
     }
 
-    public void validateValues(OptionGroup group, List<AddOptionValueCommand> commands) {
-        if (group.getAttributeId() == null) {
+    public void validateActivation(OptionGroupId groupId) {
+        var binding = optionGroups.findAttributeBinding(groupId)
+                .orElseThrow(() -> new OptionGroupNotFoundException("Option group not found."));
+        if (binding.attributeId() == null) {
+            throw new AttributeDomainException("Legacy option groups must be explicitly mapped before activation");
+        }
+        // Bindings are immutable. Lock the definition before the optimistic group UPDATE
+        // so activation is serialized with definition deactivation and deletion.
+        validateDefinition(binding.attributeId().getValue());
+    }
+
+    public OptionGroup lockGroupAndValidateValues(OptionGroupId groupId, List<AddOptionValueCommand> commands) {
+        var binding = optionGroups.findAttributeBinding(groupId)
+                .orElseThrow(() -> new OptionGroupNotFoundException("Option group not found."));
+        if (binding.attributeId() == null) {
             throw new AttributeDomainException("Legacy option groups must be explicitly mapped before adding values");
         }
-        UUID attributeId = group.getAttributeId().getValue();
+        UUID attributeId = binding.attributeId().getValue();
+        // Lock order: definition -> group. The initial scalar lookup acquires no row lock.
         validateDefinition(attributeId);
+        var group = optionGroups.findByIdForUpdate(groupId)
+                .orElseThrow(() -> new OptionGroupNotFoundException("Option group not found."));
+        if (!binding.attributeId().equals(group.getAttributeId())) {
+            throw new AttributeDomainException("Option group attribute binding changed; reload before adding values");
+        }
+        if (group.isDeleted()) {
+            throw new OptionDomainException("Cannot modify an option group that has been deleted.");
+        }
         Set<UUID> valueIds = new HashSet<>();
         for (AddOptionValueCommand command : commands) {
             if (command == null || command.getAttributeValueId() == null) {
@@ -47,5 +75,6 @@ public class OptionAttributeValidator {
         if (!catalog.findValueIds(attributeId, valueIds).containsAll(valueIds)) {
             throw new AttributeNotFoundException("Attribute value not found for the option group's attribute");
         }
+        return group;
     }
 }

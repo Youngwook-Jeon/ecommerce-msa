@@ -16,6 +16,7 @@ import com.project.young.productservice.domain.repository.ProductRepository;
 import com.project.young.productservice.domain.service.ProductDomainService;
 import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -53,6 +54,9 @@ class ProductApplicationServiceSubAggregateTest {
     @Mock
     private ProductCatalogChangeService productCatalogChangeService;
 
+    @Mock
+    private ProductOptionPolicyValidator productOptionPolicyValidator;
+
     @InjectMocks
     private ProductApplicationService productApplicationService;
 
@@ -70,6 +74,23 @@ class ProductApplicationServiceSubAggregateTest {
                 List.of(),
                 List.of()
         );
+    }
+
+    @Test
+    void deletedProductOptionGroupCannotAcceptNewValues() {
+        UUID productId = UUID.randomUUID();
+        var product = createBaseProduct(productId);
+        var groupId = new ProductOptionGroupId(UUID.randomUUID());
+        product.addOptionGroup(ProductOptionGroup.reconstitute(groupId, new OptionGroupId(UUID.randomUUID()),
+                1.0d, true, OptionStatus.DELETED, List.of()));
+        var command = AddProductOptionValuesCommand.builder().optionValues(List.of(
+                AddProductOptionValueCommand.builder().optionValueId(UUID.randomUUID()).build())).build();
+        when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
+
+        assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, groupId.getValue(), command, 1L))
+                .isInstanceOf(ProductDomainException.class).hasMessageContaining("deleted product option group");
+        verifyNoInteractions(productOptionPolicyValidator);
+        verify(productRepository, never()).update(any());
     }
 
     @Nested
@@ -148,10 +169,8 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(product.getOptionGroups()).hasSize(1);
 
             verify(productRepository).update(product);
-            verify(productDomainService).validateOptionValuesBelongToGroup(
-                    new OptionGroupId(optionGroupId),
-                    Set.of(new OptionValueId(optionValueId))
-            );
+            verify(productOptionPolicyValidator).validate(
+                    product, new OptionGroupId(optionGroupId), command.getOptionValues());
         }
 
         @Test
@@ -245,11 +264,9 @@ class ProductApplicationServiceSubAggregateTest {
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
             when(idGenerator.generateId()).thenReturn(productOptionGroupId);
             doThrow(new ProductDomainException("Global option group is not allowed"))
-                    .when(productDomainService)
-                    .validateOptionValuesBelongToGroup(
-                            new OptionGroupId(optionGroupId),
-                            Set.of(new OptionValueId(optionValueId))
-                    );
+                    .when(productOptionPolicyValidator)
+                    .validate(
+                            product, new OptionGroupId(optionGroupId), command.getOptionValues());
 
             assertThatThrownBy(() -> productApplicationService.addProductOptionGroup(productId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
@@ -339,10 +356,8 @@ class ProductApplicationServiceSubAggregateTest {
             assertThat(product.getOptionGroups().getFirst().getOptionValues()).hasSize(1);
 
             verify(productRepository).update(product);
-            verify(productDomainService).validateOptionValuesBelongToGroup(
-                    new OptionGroupId(globalOptionGroupId),
-                    Set.of(new OptionValueId(globalOptionValueId))
-            );
+            verify(productOptionPolicyValidator).validate(
+                    product, new OptionGroupId(globalOptionGroupId), command.getOptionValues());
         }
 
         @Test
@@ -375,11 +390,9 @@ class ProductApplicationServiceSubAggregateTest {
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
             doThrow(new ProductDomainException("does not belong"))
-                    .when(productDomainService)
-                    .validateOptionValuesBelongToGroup(
-                            new OptionGroupId(globalOptionGroupId),
-                            Set.of(new OptionValueId(wrongGlobalOptionValueId))
-                    );
+                    .when(productOptionPolicyValidator)
+                    .validate(
+                            product, new OptionGroupId(globalOptionGroupId), command.getOptionValues());
 
             assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, productOptionGroupId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)
@@ -435,10 +448,8 @@ class ProductApplicationServiceSubAggregateTest {
                     .doesNotThrowAnyException();
 
             verify(productRepository).update(product);
-            verify(productDomainService).validateOptionValuesBelongToGroup(
-                    new OptionGroupId(globalOptionGroupId),
-                    Set.of(new OptionValueId(commandValue.getOptionValueId()))
-            );
+            verify(productOptionPolicyValidator).validate(
+                    product, new OptionGroupId(globalOptionGroupId), command.getOptionValues());
         }
 
         @Test
@@ -471,11 +482,9 @@ class ProductApplicationServiceSubAggregateTest {
 
             when(productRepository.findById(new ProductId(productId))).thenReturn(Optional.of(product));
             doThrow(new ProductDomainException("Global option value is not allowed"))
-                    .when(productDomainService)
-                    .validateOptionValuesBelongToGroup(
-                            new OptionGroupId(globalOptionGroupId),
-                            Set.of(new OptionValueId(deletedGlobalOptionValueId))
-                    );
+                    .when(productOptionPolicyValidator)
+                    .validate(
+                            product, new OptionGroupId(globalOptionGroupId), command.getOptionValues());
 
             assertThatThrownBy(() -> productApplicationService.addProductOptionValues(productId, productOptionGroupId, command, 1L))
                     .isInstanceOf(ProductDomainException.class)

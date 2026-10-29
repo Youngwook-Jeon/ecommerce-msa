@@ -15,12 +15,12 @@ import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepo
 import com.project.young.productservice.dataaccess.repository.OptionValueJpaRepository;
 import com.project.young.productservice.domain.entity.AttributeDefinition;
 import com.project.young.productservice.domain.entity.AttributeValue;
-import com.project.young.productservice.domain.exception.AttributeNotFoundException;
 import com.project.young.productservice.domain.exception.AttributeInUseException;
+import com.project.young.productservice.domain.exception.AttributeNotFoundException;
 import com.project.young.productservice.domain.valueobject.CategoryAttributePolicy;
 import jakarta.persistence.EntityManager;
-import org.springframework.stereotype.Repository;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
@@ -164,6 +164,11 @@ public class AttributeCatalogAdapter implements AttributeCatalogPort {
     @Override
     public List<CategoryAttributePolicy> findPoliciesByCategoryId(Long categoryId) {
         return policies.findByCategoryId(categoryId).stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
+    public Optional<CategoryAttributePolicy> findPolicy(Long categoryId, UUID attributeId) {
+        return policies.findByCategoryIdAndAttributeId(categoryId, attributeId).map(mapper::toDomain);
     }
 
     @Override

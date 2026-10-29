@@ -60,6 +60,9 @@ class ProductApplicationServiceTest {
     @Mock
     private ProductCatalogChangeService productCatalogChangeService;
 
+    @Mock
+    private ProductOptionPolicyValidator productOptionPolicyValidator;
+
     @InjectMocks
     private ProductApplicationService productApplicationService;
 

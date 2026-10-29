@@ -44,7 +44,7 @@ class OptionGroupAggregateMapperTest {
                 .build();
         entity.addOptionValue(valueEntity);
 
-        OptionGroup domain = mapper.toOptionGroup(entity);
+        OptionGroup domain = mapper.toOptionGroup(entity, entity.getOptionValues());
 
         assertThat(domain.getId()).isEqualTo(new OptionGroupId(groupId));
         assertThat(domain.getName()).isEqualTo("COLOR");
@@ -61,7 +61,7 @@ class OptionGroupAggregateMapperTest {
     @Test
     @DisplayName("toOptionGroup: 엔티티가 null이면 NullPointerException")
     void toOptionGroup_NullEntity_ThrowsNpe() {
-        assertThatThrownBy(() -> mapper.toOptionGroup(null))
+        assertThatThrownBy(() -> mapper.toOptionGroup(null, List.of()))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("entity must not be null");
     }
@@ -77,7 +77,7 @@ class OptionGroupAggregateMapperTest {
                 .optionValues(new ArrayList<>())
                 .build();
 
-        assertThatThrownBy(() -> mapper.toOptionGroup(entity))
+        assertThatThrownBy(() -> mapper.toOptionGroup(entity, entity.getOptionValues()))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("entity ID must not be null");
     }

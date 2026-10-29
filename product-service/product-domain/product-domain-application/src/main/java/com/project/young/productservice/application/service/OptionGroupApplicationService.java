@@ -2,14 +2,16 @@ package com.project.young.productservice.application.service;
 
 import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
-import com.project.young.productservice.application.dto.command.AddOptionValuesCommand;
 import com.project.young.productservice.application.dto.command.AddOptionValueCommand;
+import com.project.young.productservice.application.dto.command.AddOptionValuesCommand;
 import com.project.young.productservice.application.dto.command.CreateOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.UpdateOptionGroupCommand;
 import com.project.young.productservice.application.dto.command.UpdateOptionValueCommand;
 import com.project.young.productservice.application.dto.result.*;
+import com.project.young.productservice.application.exception.OptionGroupVersionConflictException;
 import com.project.young.productservice.application.mapper.OptionGroupDataMapper;
 import com.project.young.productservice.application.port.output.IdGenerator;
+import com.project.young.productservice.application.port.output.OptionGroupDetailsPort;
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.OptionValue;
 import com.project.young.productservice.domain.exception.DuplicateOptionGroupNameException;
@@ -36,17 +38,20 @@ public class OptionGroupApplicationService {
     private final OptionGroupDataMapper optionGroupDataMapper;
     private final IdGenerator idGenerator;
     private final OptionAttributeValidator optionAttributeValidator;
+    private final OptionGroupDetailsPort optionGroupDetailsPort;
 
     public OptionGroupApplicationService(OptionGroupRepository optionGroupRepository,
                                          OptionGroupDomainService optionGroupDomainService,
                                          OptionGroupDataMapper optionGroupDataMapper,
                                          IdGenerator idGenerator,
-                                         OptionAttributeValidator optionAttributeValidator) {
+                                         OptionAttributeValidator optionAttributeValidator,
+                                         OptionGroupDetailsPort optionGroupDetailsPort) {
         this.optionGroupRepository = optionGroupRepository;
         this.optionGroupDomainService = optionGroupDomainService;
         this.optionGroupDataMapper = optionGroupDataMapper;
         this.idGenerator = idGenerator;
         this.optionAttributeValidator = optionAttributeValidator;
+        this.optionGroupDetailsPort = optionGroupDetailsPort;
     }
 
     @Transactional
@@ -76,12 +81,8 @@ public class OptionGroupApplicationService {
         OptionGroupId groupId = new OptionGroupId(optionGroupIdValue);
 
         log.info("Attempting to add option values to group: {}", groupId.getValue());
-        OptionGroup optionGroup = optionGroupRepository.findById(groupId)
-                .orElseThrow(() -> new OptionGroupNotFoundException("Option group not found."));
-
+        OptionGroup optionGroup = optionAttributeValidator.lockGroupAndValidateValues(groupId, command.getOptionValues());
         validateOptionGroupCanBeModified(optionGroup);
-
-        optionAttributeValidator.validateValues(optionGroup, command.getOptionValues());
 
         List<AddOptionValueResult> results = new ArrayList<>();
 
@@ -103,28 +104,42 @@ public class OptionGroupApplicationService {
     }
 
     @Transactional
-    public UpdateOptionGroupResult updateOptionGroup(UUID optionGroupIdValue, UpdateOptionGroupCommand command) {
+    public UpdateOptionGroupResult updateOptionGroup(UUID optionGroupIdValue, UpdateOptionGroupCommand command, long expectedVersion) {
         validateUpdateRequest(optionGroupIdValue, command);
+        if (expectedVersion < 0) {
+            throw new IllegalArgumentException("Expected option group version must not be negative");
+        }
         OptionGroupId groupId = new OptionGroupId(optionGroupIdValue);
 
         log.info("Attempting to update option group with id: {}", groupId.getValue());
 
-        OptionGroup optionGroup = optionGroupRepository.findById(groupId)
+        var original = optionGroupDetailsPort.find(groupId)
                 .orElseThrow(() -> new OptionGroupNotFoundException("Option group not found."));
-
-        validateOptionGroupCanBeModified(optionGroup);
-
-        boolean isModified = false;
-        isModified |= applyNameChange(optionGroup, command.getName());
-        isModified |= applyDisplayNameChange(optionGroup, command.getDisplayName());
-        isModified |= applyStatusChange(optionGroup, command.getStatus());
-
-        if (isModified) {
-            optionGroupRepository.update(optionGroup);
-            log.info("Option group updated successfully. id: {}", optionGroup.getId().getValue());
+        if (original.version() != expectedVersion) {
+            throw new OptionGroupVersionConflictException(optionGroupIdValue, expectedVersion);
         }
-
-        return optionGroupDataMapper.toUpdateOptionGroupResult(optionGroup);
+        original.requireMutable();
+        if (original.status() == OptionStatus.INACTIVE && command.getStatus() == OptionStatus.ACTIVE) {
+            optionAttributeValidator.validateActivation(groupId);
+        }
+        var updated = original;
+        if (command.getName() != null && !Objects.equals(updated.name(), command.getName())) {
+            if (!optionGroupDomainService.isValidOptionGroupName(command.getName())) {
+                throw new DuplicateOptionGroupNameException("Option group name '" + command.getName() + "' already exists.");
+            }
+            updated = updated.rename(command.getName());
+        }
+        if (command.getDisplayName() != null && !Objects.equals(updated.displayName(), command.getDisplayName())) {
+            updated = updated.changeDisplayName(command.getDisplayName());
+        }
+        if (command.getStatus() != null && updated.status() != command.getStatus()) {
+            updated = updated.changeStatus(command.getStatus());
+        }
+        if (!updated.equals(original)) {
+            optionGroupDetailsPort.update(updated);
+            log.info("Option group updated successfully. id: {}", updated.id().getValue());
+        }
+        return optionGroupDataMapper.toUpdateOptionGroupResult(updated);
     }
 
     @Transactional
@@ -138,7 +153,7 @@ public class OptionGroupApplicationService {
 
         log.info("Attempting to update option value with id: {} in group: {}", valueId.getValue(), groupId.getValue());
 
-        OptionGroup optionGroup = optionGroupRepository.findById(groupId)
+        OptionGroup optionGroup = optionGroupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new OptionGroupNotFoundException("Option group not found."));
 
         validateOptionGroupCanBeModified(optionGroup);
@@ -160,7 +175,7 @@ public class OptionGroupApplicationService {
         OptionGroupId groupId = new OptionGroupId(optionGroupIdValue);
         log.info("Attempting to soft-delete option group with id: {}", groupId.getValue());
 
-        OptionGroup optionGroup = optionGroupRepository.findById(groupId)
+        OptionGroup optionGroup = optionGroupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new OptionGroupNotFoundException("Option group not found."));
 
         // 도메인 로직: 애그리거트 루트와 하위 옵션 값들을 연쇄적으로 소프트 삭제
@@ -182,7 +197,7 @@ public class OptionGroupApplicationService {
 
         log.info("Attempting to soft-delete option value with id: {} from group: {}", valueId.getValue(), groupId.getValue());
 
-        OptionGroup optionGroup = optionGroupRepository.findById(groupId)
+        OptionGroup optionGroup = optionGroupRepository.findByIdForUpdate(groupId)
                 .orElseThrow(() -> new OptionGroupNotFoundException("Option group not found."));
 
         validateOptionGroupCanBeModified(optionGroup);
@@ -225,30 +240,4 @@ public class OptionGroupApplicationService {
         }
     }
 
-    private boolean applyNameChange(OptionGroup optionGroup, String newName) {
-        if (newName != null && !Objects.equals(optionGroup.getName(), newName)) {
-            if (!optionGroupDomainService.isValidOptionGroupName(newName)) {
-                throw new DuplicateOptionGroupNameException("Option group name '" + newName + "' already exists.");
-            }
-            optionGroup.changeName(newName);
-            return true;
-        }
-        return false;
-    }
-
-    private boolean applyDisplayNameChange(OptionGroup optionGroup, String newDisplayName) {
-        if (newDisplayName != null && !Objects.equals(optionGroup.getDisplayName(), newDisplayName)) {
-            optionGroup.changeDisplayName(newDisplayName);
-            return true;
-        }
-        return false;
-    }
-
-    private boolean applyStatusChange(OptionGroup optionGroup, OptionStatus newStatus) {
-        if (newStatus != null && optionGroup.getStatus() != newStatus) {
-            optionGroup.changeStatus(newStatus);
-            return true;
-        }
-        return false;
-    }
 }

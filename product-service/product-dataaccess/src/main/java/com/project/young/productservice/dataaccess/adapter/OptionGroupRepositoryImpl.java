@@ -1,5 +1,6 @@
 package com.project.young.productservice.dataaccess.adapter;
 
+import com.project.young.common.domain.valueobject.AttributeDefinitionId;
 import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.productservice.dataaccess.entity.OptionGroupEntity;
 import com.project.young.productservice.dataaccess.entity.OptionValueEntity;
@@ -9,15 +10,21 @@ import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepo
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.OptionValue;
 import com.project.young.productservice.domain.repository.OptionGroupRepository;
+import com.project.young.productservice.domain.valueobject.OptionGroupAttributeBinding;
+import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
+import jakarta.persistence.Persistence;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
-import java.util.Optional;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import static com.project.young.productservice.dataaccess.entity.QOptionGroupEntity.optionGroupEntity;
 
 @Repository
 @Transactional(readOnly = true)
@@ -27,15 +34,17 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
     private final OptionGroupDataAccessMapper optionGroupDataAccessMapper;
     private final OptionGroupAggregateMapper optionGroupAggregateMapper;
     private final EntityManager entityManager;
+    private final JPAQueryFactory queryFactory;
 
     public OptionGroupRepositoryImpl(OptionGroupJpaRepository optionGroupJpaRepository,
                                      OptionGroupDataAccessMapper optionGroupDataAccessMapper,
                                      OptionGroupAggregateMapper optionGroupAggregateMapper,
-                                     EntityManager entityManager) {
+                                     EntityManager entityManager, JPAQueryFactory queryFactory) {
         this.optionGroupJpaRepository = optionGroupJpaRepository;
         this.optionGroupDataAccessMapper = optionGroupDataAccessMapper;
         this.optionGroupAggregateMapper = optionGroupAggregateMapper;
         this.entityManager = entityManager;
+        this.queryFactory = queryFactory;
     }
 
     @Override
@@ -63,6 +72,10 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
         UUID id = optionGroup.getId().getValue();
         OptionGroupEntity current = optionGroupJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("OptionGroup not found: " + id));
+        if (entityManager.getLockMode(current) != LockModeType.PESSIMISTIC_WRITE) {
+            entityManager.lock(current, LockModeType.PESSIMISTIC_WRITE);
+        }
+        current = loadValuesIfNeeded(current);
         mergeDomainIntoEntity(optionGroup, current);
         // Let dirty checking flush changes on commit.
     }
@@ -74,7 +87,33 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
         }
 
         return optionGroupJpaRepository.findAggregateById(optionGroupId.getValue())
-                .map(optionGroupAggregateMapper::toOptionGroup);
+                .map(entity -> optionGroupAggregateMapper.toOptionGroup(entity, entity.getOptionValues()));
+    }
+
+    @Override
+    public Optional<OptionGroupAttributeBinding> findAttributeBinding(OptionGroupId optionGroupId) {
+        if (optionGroupId == null) {
+            throw new IllegalArgumentException("optionGroupId must not be null.");
+        }
+        var row = queryFactory.select(optionGroupEntity.id, optionGroupEntity.attributeId)
+                .from(optionGroupEntity).where(optionGroupEntity.id.eq(optionGroupId.getValue())).fetchOne();
+        if (row == null) {
+            return Optional.empty();
+        }
+        UUID attributeId = row.get(optionGroupEntity.attributeId);
+        return Optional.of(new OptionGroupAttributeBinding(new OptionGroupId(row.get(optionGroupEntity.id)),
+                attributeId == null ? null : new AttributeDefinitionId(attributeId)));
+    }
+
+    @Override
+    @Transactional
+    public Optional<OptionGroup> findByIdForUpdate(OptionGroupId optionGroupId) {
+        if (optionGroupId == null) {
+            throw new IllegalArgumentException("optionGroupId must not be null.");
+        }
+        return optionGroupJpaRepository.findLockedById(optionGroupId.getValue())
+                .map(this::loadValuesIfNeeded)
+                .map(entity -> optionGroupAggregateMapper.toOptionGroup(entity, entity.getOptionValues()));
     }
 
     @Override
@@ -83,6 +122,14 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
             throw new IllegalArgumentException("name must not be null or blank.");
         }
         return optionGroupJpaRepository.existsByName(name);
+    }
+
+    private OptionGroupEntity loadValuesIfNeeded(OptionGroupEntity entity) {
+        if (Persistence.getPersistenceUtil().isLoaded(entity, "optionValues")) {
+            return entity;
+        }
+        return optionGroupJpaRepository.findAggregateById(entity.getId())
+                .orElseThrow(() -> new IllegalStateException("Locked option group disappeared before loading values."));
     }
 
     private void mergeDomainIntoEntity(OptionGroup domain, OptionGroupEntity entity) {

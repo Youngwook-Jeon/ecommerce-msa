@@ -10,6 +10,7 @@ import java.util.UUID;
 public record ReadOptionGroupView(
         UUID id,
         UUID attributeId,
+        long version,
         String name,
         String displayName,
         OptionStatus status,

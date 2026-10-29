@@ -1,14 +1,15 @@
 package com.project.young.productservice.application.mapper;
 
-import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.AttributeDefinitionId;
 import com.project.young.common.domain.valueobject.AttributeValueId;
+import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
 import com.project.young.productservice.application.dto.command.AddOptionValueCommand;
 import com.project.young.productservice.application.dto.command.CreateOptionGroupCommand;
 import com.project.young.productservice.application.dto.result.*;
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.OptionValue;
+import com.project.young.productservice.domain.valueobject.OptionGroupDetails;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -37,14 +38,14 @@ public class OptionGroupDataMapper {
                 .build();
     }
 
-    public UpdateOptionGroupResult toUpdateOptionGroupResult(OptionGroup optionGroup) {
+    public UpdateOptionGroupResult toUpdateOptionGroupResult(OptionGroupDetails optionGroup) {
         Objects.requireNonNull(optionGroup, "OptionGroup cannot be null");
 
         return UpdateOptionGroupResult.builder()
-                .id(optionGroup.getId().getValue())
-                .name(optionGroup.getName())
-                .displayName(optionGroup.getDisplayName())
-                .status(optionGroup.getStatus())
+                .id(optionGroup.id().getValue())
+                .name(optionGroup.name())
+                .displayName(optionGroup.displayName())
+                .status(optionGroup.status())
                 .build();
     }
 

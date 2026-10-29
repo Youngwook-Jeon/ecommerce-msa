@@ -9,6 +9,7 @@ import java.util.UUID;
 public record ReadOptionGroupQueryResponse(
         UUID id,
         UUID attributeId,
+        long version,
         String name,
         String displayName,
         String status,

@@ -100,6 +100,7 @@ public class OptionGroupReadRepositoryImpl implements OptionGroupReadRepository 
         return ReadOptionGroupView.builder()
                 .id(entity.getId())
                 .attributeId(entity.getAttributeId())
+                .version(entity.getVersion())
                 .name(entity.getName())
                 .displayName(entity.getDisplayName())
                 .status(optionGroupDataAccessMapper.toDomainStatus(entity.getStatus()))

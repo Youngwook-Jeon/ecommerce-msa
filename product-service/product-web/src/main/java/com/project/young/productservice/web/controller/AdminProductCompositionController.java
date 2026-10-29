@@ -5,25 +5,25 @@ import com.project.young.productservice.application.dto.command.AddProductOption
 import com.project.young.productservice.application.dto.command.AddProductVariantsCommand;
 import com.project.young.productservice.application.dto.command.ChangeProductOptionGroupStepOrderCommand;
 import com.project.young.productservice.application.dto.command.ReorderProductOptionGroupsCommand;
-import com.project.young.productservice.application.dto.command.UpdateProductVariantCommand;
 import com.project.young.productservice.application.dto.command.UpdateProductOptionGroupVisualCommand;
+import com.project.young.productservice.application.dto.command.UpdateProductVariantCommand;
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.application.service.ProductOptionGroupVisualApplicationService;
 import com.project.young.productservice.web.dto.*;
 import com.project.young.productservice.web.mapper.ProductResponseMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
-import org.springframework.web.bind.annotation.RequestParam;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -52,7 +52,9 @@ public class AdminProductCompositionController {
     }
 
     /**
-     * 상품에 글로벌 옵션 그룹을 연결한다. 요청 본문에 해당 그룹에 속할 옵션 값이 최소 1개 이상 포함되어야 한다.
+     * Adds a group to a DRAFT product only. The product category must explicitly enable this attribute for options.
+     * Dictionary groups/values and their attribute definition must be active and canonically linked.
+     * Invalid assignments return 400; rejected writes do not change the catalog version or emit catalog events.
      */
     @PostMapping("/{productId}/option-groups")
     public ResponseEntity<AddProductOptionGroupResponse> addOptionGroup(
@@ -67,7 +69,9 @@ public class AdminProductCompositionController {
     }
 
     /**
-     * 이미 상품에 붙은 옵션 그룹({@code productOptionGroupId})에 옵션 값(글로벌 optionValue + 가격 델타)을 추가한다.
+     * Adds values to a non-deleted group owned by this product, including on ACTIVE products.
+     * Revalidates current category policy, dictionary status and canonical attribute ownership on every addition.
+     * Historical assignments are retained when policies change; they do not authorize new assignments.
      */
     @PostMapping("/{productId}/option-groups/{productOptionGroupId}/option-values")
     public ResponseEntity<AddProductOptionValuesToGroupResponse> addOptionValues(

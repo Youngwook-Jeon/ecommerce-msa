@@ -33,6 +33,10 @@ public class OptionGroupEntity {
     @Column(name = "id", columnDefinition = "UUID")
     private UUID id;
 
+    @Version
+    @Column(nullable = false)
+    private long version;
+
     @Column(name = "attribute_id", updatable = false, unique = true)
     private UUID attributeId;
 

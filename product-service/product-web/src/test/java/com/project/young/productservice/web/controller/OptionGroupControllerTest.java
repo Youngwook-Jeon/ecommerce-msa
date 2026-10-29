@@ -3,18 +3,19 @@ package com.project.young.productservice.web.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.project.young.productservice.application.dto.command.*;
 import com.project.young.productservice.application.dto.result.*;
+import com.project.young.productservice.application.exception.OptionGroupVersionConflictException;
 import com.project.young.productservice.application.service.OptionGroupApplicationService;
-import com.project.young.productservice.domain.valueobject.OptionStatus;
-import com.project.young.productservice.domain.exception.AttributeInactiveException;
 import com.project.young.productservice.domain.exception.AttributeDomainException;
 import com.project.young.productservice.domain.exception.AttributeInUseException;
+import com.project.young.productservice.domain.exception.AttributeInactiveException;
 import com.project.young.productservice.domain.exception.AttributeNotFoundException;
 import com.project.young.productservice.domain.exception.OptionDomainException;
+import com.project.young.productservice.domain.valueobject.OptionStatus;
+import com.project.young.productservice.web.config.SecurityConfig;
+import com.project.young.productservice.web.dto.*;
 import com.project.young.productservice.web.exception.handler.AttributeCatalogExceptionHandler;
 import com.project.young.productservice.web.exception.handler.AttributeDomainExceptionHandler;
 import com.project.young.productservice.web.exception.handler.ProductServiceGlobalExceptionHandler;
-import com.project.young.productservice.web.config.SecurityConfig;
-import com.project.young.productservice.web.dto.*;
 import com.project.young.productservice.web.mapper.OptionGroupResponseMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -26,6 +27,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -116,6 +118,42 @@ class OptionGroupControllerTest {
         );
     }
 
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void group_information_edit_requires_nonnegative_expected_version() throws Exception {
+        String body = """
+                {"name":"RAM", "displayName":"Memory", "status":"ACTIVE"}
+                """;
+        mockMvc.perform(put("/option-groups/{id}", UUID.randomUUID()).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/option-groups/{id}", UUID.randomUUID()).param("expectedVersion", "-1").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(optionGroupApplicationService);
+    }
+
+    @ParameterizedTest
+    @MethodSource("versionConflicts")
+    @WithMockUser(authorities = "ADMIN")
+    void stale_and_concurrent_group_edits_return_a_sanitized_conflict(RuntimeException exception) throws Exception {
+        when(optionGroupApplicationService.updateOptionGroup(any(), any(), eq(0L))).thenThrow(exception);
+        mockMvc.perform(put("/option-groups/{id}", UUID.randomUUID()).param("expectedVersion", "0").with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                                {"name":"RAM", "displayName":"Memory", "status":"ACTIVE"}
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("OPTION_GROUP_VERSION_CONFLICT"))
+                .andExpect(jsonPath("$.message").value("The option group has changed. Reload the latest option group before editing."));
+    }
+
+    static Stream<Arguments> versionConflicts() {
+        return Stream.of(
+                Arguments.of(new OptionGroupVersionConflictException(UUID.randomUUID(), 0L)),
+                Arguments.of(new OptimisticLockingFailureException("Internal persistence details"))
+        );
+    }
+
     @Nested
     @DisplayName("POST /option-groups")
     @WithMockUser(authorities = "ADMIN")
@@ -188,10 +226,10 @@ class OptionGroupControllerTest {
                     .message("Option Group updated successfully")
                     .build();
 
-            when(optionGroupApplicationService.updateOptionGroup(eq(groupId), any())).thenReturn(result);
+            when(optionGroupApplicationService.updateOptionGroup(eq(groupId), any(), eq(0L))).thenReturn(result);
             when(optionGroupResponseMapper.toUpdateOptionGroupResponse(any())).thenReturn(response);
 
-            mockMvc.perform(put("/option-groups/{groupId}", groupId)
+            mockMvc.perform(put("/option-groups/{groupId}", groupId).param("expectedVersion", "0")
                             .with(csrf())
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(objectMapper.writeValueAsString(command)))
@@ -199,7 +237,7 @@ class OptionGroupControllerTest {
                     .andExpect(jsonPath("$.id").value(groupId.toString()))
                     .andExpect(jsonPath("$.name").value("COLOR_UPDATED"));
 
-            verify(optionGroupApplicationService).updateOptionGroup(eq(groupId), any());
+            verify(optionGroupApplicationService).updateOptionGroup(eq(groupId), any(), eq(0L));
             verify(optionGroupResponseMapper).toUpdateOptionGroupResponse(any());
         }
     }

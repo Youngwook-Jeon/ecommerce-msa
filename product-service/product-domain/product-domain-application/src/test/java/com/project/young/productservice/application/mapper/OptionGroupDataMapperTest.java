@@ -7,6 +7,7 @@ import com.project.young.productservice.application.dto.command.CreateOptionGrou
 import com.project.young.productservice.application.dto.result.*;
 import com.project.young.productservice.domain.entity.OptionGroup;
 import com.project.young.productservice.domain.entity.OptionValue;
+import com.project.young.productservice.domain.valueobject.OptionGroupDetails;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -108,12 +109,11 @@ class OptionGroupDataMapperTest {
     @DisplayName("toUpdateOptionGroupResult: 정상 매핑")
     void toUpdateOptionGroupResult_Success() {
         UUID id = UUID.randomUUID();
-        OptionGroup optionGroup = OptionGroup.reconstitute(
+        OptionGroupDetails optionGroup = new OptionGroupDetails(
                 new OptionGroupId(id),
                 "STORAGE",
                 "저장용량",
-                OptionStatus.INACTIVE,
-                List.of()
+                OptionStatus.INACTIVE, 0L
         );
 
         UpdateOptionGroupResult result = optionGroupDataMapper.toUpdateOptionGroupResult(optionGroup);
