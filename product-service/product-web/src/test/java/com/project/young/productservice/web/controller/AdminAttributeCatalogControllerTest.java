@@ -1,9 +1,11 @@
 package com.project.young.productservice.web.controller;
 
 import com.project.young.common.domain.valueobject.AttributeDefinitionId;
+import com.project.young.common.domain.valueobject.AttributeValueId;
 import com.project.young.productservice.application.dto.result.CategoryAttributeResult;
 import com.project.young.productservice.application.service.AttributeCatalogService;
 import com.project.young.productservice.domain.entity.AttributeDefinition;
+import com.project.young.productservice.domain.entity.AttributeValue;
 import com.project.young.productservice.domain.exception.AttributeNotFoundException;
 import com.project.young.productservice.domain.exception.AttributeDomainException;
 import com.project.young.productservice.domain.exception.AttributeInactiveException;
@@ -24,10 +26,12 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
@@ -51,7 +55,26 @@ class AdminAttributeCatalogControllerTest {
 
     @Test
     @WithMockUser(authorities = "ADMIN")
-    void createsDefinitionAndMapsItsPublicResponse() throws Exception {
+    void numeric_value_strings_preserve_precision_from_admin_forms() throws Exception {
+        var numeric = new BigDecimal("9999999999999.123456");
+        when(service.createValue(eq(id), any())).thenReturn(new AttributeValue(
+                new AttributeValueId(UUID.randomUUID()), new AttributeDefinitionId(id), AttributeDataType.NUMBER,
+                "Precise value", null, numeric, null, null));
+
+        mvc.perform(post("/admin/attributes/{id}/values", id).contentType(MediaType.APPLICATION_JSON).content("""
+                {"displayName":"Precise value","numericValue":"9999999999999.123456",
+                 "textValue":null,"booleanValue":null,"dateValue":null}
+                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.displayName").value("Precise value"));
+
+        verify(service).createValue(eq(id), argThat(command -> command.numericValue().compareTo(numeric) == 0
+                && command.textValue() == null && command.booleanValue() == null && command.dateValue() == null));
+    }
+
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void creates_definition_and_maps_its_public_response() throws Exception {
         when(service.createDefinition(any())).thenReturn(
                 new AttributeDefinition(new AttributeDefinitionId(id), "ram_capacity", "Memory", AttributeDataType.NUMBER, "GB"));
         mvc.perform(post("/admin/attributes").contentType(MediaType.APPLICATION_JSON).content("""
@@ -65,7 +88,7 @@ class AdminAttributeCatalogControllerTest {
 
     @Test
     @WithMockUser(authorities = "ADMIN")
-    void deactivatesDefinitionAndReturnsItsRetainedIdentity() throws Exception {
+    void deactivates_definition_and_returns_its_retained_identity() throws Exception {
         when(service.deactivateDefinition(id)).thenReturn(
                 new AttributeDefinition(new AttributeDefinitionId(id), "ram_capacity", "Memory", AttributeDataType.NUMBER, "GB").deactivate());
         mvc.perform(post("/admin/attributes/{id}/deactivate", id))
@@ -77,7 +100,7 @@ class AdminAttributeCatalogControllerTest {
 
     @Test
     @WithMockUser(authorities = "ADMIN")
-    void inactiveAttributesRemainVisibleButCannotSupplyFiltersOrOptions() throws Exception {
+    void inactive_attributes_remain_visible_but_cannot_supply_filters_or_options() throws Exception {
         var definition = new AttributeDefinition(new AttributeDefinitionId(id), "ram_capacity", "Memory", AttributeDataType.NUMBER, "GB").deactivate();
         when(service.categoryPolicies(4L)).thenReturn(List.of(new CategoryAttributeResult(definition,
                 new CategoryAttributePolicy(4L, id, true, true, true, true, 10))));
@@ -92,7 +115,7 @@ class AdminAttributeCatalogControllerTest {
 
     @Test
     @WithMockUser(authorities = "ADMIN")
-    void returnsSpecificLifecycleConflicts() throws Exception {
+    void returns_specific_lifecycle_conflicts() throws Exception {
         doThrow(new AttributeInUseException()).when(service).deleteDefinition(id);
         mvc.perform(delete("/admin/attributes/{id}", id))
                 .andExpect(status().isConflict())
@@ -113,7 +136,7 @@ class AdminAttributeCatalogControllerTest {
 
     @Test
     @WithMockUser(authorities = "ADMIN")
-    void exposesExplicitPoliciesWithoutInheritanceMetadata() throws Exception {
+    void exposes_explicit_policies_without_inheritance_metadata() throws Exception {
         var definition = new AttributeDefinition(new AttributeDefinitionId(id), "ram_capacity", "Memory", AttributeDataType.NUMBER, "GB");
         when(service.categoryPolicies(4L)).thenReturn(List.of(new CategoryAttributeResult(definition,
                 new CategoryAttributePolicy(4L, id, false, false, false, false, 10))));
@@ -128,7 +151,7 @@ class AdminAttributeCatalogControllerTest {
 
     @Test
     @WithMockUser(authorities = "ADMIN")
-    void validatesAllPolicyFieldsRatherThanDefaultingMissingBooleans() throws Exception {
+    void validates_all_policy_fields_rather_than_defaulting_missing_booleans() throws Exception {
         mvc.perform(put("/admin/categories/4/attributes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"enabled\":true}"))
                 .andExpect(status().isBadRequest())
@@ -143,7 +166,7 @@ class AdminAttributeCatalogControllerTest {
 
     @Test
     @WithMockUser(authorities = "ADMIN")
-    void savesAndRemovesExplicitCategoryPolicies() throws Exception {
+    void saves_and_removes_explicit_category_policies() throws Exception {
         mvc.perform(put("/admin/categories/4/attributes/{id}", id)
                         .contentType(MediaType.APPLICATION_JSON).content("""
                         {"enabled":true,"required":true,"optionAllowed":true,"filterable":true,"displayOrder":10}
@@ -156,7 +179,7 @@ class AdminAttributeCatalogControllerTest {
 
     @Test
     @WithMockUser(authorities = "ADMIN")
-    void returnsStableNotFoundAndSanitizedConflictErrors() throws Exception {
+    void returns_stable_not_found_and_sanitized_conflict_errors() throws Exception {
         when(service.definition(id)).thenThrow(new AttributeNotFoundException("Attribute definition not found"));
         mvc.perform(get("/admin/attributes/{id}", id)).andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ATTRIBUTE_CATALOG_NOT_FOUND"))
@@ -170,7 +193,7 @@ class AdminAttributeCatalogControllerTest {
 
     @Test
     @WithMockUser(authorities = "ADMIN")
-    void returnsDomainValidationErrorsAndRejectsMalformedJson() throws Exception {
+    void returns_domain_validation_errors_and_rejects_malformed_json() throws Exception {
         when(service.createDefinition(any())).thenThrow(new AttributeDomainException(
                 "Only numeric attributes may have a nonblank unit of at most 20 characters"));
         mvc.perform(post("/admin/attributes").contentType(MediaType.APPLICATION_JSON).content("""
@@ -188,7 +211,7 @@ class AdminAttributeCatalogControllerTest {
 
     @Test
     @WithMockUser(authorities = "ADMIN")
-    void consistencyFailuresReturnSanitizedInternalErrors() throws Exception {
+    void consistency_failures_return_sanitized_internal_errors() throws Exception {
         when(service.categoryPolicies(4L)).thenThrow(new IllegalStateException(
                 "Attribute definition missing for category policy: attributeId=" + id));
         mvc.perform(get("/admin/categories/4/attributes"))
@@ -199,7 +222,7 @@ class AdminAttributeCatalogControllerTest {
 
     @Test
     @WithMockUser(authorities = "CUSTOMER")
-    void deniesReadsAndWritesWithoutAdminAuthority() throws Exception {
+    void denies_reads_and_writes_without_admin_authority() throws Exception {
         mvc.perform(get("/admin/attributes")).andExpect(status().isForbidden());
         mvc.perform(post("/admin/attributes").contentType(MediaType.APPLICATION_JSON).content("""
                 {"code":"ram","displayName":"RAM","dataType":"NUMBER"}
@@ -210,7 +233,7 @@ class AdminAttributeCatalogControllerTest {
     }
 
     @Test
-    void deniesAnonymousRequests() throws Exception {
+    void denies_anonymous_requests() throws Exception {
         mvc.perform(get("/admin/attributes")).andExpect(status().isUnauthorized());
         verifyNoInteractions(service);
     }

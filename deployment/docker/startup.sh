@@ -36,10 +36,10 @@ while [[ ! $kafkaCheckResult == " 3 brokers:" ]]; do
 done
 echo "Kafka clusters are running"
 
-echo "Creating Kafka topics"
+echo "Ensuring Kafka topics exist"
 
-# start kafka init
-docker compose -f common.yml -f init_kafka.yml up -d
+# Wait for the initializer to finish; existing topics and Connect state must be preserved.
+docker compose -f common.yml -f init_kafka.yml run --rm --no-deps init-kafka
 
 # check topics in kafka
 kafkaTopicCheckResult=$(kcat -L -b localhost:19092 | grep 'product' || true)

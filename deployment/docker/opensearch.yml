@@ -1,5 +1,6 @@
 services:
   eco-opensearch:
+    init: true
     build:
       context: ./opensearch
     image: ecomart-opensearch:3.9.0-nori

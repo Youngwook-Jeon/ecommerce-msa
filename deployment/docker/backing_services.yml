@@ -3,6 +3,7 @@ version: '3.7'
 services:
   # Backing services
   eco-postgres:
+    init: true
     image: "postgres:18.3"
     container_name: "eco-postgres"
     ports:
