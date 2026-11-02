@@ -9,6 +9,7 @@ import com.project.young.productservice.web.dto.AttributeCatalogResponses;
 import com.project.young.productservice.web.mapper.AttributeCatalogResponseMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.UUID;
 
+@Slf4j
 @RestController
 @RequestMapping("/admin")
 @PreAuthorize("hasAuthority('ADMIN')")
@@ -39,17 +41,20 @@ public class AdminAttributeCatalogController {
     /** Lists active and inactive definitions so administrators can inspect existing references. */
     @GetMapping("/attributes")
     public ResponseEntity<List<AttributeCatalogResponses.Definition>> definitions() {
+        log.debug("REST request to list attribute definitions");
         return ResponseEntity.ok(service.definitions().stream().map(mapper::definition).toList());
     }
 
     @GetMapping("/attributes/{attributeId}")
     public ResponseEntity<AttributeCatalogResponses.Definition> definition(@PathVariable UUID attributeId) {
+        log.debug("REST request to get attribute definition. attributeId={}", attributeId);
         return ResponseEntity.ok(mapper.definition(service.definition(attributeId)));
     }
 
     @PostMapping("/attributes")
     public ResponseEntity<AttributeCatalogResponses.Definition> create(
             @Valid @RequestBody AttributeCatalogRequests.Definition request) {
+        log.info("REST request to create attribute definition. code={}", request.code());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(mapper.definition(service.createDefinition(new CreateAttributeDefinitionCommand(request.code(),
                         request.displayName(), request.dataType(), request.canonicalUnit()))));
@@ -59,6 +64,7 @@ public class AdminAttributeCatalogController {
     @PutMapping("/attributes/{attributeId}")
     public ResponseEntity<AttributeCatalogResponses.Definition> rename(
             @PathVariable UUID attributeId, @Valid @RequestBody AttributeCatalogRequests.Rename request) {
+        log.info("REST request to rename attribute definition. attributeId={}", attributeId);
         return ResponseEntity.ok(mapper.definition(service.renameDefinition(attributeId, request.displayName())));
     }
 
@@ -71,6 +77,7 @@ public class AdminAttributeCatalogController {
      */
     @PostMapping("/attributes/{attributeId}/deactivate")
     public ResponseEntity<AttributeCatalogResponses.Definition> deactivate(@PathVariable UUID attributeId) {
+        log.info("REST request to deactivate attribute definition. attributeId={}", attributeId);
         return ResponseEntity.ok(mapper.definition(service.deactivateDefinition(attributeId)));
     }
 
@@ -81,6 +88,7 @@ public class AdminAttributeCatalogController {
      */
     @DeleteMapping("/attributes/{attributeId}")
     public ResponseEntity<Void> delete(@PathVariable UUID attributeId) {
+        log.info("REST request to delete attribute definition. attributeId={}", attributeId);
         service.deleteDefinition(attributeId);
         return ResponseEntity.noContent().build();
     }
@@ -88,6 +96,7 @@ public class AdminAttributeCatalogController {
     /** Includes existing values of inactive definitions for historical reads and administration. */
     @GetMapping("/attributes/{attributeId}/values")
     public ResponseEntity<List<AttributeCatalogResponses.Value>> values(@PathVariable UUID attributeId) {
+        log.debug("REST request to list attribute values. attributeId={}", attributeId);
         return ResponseEntity.ok(service.values(attributeId).stream().map(mapper::value).toList());
     }
 
@@ -95,6 +104,7 @@ public class AdminAttributeCatalogController {
     @PostMapping("/attributes/{attributeId}/values")
     public ResponseEntity<AttributeCatalogResponses.Value> createValue(
             @PathVariable UUID attributeId, @Valid @RequestBody AttributeCatalogRequests.Value request) {
+        log.info("REST request to create attribute value. attributeId={}", attributeId);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(mapper.value(service.createValue(attributeId, new CreateAttributeValueCommand(request.displayName(),
                         request.textValue(), request.numericValue(), request.booleanValue(), request.dateValue()))));
@@ -104,12 +114,14 @@ public class AdminAttributeCatalogController {
     public ResponseEntity<AttributeCatalogResponses.Value> renameValue(
             @PathVariable UUID attributeId, @PathVariable UUID valueId,
             @Valid @RequestBody AttributeCatalogRequests.Rename request) {
+        log.info("REST request to rename attribute value. attributeId={}, valueId={}", attributeId, valueId);
         return ResponseEntity.ok(mapper.value(service.renameValue(attributeId, valueId, request.displayName())));
     }
 
     /** Referenced option dictionary values cannot be deleted and return 409 ATTRIBUTE_IN_USE. */
     @DeleteMapping("/attributes/{attributeId}/values/{valueId}")
     public ResponseEntity<Void> deleteValue(@PathVariable UUID attributeId, @PathVariable UUID valueId) {
+        log.info("REST request to delete attribute value. attributeId={}, valueId={}", attributeId, valueId);
         service.deleteValue(attributeId, valueId);
         return ResponseEntity.noContent().build();
     }
@@ -123,6 +135,7 @@ public class AdminAttributeCatalogController {
     @GetMapping("/categories/{categoryId}/attributes")
     public ResponseEntity<List<AttributeCatalogResponses.CategoryAttribute>> categoryPolicies(
             @PathVariable @Positive Long categoryId) {
+        log.debug("REST request to list category attribute policies. categoryId={}", categoryId);
         return ResponseEntity.ok(service.categoryPolicies(categoryId).stream().map(mapper::policy).toList());
     }
 
@@ -134,6 +147,7 @@ public class AdminAttributeCatalogController {
     public ResponseEntity<Void> setPolicy(
             @PathVariable @Positive Long categoryId, @PathVariable UUID attributeId,
             @Valid @RequestBody AttributeCatalogRequests.Policy request) {
+        log.info("REST request to set category attribute policy. categoryId={}, attributeId={}", categoryId, attributeId);
         service.setPolicy(categoryId, attributeId, new SetCategoryAttributeCommand(request.enabled(),
                 request.required(), request.optionAllowed(), request.filterable(), request.displayOrder()));
         return ResponseEntity.noContent().build();
@@ -142,6 +156,7 @@ public class AdminAttributeCatalogController {
     /** Removes this category's policy without restoring or copying any parent policy. */
     @DeleteMapping("/categories/{categoryId}/attributes/{attributeId}")
     public ResponseEntity<Void> removePolicy(@PathVariable @Positive Long categoryId, @PathVariable UUID attributeId) {
+        log.info("REST request to remove category attribute policy. categoryId={}, attributeId={}", categoryId, attributeId);
         service.removePolicy(categoryId, attributeId);
         return ResponseEntity.noContent().build();
     }
