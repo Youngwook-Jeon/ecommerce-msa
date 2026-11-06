@@ -3,8 +3,6 @@ package com.project.young.productservice.dataaccess.adapter;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
-import com.project.young.productservice.dataaccess.entity.ProductAttributeEntity;
-import com.project.young.productservice.dataaccess.repository.ProductAttributeJpaRepository;
 import com.project.young.productservice.dataaccess.mapper.ProductAggregateMapper;
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
@@ -13,12 +11,12 @@ import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
 import com.project.young.productservice.domain.repository.ProductRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Persistence;
 import com.project.young.productservice.dataaccess.catalog.ProductCatalogRevisionStore;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
-import java.util.HashSet;
 import java.util.UUID;
 
 @Repository
@@ -31,21 +29,18 @@ public class ProductRepositoryImpl implements ProductRepository {
     private final ProductAggregateMapper productAggregateMapper;
     private final EntityManager entityManager;
     private final ProductCatalogRevisionStore revisions;
-    private final ProductAttributeJpaRepository attributes;
 
     public ProductRepositoryImpl(ProductJpaRepository productJpaRepository,
                                  CategoryJpaRepository categoryJpaRepository,
                                  ProductDataAccessMapper productDataAccessMapper,
                                  ProductAggregateMapper productAggregateMapper,
-                                 EntityManager entityManager, ProductCatalogRevisionStore revisions,
-                                 ProductAttributeJpaRepository attributes) {
+                                 EntityManager entityManager, ProductCatalogRevisionStore revisions) {
         this.productJpaRepository = productJpaRepository;
         this.categoryJpaRepository = categoryJpaRepository;
         this.productDataAccessMapper = productDataAccessMapper;
         this.productAggregateMapper = productAggregateMapper;
         this.entityManager = entityManager;
         this.revisions = revisions;
-        this.attributes = attributes;
     }
 
     @Override
@@ -64,7 +59,6 @@ public class ProductRepositoryImpl implements ProductRepository {
 
         ProductEntity toPersist = productDataAccessMapper.productToProductEntity(product, categoryRef);
         entityManager.persist(toPersist);
-        synchronizeAttributes(product);
         entityManager.flush();
         revisions.initialize(product.getId().getValue());
     }
@@ -88,8 +82,8 @@ public class ProductRepositoryImpl implements ProductRepository {
         ProductEntity current = productJpaRepository.findById(id)
                 .orElseThrow(() -> new ProductNotFoundException("Product not found: " + id));
 
+        current = loadAttributesIfNeeded(current);
         productDataAccessMapper.updateEntityFromDomain(product, current, categoryRef);
-        synchronizeAttributes(product);
         // Let dirty checking flush changes on commit.
     }
 
@@ -100,29 +94,16 @@ public class ProductRepositoryImpl implements ProductRepository {
         }
 
         return productJpaRepository.findAggregateById(productId.getValue())
-                .map(entity -> productAggregateMapper.toProduct(entity,
-                        attributes.findAllByProductIdOrderByAttributeIdAsc(productId.getValue())));
+                .map(this::loadAttributesIfNeeded)
+                .map(productAggregateMapper::toProduct);
     }
 
-    private void synchronizeAttributes(Product product) {
-        var current = attributes.findAllByProductIdOrderByAttributeIdAsc(product.getId().getValue());
-        var retained = new HashSet<UUID>();
-        for (var attribute : product.getAttributes()) {
-            var entity = current.stream().filter(candidate -> candidate.getId().equals(attribute.getId().getValue()))
-                    .findFirst().orElse(null);
-            if (entity == null) {
-                entity = new ProductAttributeEntity();
-                entity.setId(attribute.getId().getValue());
-                entity.setProductId(product.getId().getValue());
-                entity.setAttributeId(attribute.getAttributeId().getValue());
-                entity.setAttributeValueId(attribute.getAttributeValueId().getValue());
-                entityManager.persist(entity);
-            } else {
-                entity.setAttributeValueId(attribute.getAttributeValueId().getValue());
-            }
-            retained.add(entity.getId());
+    private ProductEntity loadAttributesIfNeeded(ProductEntity entity) {
+        if (Persistence.getPersistenceUtil().isLoaded(entity, "attributes")) {
+            return entity;
         }
-        current.stream().filter(entity -> !retained.contains(entity.getId())).forEach(entityManager::remove);
+        return productJpaRepository.findWithAttributesById(entity.getId())
+                .orElseThrow(() -> new IllegalStateException("Product disappeared before loading its attributes"));
     }
 
     @Override

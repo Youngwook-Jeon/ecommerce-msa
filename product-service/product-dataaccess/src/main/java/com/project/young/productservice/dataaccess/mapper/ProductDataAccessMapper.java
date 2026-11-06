@@ -13,6 +13,7 @@ import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.springframework.stereotype.Component;
+import org.hibernate.Hibernate;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -40,12 +41,15 @@ public class ProductDataAccessMapper {
 
         mergeOptionGroups(product, entity);
         mergeVariants(product, entity);
+        mergeAttributes(product, entity);
         return entity;
     }
 
+    /** Applies changes to the managed product and its owned collections. */
     public void updateEntityFromDomain(Product domainProduct, ProductEntity productEntity, CategoryEntity categoryEntity) {
         Objects.requireNonNull(domainProduct, "domainProduct must not be null.");
         Objects.requireNonNull(productEntity, "productEntity must not be null.");
+        requireLoadedAttributes(productEntity);
 
         if (!isSameCategory(productEntity.getCategory(), categoryEntity)) {
             productEntity.setCategory(categoryEntity);
@@ -62,6 +66,40 @@ public class ProductDataAccessMapper {
 
         mergeOptionGroups(domainProduct, productEntity);
         mergeVariants(domainProduct, productEntity);
+        mergeAttributes(domainProduct, productEntity);
+    }
+
+    private void mergeAttributes(Product product, ProductEntity entity) {
+        requireLoadedAttributes(entity);
+        var currentById = entity.getAttributes().stream()
+                .collect(Collectors.toMap(ProductAttributeEntity::getId, attribute -> attribute));
+        Set<UUID> retainedIds = new HashSet<>();
+        for (var specification : product.getAttributes()) {
+            UUID id = specification.getId().getValue();
+            var attribute = currentById.get(id);
+            if (attribute == null) {
+                attribute = new ProductAttributeEntity();
+                attribute.setId(id);
+                attribute.setAttributeId(specification.getAttributeId().getValue());
+                attribute.setAttributeValueId(specification.getAttributeValueId().getValue());
+                entity.addAttribute(attribute);
+            } else {
+                if (!Objects.equals(attribute.getAttributeId(), specification.getAttributeId().getValue())) {
+                    throw new IllegalArgumentException("A product specification's attribute mapping cannot be changed");
+                }
+                attribute.setAttributeValueId(specification.getAttributeValueId().getValue());
+            }
+            retainedIds.add(id);
+        }
+        var removedAttributes = currentById.values().stream()
+                .filter(attribute -> !retainedIds.contains(attribute.getId())).toList();
+        removedAttributes.forEach(entity::removeAttribute);
+    }
+
+    private void requireLoadedAttributes(ProductEntity entity) {
+        if (!Hibernate.isInitialized(entity.getAttributes())) {
+            throw new IllegalStateException("Product attributes must be explicitly loaded before mapping");
+        }
     }
 
     private boolean isSameCategory(CategoryEntity current, CategoryEntity next) {

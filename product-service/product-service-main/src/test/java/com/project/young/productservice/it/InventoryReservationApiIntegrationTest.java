@@ -415,7 +415,8 @@ class InventoryReservationApiIntegrationTest {
                     .calculatedPrice(new BigDecimal("10000"))
                     .build();
             product.addVariant(variant);
-            productJpaRepository.saveAndFlush(product);
+            entityManager.persist(product);
+            entityManager.flush();
             entityManager.clear();
             return variantId;
         });

@@ -66,12 +66,16 @@ public class ProductEntity {
     private String mainImageUrl;
 
     @Builder.Default
-    @OneToMany(mappedBy = "product", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @OneToMany(mappedBy = "product", cascade = CascadeType.PERSIST)
     private Set<ProductOptionGroupEntity> optionGroups = new HashSet<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "product", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @OneToMany(mappedBy = "product", cascade = CascadeType.PERSIST)
     private Set<ProductVariantEntity> variants = new HashSet<>();
+
+    @Builder.Default
+    @OneToMany(mappedBy = "product", cascade = CascadeType.PERSIST, orphanRemoval = true)
+    private Set<ProductAttributeEntity> attributes = new HashSet<>();
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -112,6 +116,19 @@ public class ProductEntity {
             return false;
         }
         return Objects.equals(current.getId(), next.getId());
+    }
+
+    public void addAttribute(ProductAttributeEntity attribute) {
+        Objects.requireNonNull(attribute, "attribute must not be null");
+        attributes.add(attribute);
+        attribute.setProduct(this);
+    }
+
+    /** Removes the association so orphan removal deletes the attribute at flush. */
+    public void removeAttribute(ProductAttributeEntity attribute) {
+        if (attributes.remove(attribute)) {
+            attribute.setProduct(null);
+        }
     }
 
     public void addOptionGroup(ProductOptionGroupEntity optionGroup) {

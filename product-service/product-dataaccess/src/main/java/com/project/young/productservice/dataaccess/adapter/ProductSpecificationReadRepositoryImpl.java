@@ -35,7 +35,7 @@ public class ProductSpecificationReadRepositoryImpl implements ProductSpecificat
         var rows = query.select(definition, value).from(specification)
                 .join(definition).on(definition.id.eq(specification.attributeId))
                 .join(value).on(value.id.eq(specification.attributeValueId).and(value.attributeId.eq(specification.attributeId)))
-                .where(specification.productId.eq(productId)).orderBy(definition.code.asc()).fetch();
+                .where(specification.product.id.eq(productId)).orderBy(definition.code.asc()).fetch();
         var results = rows.stream().map(row -> {
             var definitionEntity = row.get(definition);
             var valueEntity = row.get(value);

@@ -1,6 +1,9 @@
 package com.project.young.productservice.dataaccess.mapper;
 
 import com.project.young.common.domain.valueobject.CategoryId;
+import com.project.young.common.domain.valueobject.AttributeDefinitionId;
+import com.project.young.common.domain.valueobject.AttributeValueId;
+import com.project.young.common.domain.valueobject.ProductAttributeId;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.OptionGroupId;
 import com.project.young.common.domain.valueobject.OptionValueId;
@@ -9,6 +12,7 @@ import com.project.young.common.domain.valueobject.ProductOptionGroupId;
 import com.project.young.common.domain.valueobject.ProductOptionValueId;
 import com.project.young.common.domain.valueobject.ProductVariantId;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
+import com.project.young.productservice.dataaccess.entity.ProductAttributeEntity;
 import com.project.young.productservice.dataaccess.entity.ProductEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionGroupEntity;
 import com.project.young.productservice.dataaccess.entity.ProductOptionValueEntity;
@@ -18,6 +22,7 @@ import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
 import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.domain.entity.Product;
+import com.project.young.productservice.domain.entity.ProductAttribute;
 import com.project.young.productservice.domain.entity.ProductOptionGroup;
 import com.project.young.productservice.domain.entity.ProductOptionValue;
 import com.project.young.productservice.domain.entity.ProductVariant;
@@ -329,6 +334,37 @@ class ProductDataAccessMapperTest {
                 category(1L, "x")
         )).isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("productEntity");
+    }
+
+    @Test
+    void attribute_mapping_preserves_existing_rows_and_detaches_removed_attributes() {
+        UUID productId = UUID.randomUUID();
+        var target = ProductEntity.builder().id(productId).build();
+        var retained = new ProductAttributeEntity();
+        retained.setId(UUID.randomUUID());
+        retained.setAttributeId(UUID.randomUUID());
+        retained.setAttributeValueId(UUID.randomUUID());
+        target.addAttribute(retained);
+        var removed = new ProductAttributeEntity();
+        removed.setId(UUID.randomUUID());
+        removed.setAttributeId(UUID.randomUUID());
+        removed.setAttributeValueId(UUID.randomUUID());
+        target.addAttribute(removed);
+        var replacementValue = new AttributeValueId(UUID.randomUUID());
+        var added = new ProductAttribute(new ProductAttributeId(UUID.randomUUID()),
+                new AttributeDefinitionId(UUID.randomUUID()), new AttributeValueId(UUID.randomUUID()));
+        var product = Product.builder().productId(new ProductId(productId)).name("Laptop")
+                .description("Laptop for attribute association tests").brand("Brand").conditionType(ConditionType.NEW)
+                .basePrice(new Money(BigDecimal.TEN)).mainImageUrl("https://example.com/laptop.jpg")
+                .attributes(List.of(new ProductAttribute(new ProductAttributeId(retained.getId()),
+                        new AttributeDefinitionId(retained.getAttributeId()), replacementValue), added)).build();
+
+        mapper.updateEntityFromDomain(product, target, null);
+
+        assertThat(removed.getProduct()).isNull();
+        assertThat(target.getAttributes()).hasSize(2).contains(retained).doesNotContain(removed);
+        assertThat(retained.getAttributeValueId()).isEqualTo(replacementValue.getValue());
+        assertThat(target.getAttributes()).allSatisfy(attribute -> assertThat(attribute.getProduct()).isSameAs(target));
     }
 
     private CategoryEntity category(Long id, String name) {

@@ -53,7 +53,7 @@ public class ProductOptionGroupEntity {
     private OptionStatusEntity status = OptionStatusEntity.ACTIVE;
 
     @Builder.Default
-    @OneToMany(mappedBy = "productOptionGroup", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @OneToMany(mappedBy = "productOptionGroup", cascade = CascadeType.PERSIST)
     private Set<ProductOptionValueEntity> optionValues = new HashSet<>();
 
     @CreatedDate

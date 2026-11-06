@@ -23,6 +23,14 @@ import com.project.young.productservice.application.service.OptionGroupApplicati
 import com.project.young.productservice.application.service.ProductApplicationService;
 import com.project.young.productservice.application.service.ProductSpecificationService;
 import com.project.young.productservice.dataaccess.entity.CategoryEntity;
+import com.project.young.productservice.dataaccess.entity.ProductEntity;
+import com.project.young.productservice.dataaccess.mapper.ProductAggregateMapper;
+import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
+import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
+import com.project.young.productservice.domain.repository.ProductRepository;
+import com.project.young.common.domain.valueobject.ProductId;
+import org.hibernate.Hibernate;
+import org.hibernate.Session;
 import com.project.young.productservice.dataaccess.enums.CategoryStatusEntity;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.domain.valueobject.AttributeDataType;
@@ -102,6 +110,10 @@ class ProductSpecificationsIntegrationTest {
     @Autowired OptionGroupApplicationService options;
     @Autowired PlatformTransactionManager transactions;
     @Autowired DataSource dataSource;
+    @Autowired ProductJpaRepository productEntities;
+    @Autowired ProductRepository productRepository;
+    @Autowired ProductAggregateMapper aggregateMapper;
+    @Autowired ProductDataAccessMapper writeMapper;
 
     @BeforeEach
     void clear_products() {
@@ -273,6 +285,90 @@ class ProductSpecificationsIntegrationTest {
             worker.shutdownNow();
             assertThat(worker.awaitTermination(5, TimeUnit.SECONDS)).isTrue();
         }
+    }
+
+    @Test
+    void parent_collection_persists_new_attributes_and_dirty_checks_value_updates() {
+        var fixture = fixture(false);
+        UUID productId = draft(fixture.categoryId());
+        specifications.setSpecification(productId, fixture.attributeId(), new SetProductSpecificationCommand(fixture.valueId()), version(productId));
+        em.flush();
+        em.clear();
+        var parent = productEntities.findWithAttributesById(productId).orElseThrow();
+        assertThat(parent.getAttributes()).hasSize(1);
+        var attribute = parent.getAttributes().iterator().next();
+        assertThat(attribute.getProduct()).isSameAs(parent);
+        UUID attributeRowId = attribute.getId();
+        var replacement = catalog.createValue(fixture.attributeId(), new CreateAttributeValueCommand("32 GB", "32", null, null, null));
+
+        specifications.setSpecification(productId, fixture.attributeId(),
+                new SetProductSpecificationCommand(replacement.getId().getValue()), version(productId));
+        em.flush();
+        em.clear();
+        var updated = productEntities.findWithAttributesById(productId).orElseThrow();
+        assertThat(updated.getAttributes()).singleElement().satisfies(value -> {
+            assertThat(value.getId()).isEqualTo(attributeRowId);
+            assertThat(value.getAttributeValueId()).isEqualTo(replacement.getId().getValue());
+            assertThat(value.getProduct()).isSameAs(updated);
+        });
+    }
+
+    @Test
+    void clearing_the_parent_collection_deletes_orphaned_attribute_rows() {
+        var fixture = fixture(false);
+        UUID productId = draft(fixture.categoryId());
+        specifications.setSpecification(productId, fixture.attributeId(), new SetProductSpecificationCommand(fixture.valueId()), version(productId));
+        em.flush();
+        em.clear();
+        var parent = productEntities.findWithAttributesById(productId).orElseThrow();
+        parent.getAttributes().clear();
+        em.flush();
+        em.clear();
+        assertThat(productEntities.findWithAttributesById(productId).orElseThrow().getAttributes()).isEmpty();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM product_attributes WHERE product_id = ?", Long.class, productId)).isZero();
+    }
+
+    @Test
+    void deleting_a_parent_also_deletes_its_owned_attributes() {
+        var fixture = fixture(false);
+        UUID productId = draft(fixture.categoryId());
+        specifications.setSpecification(productId, fixture.attributeId(), new SetProductSpecificationCommand(fixture.valueId()), version(productId));
+        em.flush();
+        em.clear();
+        // Isolate attribute lifecycle behavior from the separate catalog-history deletion guard.
+        jdbc.update("DELETE FROM product_catalog_change_history WHERE product_id = ?", productId);
+        var parent = em.find(ProductEntity.class, productId);
+        em.remove(parent);
+        em.flush();
+        em.clear();
+        assertThat(em.find(ProductEntity.class, productId)).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM product_attributes WHERE product_id = ?", Long.class, productId)).isZero();
+    }
+
+    @Test
+    void repository_loads_attributes_separately_and_mappers_do_not_trigger_lazy_queries() {
+        var fixture = fixture(false);
+        UUID productId = draft(fixture.categoryId());
+        specifications.setSpecification(productId, fixture.attributeId(), new SetProductSpecificationCommand(fixture.valueId()), version(productId));
+        em.flush();
+        em.clear();
+        var statistics = em.unwrap(Session.class).getSessionFactory().getStatistics();
+        statistics.setStatisticsEnabled(true);
+        statistics.clear();
+        var product = productRepository.findById(new ProductId(productId)).orElseThrow();
+        assertThat(product.getAttributes()).hasSize(1);
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+        assertThat(statistics.getCollectionFetchCount()).isZero();
+
+        em.clear();
+        var parent = em.find(ProductEntity.class, productId);
+        assertThat(Hibernate.isInitialized(parent.getAttributes())).isFalse();
+        statistics.clear();
+        assertThatThrownBy(() -> aggregateMapper.toProduct(parent))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("explicitly loaded");
+        assertThatThrownBy(() -> writeMapper.updateEntityFromDomain(product, parent, null))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("explicitly loaded");
+        assertThat(statistics.getPrepareStatementCount()).isZero();
     }
 
     private boolean attempt(CountDownLatch start, Runnable action) {

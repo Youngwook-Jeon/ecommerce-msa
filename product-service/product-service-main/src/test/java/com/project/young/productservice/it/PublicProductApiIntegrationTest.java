@@ -484,7 +484,6 @@ class PublicProductApiIntegrationTest {
 
         ProductEntity withVariant = productJpaRepository.findAggregateById(productId).orElseThrow();
         withVariant.getVariants().stream().findFirst().orElseThrow().setStatus(ProductStatusEntity.ACTIVE);
-        productJpaRepository.save(withVariant);
         entityManager.flush();
         entityManager.clear();
 

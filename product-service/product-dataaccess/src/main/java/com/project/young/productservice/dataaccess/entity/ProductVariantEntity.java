@@ -68,7 +68,7 @@ public class ProductVariantEntity {
     private String mainImageUrl;
 
     @Builder.Default
-    @OneToMany(mappedBy = "variant", cascade = {CascadeType.PERSIST, CascadeType.MERGE}, orphanRemoval = true)
+    @OneToMany(mappedBy = "variant", cascade = CascadeType.PERSIST, orphanRemoval = true)
     private Set<VariantOptionValueEntity> selectedOptionValues = new HashSet<>();
 
     @CreatedDate

@@ -45,6 +45,11 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, UUID>
            """)
     Optional<ProductEntity> findAggregateById(@Param("productId") UUID productId);
 
+    /** Loads specifications separately to avoid multiplying the option/variant fetch result. */
+    @EntityGraph(attributePaths = "attributes")
+    @Query("SELECT p FROM ProductEntity p WHERE p.id = :productId")
+    Optional<ProductEntity> findWithAttributesById(@Param("productId") UUID productId);
+
     @Query("""
            SELECT CASE WHEN COUNT(v) > 0 THEN true ELSE false END
            FROM ProductVariantEntity v

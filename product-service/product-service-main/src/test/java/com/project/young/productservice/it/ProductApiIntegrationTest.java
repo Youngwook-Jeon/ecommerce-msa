@@ -739,7 +739,6 @@ class ProductApiIntegrationTest {
             // Publish precondition: at least one ACTIVE variant is required.
             ProductEntity productWithVariant = productJpaRepository.findAggregateById(productId).orElseThrow();
             productWithVariant.getVariants().stream().findFirst().orElseThrow().setStatus(ProductStatusEntity.ACTIVE);
-            productJpaRepository.save(productWithVariant);
             entityManager.flush();
             entityManager.clear();
 

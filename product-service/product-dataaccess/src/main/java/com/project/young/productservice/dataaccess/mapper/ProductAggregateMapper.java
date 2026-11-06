@@ -14,21 +14,24 @@ import com.project.young.productservice.domain.valueobject.ConditionType;
 import com.project.young.productservice.domain.valueobject.OptionStatus;
 import com.project.young.productservice.domain.valueobject.ProductStatus;
 import org.springframework.stereotype.Component;
+import org.hibernate.Hibernate;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Maps a fully loaded {@link ProductEntity} aggregate (e.g. from {@code findAggregateById} with entity graph)
- * to the domain model. Do not use on partially initialized / lazy associations — that risks N+1 selects.
+ * Maps a fully prepared {@link ProductEntity} aggregate. The repository loads the option/variant
+ * graph and the attribute collection separately before mapping. Do not use on partially loaded associations.
  */
 @Component
 public class ProductAggregateMapper {
 
     /** Fixed specifications are explicitly fetched by the repository, never loaded by this mapper. */
-    public Product toProduct(ProductEntity productEntity, List<ProductAttributeEntity> attributes) {
+    public Product toProduct(ProductEntity productEntity) {
         Objects.requireNonNull(productEntity, "productEntity must not be null.");
-        Objects.requireNonNull(attributes, "attributes must be explicitly loaded.");
+        if (!Hibernate.isInitialized(productEntity.getAttributes())) {
+            throw new IllegalStateException("Product attributes must be explicitly loaded before mapping");
+        }
 
         return Product.reconstitute(
                 new ProductId(productEntity.getId()),
@@ -42,7 +45,7 @@ public class ProductAggregateMapper {
                 productEntity.getMainImageUrl(),
                 mapOptionGroupsToDomain(productEntity.getOptionGroups()),
                 mapVariantsToDomain(productEntity.getVariants()),
-                attributes.stream().map(attribute -> new ProductAttribute(new ProductAttributeId(attribute.getId()),
+                productEntity.getAttributes().stream().map(attribute -> new ProductAttribute(new ProductAttributeId(attribute.getId()),
                         new AttributeDefinitionId(attribute.getAttributeId()), new AttributeValueId(attribute.getAttributeValueId()))).toList()
         );
     }

@@ -14,7 +14,6 @@ import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.util.Set;
-import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -85,7 +84,7 @@ class ProductAggregateMapperTest {
             pogEntity.setProduct(productEntity);
             variantEntity.setProduct(productEntity);
 
-            Product product = mapper.toProduct(productEntity, List.of());
+            Product product = mapper.toProduct(productEntity);
 
             assertThat(product.getId()).isEqualTo(new ProductId(productId));
             assertThat(product.getCategoryId()).contains(new CategoryId(1L));
@@ -106,7 +105,7 @@ class ProductAggregateMapperTest {
     @Test
     @DisplayName("null 엔티티면 NullPointerException")
     void toProduct_null_Throws() {
-        assertThatThrownBy(() -> mapper.toProduct(null, List.of()))
+        assertThatThrownBy(() -> mapper.toProduct(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("productEntity");
     }
