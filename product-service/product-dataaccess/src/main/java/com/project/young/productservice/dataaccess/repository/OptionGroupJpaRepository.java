@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.lang.NonNull;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Collection;
 import java.util.List;
@@ -24,6 +25,11 @@ public interface OptionGroupJpaRepository extends JpaRepository<OptionGroupEntit
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select g from OptionGroupEntity g where g.id = :id")
     Optional<OptionGroupEntity> findLockedById(UUID id);
+
+    // Keep the parent-only ordered lock separate from the nullable collection fetch join.
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT g FROM OptionGroupEntity g WHERE g.id IN :ids ORDER BY g.id")
+    List<OptionGroupEntity> findAllLockedByIdIn(@Param("ids") Collection<UUID> ids);
 
     @EntityGraph(attributePaths = {"optionValues"})
     Optional<OptionGroupEntity> findAggregateById(@NonNull UUID id);

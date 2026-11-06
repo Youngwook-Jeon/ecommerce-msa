@@ -19,6 +19,9 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Map;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -103,6 +106,46 @@ public class OptionGroupRepositoryImpl implements OptionGroupRepository {
         UUID attributeId = row.get(optionGroupEntity.attributeId);
         return Optional.of(new OptionGroupAttributeBinding(new OptionGroupId(row.get(optionGroupEntity.id)),
                 attributeId == null ? null : new AttributeDefinitionId(attributeId)));
+    }
+
+    @Override
+    public List<OptionGroupAttributeBinding> findAttributeBindings(Set<OptionGroupId> optionGroupIds) {
+        var ids = toRawIds(optionGroupIds);
+        if (ids.isEmpty()) return List.of();
+        return queryFactory.select(optionGroupEntity.id, optionGroupEntity.attributeId)
+                .from(optionGroupEntity).where(optionGroupEntity.id.in(ids))
+                .orderBy(optionGroupEntity.id.asc()).fetch().stream().map(row -> {
+                    UUID attributeId = row.get(optionGroupEntity.attributeId);
+                    return new OptionGroupAttributeBinding(new OptionGroupId(row.get(optionGroupEntity.id)),
+                            attributeId == null ? null : new AttributeDefinitionId(attributeId));
+                }).toList();
+    }
+
+    @Override
+    @Transactional
+    public List<OptionGroup> findAllByIdsForUpdate(Set<OptionGroupId> optionGroupIds) {
+        var ids = toRawIds(optionGroupIds);
+        if (ids.isEmpty()) return List.of();
+        var parents = optionGroupJpaRepository.findAllLockedByIdIn(ids);
+        if (parents.isEmpty()) return List.of();
+        // Fetch values only after every parent is locked. Mapping never initializes lazy collections.
+        var foundIds = parents.stream().map(OptionGroupEntity::getId).collect(Collectors.toSet());
+        var loaded = optionGroupJpaRepository.findAllByIdIn(foundIds).stream()
+                .collect(Collectors.toMap(OptionGroupEntity::getId, Function.identity()));
+        return parents.stream().map(parent -> {
+            var entity = loaded.get(parent.getId());
+            if (entity == null) {
+                throw new IllegalStateException("Locked option group is missing from the aggregate fetch result");
+            }
+            return optionGroupAggregateMapper.toOptionGroup(entity, entity.getOptionValues());
+        }).toList();
+    }
+
+    private Set<UUID> toRawIds(Set<OptionGroupId> ids) {
+        if (ids == null || ids.stream().anyMatch(id -> id == null || id.getValue() == null)) {
+            throw new IllegalArgumentException("Option group IDs must not be null");
+        }
+        return ids.stream().map(OptionGroupId::getValue).collect(Collectors.toSet());
     }
 
     @Override

@@ -9,6 +9,8 @@ import com.project.young.productservice.dataaccess.mapper.ProductAggregateMapper
 import com.project.young.productservice.dataaccess.mapper.ProductDataAccessMapper;
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.dataaccess.repository.ProductJpaRepository;
+import com.project.young.productservice.dataaccess.repository.ProductAttributeJpaRepository;
+import java.util.List;
 import com.project.young.productservice.dataaccess.catalog.ProductCatalogRevisionStore;
 import com.project.young.productservice.domain.entity.Product;
 import com.project.young.productservice.domain.exception.ProductNotFoundException;
@@ -51,6 +53,9 @@ class ProductRepositoryImplTest {
 
     @Mock
     private ProductCatalogRevisionStore revisions;
+
+    @Mock
+    private ProductAttributeJpaRepository attributes;
 
     @InjectMocks
     private ProductRepositoryImpl productRepository;
@@ -191,14 +196,14 @@ class ProductRepositoryImplTest {
             );
 
             when(productJpaRepository.findAggregateById(rawId)).thenReturn(Optional.of(entity));
-            when(productAggregateMapper.toProduct(entity)).thenReturn(domainProduct);
+            when(productAggregateMapper.toProduct(entity, List.of())).thenReturn(domainProduct);
 
             Optional<Product> result = productRepository.findById(productId);
 
             assertThat(result).isPresent();
             assertThat(result.get().getName()).isEqualTo("이름");
             verify(productJpaRepository).findAggregateById(rawId);
-            verify(productAggregateMapper).toProduct(entity);
+            verify(productAggregateMapper).toProduct(entity, List.of());
         }
 
         @Test

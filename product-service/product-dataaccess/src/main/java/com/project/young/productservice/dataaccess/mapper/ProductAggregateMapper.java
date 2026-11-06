@@ -6,6 +6,7 @@ import com.project.young.productservice.dataaccess.enums.ConditionTypeEntity;
 import com.project.young.productservice.dataaccess.enums.OptionStatusEntity;
 import com.project.young.productservice.dataaccess.enums.ProductStatusEntity;
 import com.project.young.productservice.domain.entity.Product;
+import com.project.young.productservice.domain.entity.ProductAttribute;
 import com.project.young.productservice.domain.entity.ProductOptionGroup;
 import com.project.young.productservice.domain.entity.ProductOptionValue;
 import com.project.young.productservice.domain.entity.ProductVariant;
@@ -24,8 +25,10 @@ import java.util.stream.Collectors;
 @Component
 public class ProductAggregateMapper {
 
-    public Product toProduct(ProductEntity productEntity) {
+    /** Fixed specifications are explicitly fetched by the repository, never loaded by this mapper. */
+    public Product toProduct(ProductEntity productEntity, List<ProductAttributeEntity> attributes) {
         Objects.requireNonNull(productEntity, "productEntity must not be null.");
+        Objects.requireNonNull(attributes, "attributes must be explicitly loaded.");
 
         return Product.reconstitute(
                 new ProductId(productEntity.getId()),
@@ -38,7 +41,9 @@ public class ProductAggregateMapper {
                 productEntity.getBrand(),
                 productEntity.getMainImageUrl(),
                 mapOptionGroupsToDomain(productEntity.getOptionGroups()),
-                mapVariantsToDomain(productEntity.getVariants())
+                mapVariantsToDomain(productEntity.getVariants()),
+                attributes.stream().map(attribute -> new ProductAttribute(new ProductAttributeId(attribute.getId()),
+                        new AttributeDefinitionId(attribute.getAttributeId()), new AttributeValueId(attribute.getAttributeValueId()))).toList()
         );
     }
 

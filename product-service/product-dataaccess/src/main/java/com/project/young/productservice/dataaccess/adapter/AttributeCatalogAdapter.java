@@ -13,6 +13,7 @@ import com.project.young.productservice.dataaccess.repository.CategoryAttributeJ
 import com.project.young.productservice.dataaccess.repository.CategoryJpaRepository;
 import com.project.young.productservice.dataaccess.repository.OptionGroupJpaRepository;
 import com.project.young.productservice.dataaccess.repository.OptionValueJpaRepository;
+import com.project.young.productservice.dataaccess.repository.ProductAttributeJpaRepository;
 import com.project.young.productservice.domain.entity.AttributeDefinition;
 import com.project.young.productservice.domain.entity.AttributeValue;
 import com.project.young.productservice.domain.exception.AttributeInUseException;
@@ -40,12 +41,14 @@ public class AttributeCatalogAdapter implements AttributeCatalogPort {
     private final IdGenerator idGenerator;
     private final OptionGroupJpaRepository optionGroups;
     private final OptionValueJpaRepository optionValues;
+    private final ProductAttributeJpaRepository productAttributes;
 
     public AttributeCatalogAdapter(AttributeDefinitionJpaRepository definitions, AttributeValueJpaRepository values,
                                    CategoryAttributeJpaRepository policies, CategoryJpaRepository categories,
                                    AttributeCatalogDataAccessMapper mapper, EntityManager entityManager,
                                    IdGenerator idGenerator, OptionGroupJpaRepository optionGroups,
-                                   OptionValueJpaRepository optionValues, AttributeValueQueryRepository valueQueries) {
+                                   OptionValueJpaRepository optionValues, AttributeValueQueryRepository valueQueries,
+                                   ProductAttributeJpaRepository productAttributes) {
         this.definitions = definitions;
         this.values = values;
         this.policies = policies;
@@ -56,6 +59,7 @@ public class AttributeCatalogAdapter implements AttributeCatalogPort {
         this.optionGroups = optionGroups;
         this.optionValues = optionValues;
         this.valueQueries = valueQueries;
+        this.productAttributes = productAttributes;
     }
 
     @Override
@@ -82,8 +86,19 @@ public class AttributeCatalogAdapter implements AttributeCatalogPort {
     }
 
     @Override
+    public List<AttributeDefinition> findDefinitionsForUpdate(Set<UUID> ids) {
+        return ids.isEmpty() ? List.of() : definitions.findAllForUpdate(ids).stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
+    public List<AttributeValue> findValuesByIds(Set<UUID> ids) {
+        return ids.isEmpty() ? List.of() : values.findAllById(ids).stream().map(mapper::toDomain).toList();
+    }
+
+    @Override
     public boolean hasDefinitionReferences(UUID id) {
-        return values.existsByAttributeId(id) || policies.existsByAttributeId(id) || optionGroups.existsByAttributeId(id);
+        return values.existsByAttributeId(id) || policies.existsByAttributeId(id) || optionGroups.existsByAttributeId(id)
+                || productAttributes.existsByAttributeId(id);
     }
 
     @Override
@@ -144,8 +159,8 @@ public class AttributeCatalogAdapter implements AttributeCatalogPort {
 
     @Override
     public void deleteValue(UUID valueId) {
-        if (optionValues.existsByAttributeValueId(valueId)) {
-            throw new AttributeInUseException("Attribute value is referenced by an option dictionary and cannot be deleted");
+        if (optionValues.existsByAttributeValueId(valueId) || productAttributes.existsByAttributeValueId(valueId)) {
+            throw new AttributeInUseException("Attribute value is referenced by a product or option dictionary and cannot be deleted");
         }
         try {
             values.deleteById(valueId);
@@ -159,6 +174,11 @@ public class AttributeCatalogAdapter implements AttributeCatalogPort {
     public Optional<AttributeCategoryView> findCategory(Long categoryId) {
         return categories.findById(categoryId).map(category -> new AttributeCategoryView(category.getId(),
                 category.getStatus() == CategoryStatusEntity.DELETED));
+    }
+
+    @Override
+    public Set<UUID> findPolicyAttributeIds(Long categoryId) {
+        return policies.findAttributeIdsByCategoryId(categoryId);
     }
 
     @Override

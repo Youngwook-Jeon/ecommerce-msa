@@ -9,6 +9,7 @@ public enum ProductCatalogChangeType {
     STATUS_CHANGED,
     VARIANT_CHANGED,
     OPTION_CHANGED,
+    SPECIFICATION_CHANGED,
     IMAGE_CHANGED,
     DELETED
 }

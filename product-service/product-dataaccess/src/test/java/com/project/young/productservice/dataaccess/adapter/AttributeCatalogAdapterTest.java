@@ -83,6 +83,9 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -684,6 +687,64 @@ class AttributeCatalogAdapterTest {
         assertThat(Hibernate.isInitialized(entityManager.getReference(AttributeDefinitionEntity.class,
                 definition.getId().getValue()))).isFalse();
         assertThat(statistics.getPrepareStatementCount()).isEqualTo(2);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {1, 10})
+    void batch_binding_and_locked_aggregate_reads_use_three_queries_regardless_of_group_count(int groupCount) {
+        Set<OptionGroupId> ids = new HashSet<>();
+        Map<OptionGroupId, Integer> valueCounts = new HashMap<>();
+        for (int index = 0; index < groupCount; index++) {
+            var definition = definition("test_batch_group_" + index, AttributeDataType.NUMBER);
+            UUID groupId = optionGroup(definition, "TEST_BATCH_GROUP_" + index);
+            int valueCount = index % 3;
+            List<AddOptionValueCommand> commands = new ArrayList<>();
+            for (int valueIndex = 1; valueIndex <= valueCount; valueIndex++) {
+                var value = service.createValue(definition.getId().getValue(),
+                        new CreateAttributeValueCommand("Memory " + valueIndex, null, BigDecimal.valueOf(valueIndex), null, null));
+                commands.add(new AddOptionValueCommand(value.getId().getValue(), "RAM" + valueIndex, "Memory " + valueIndex, valueIndex));
+            }
+            if (!commands.isEmpty()) optionService.addOptionValues(groupId, new AddOptionValuesCommand(commands));
+            var id = new OptionGroupId(groupId);
+            ids.add(id);
+            valueCounts.put(id, valueCount);
+        }
+        entityManager.flush();
+        entityManager.clear();
+        var statistics = entityManager.unwrap(Session.class).getSessionFactory().getStatistics();
+        statistics.setStatisticsEnabled(true);
+        statistics.clear();
+
+        var bindings = optionRepository.findAttributeBindings(ids);
+        assertThat(bindings).hasSize(groupCount);
+        assertThat(bindings).allSatisfy(binding -> assertThat(binding.attributeId()).isNotNull());
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+        assertThat(statistics.getEntityLoadCount()).isZero();
+
+        var groups = optionRepository.findAllByIdsForUpdate(ids);
+        assertThat(groups).hasSize(groupCount);
+        assertThat(groups).extracting(group -> group.getId().getValue().toString()).isSorted();
+        assertThat(groups).allSatisfy(group -> {
+            assertThat(group.getOptionValues()).hasSize(valueCounts.get(group.getId()));
+            assertThat(group.getOptionValues()).allSatisfy(value -> assertThat(value.getAttributeValueId()).isNotNull());
+            assertThat(entityManager.getLockMode(entityManager.find(OptionGroupEntity.class, group.getId().getValue())))
+                    .isEqualTo(LockModeType.PESSIMISTIC_WRITE);
+        });
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
+        assertThat(statistics.getCollectionFetchCount()).isZero();
+        assertThat(statistics.getCollectionLoadCount()).isEqualTo(groupCount);
+    }
+
+    @Test
+    void empty_group_batches_do_not_issue_queries() {
+        entityManager.flush();
+        entityManager.clear();
+        var statistics = entityManager.unwrap(Session.class).getSessionFactory().getStatistics();
+        statistics.setStatisticsEnabled(true);
+        statistics.clear();
+        assertThat(optionRepository.findAttributeBindings(Set.of())).isEmpty();
+        assertThat(optionRepository.findAllByIdsForUpdate(Set.of())).isEmpty();
+        assertThat(statistics.getPrepareStatementCount()).isZero();
     }
 
     @ParameterizedTest

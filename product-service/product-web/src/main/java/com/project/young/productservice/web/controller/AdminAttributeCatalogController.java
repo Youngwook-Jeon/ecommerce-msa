@@ -72,8 +72,8 @@ public class AdminAttributeCatalogController {
      * Idempotently deactivates a definition without deleting values or category policies.
      * New values and enabled category assignments return 409 ATTRIBUTE_INACTIVE afterwards.
      * Existing metadata remains readable; effective usability and filter/option availability become false.
-     * Product specifications and purchase-option writes are not connected in this metadata stage;
-     * their future write paths must enforce the same active-definition rule and preserve existing references.
+     * Existing product specifications and option mappings are preserved. New product specifications
+     * and option assignments reject inactive definitions through the product APIs.
      */
     @PostMapping("/attributes/{attributeId}/deactivate")
     public ResponseEntity<AttributeCatalogResponses.Definition> deactivate(@PathVariable UUID attributeId) {
@@ -82,9 +82,9 @@ public class AdminAttributeCatalogController {
     }
 
     /**
-     * Physically deletes an unreferenced definition only; values or category policies cause
-     * 409 ATTRIBUTE_IN_USE. Deactivate definitions in normal operation to preserve their history.
-     * Future product-specification and option-mapping references must also use restrictive FKs.
+     * Physically deletes an unreferenced definition only; values, category policies, product specifications,
+     * or option groups cause 409 ATTRIBUTE_IN_USE. Use deactivation to preserve existing references.
+     * All stored references use restrictive foreign keys.
      */
     @DeleteMapping("/attributes/{attributeId}")
     public ResponseEntity<Void> delete(@PathVariable UUID attributeId) {
@@ -118,7 +118,7 @@ public class AdminAttributeCatalogController {
         return ResponseEntity.ok(mapper.value(service.renameValue(attributeId, valueId, request.displayName())));
     }
 
-    /** Referenced option dictionary values cannot be deleted and return 409 ATTRIBUTE_IN_USE. */
+    /** Values referenced by product specifications or option dictionaries return 409 ATTRIBUTE_IN_USE on deletion. */
     @DeleteMapping("/attributes/{attributeId}/values/{valueId}")
     public ResponseEntity<Void> deleteValue(@PathVariable UUID attributeId, @PathVariable UUID valueId) {
         log.info("REST request to delete attribute value. attributeId={}, valueId={}", attributeId, valueId);

@@ -20,6 +20,10 @@ public interface AttributeCatalogPort {
     /** Acquire required definition locks before group locks, sorting IDs when locking multiple definitions. */
     Optional<AttributeDefinition> findDefinitionForUpdate(UUID id);
 
+    List<AttributeDefinition> findDefinitionsForUpdate(Set<UUID> ids);
+
+    List<AttributeValue> findValuesByIds(Set<UUID> ids);
+
     boolean hasDefinitionReferences(UUID id);
 
     void insertDefinition(AttributeDefinition definition);
@@ -41,6 +45,8 @@ public interface AttributeCatalogPort {
     void deleteValue(UUID valueId);
 
     Optional<AttributeCategoryView> findCategory(Long categoryId);
+
+    Set<UUID> findPolicyAttributeIds(Long categoryId);
 
     List<CategoryAttributePolicy> findPoliciesByCategoryId(Long categoryId);
 

@@ -36,6 +36,7 @@ public class ProductApplicationService {
     private final VariantMainImageSyncPort variantMainImageSyncPort;
     private final ProductCatalogChangeService productCatalogChangeService;
     private final ProductOptionPolicyValidator productOptionPolicyValidator;
+    private final ProductAttributePolicyValidator productAttributePolicyValidator;
 
     public ProductApplicationService(ProductRepository productRepository,
                                      ProductDomainService productDomainService,
@@ -43,7 +44,8 @@ public class ProductApplicationService {
                                      IdGenerator idGenerator,
                                      VariantMainImageSyncPort variantMainImageSyncPort,
                                      ProductCatalogChangeService productCatalogChangeService,
-                                     ProductOptionPolicyValidator productOptionPolicyValidator) {
+                                     ProductOptionPolicyValidator productOptionPolicyValidator,
+                                     ProductAttributePolicyValidator productAttributePolicyValidator) {
         this.productRepository = productRepository;
         this.productDomainService = productDomainService;
         this.productDataMapper = productDataMapper;
@@ -51,6 +53,7 @@ public class ProductApplicationService {
         this.variantMainImageSyncPort = variantMainImageSyncPort;
         this.productCatalogChangeService = productCatalogChangeService;
         this.productOptionPolicyValidator = productOptionPolicyValidator;
+        this.productAttributePolicyValidator = productAttributePolicyValidator;
     }
 
     @Transactional
@@ -161,6 +164,7 @@ public class ProductApplicationService {
 
         ProductOptionGroupId productOptionGroupId = new ProductOptionGroupId(idGenerator.generateId());
         OptionGroupId globalOptionGroupId = new OptionGroupId(command.getOptionGroupId());
+        var policyContext = productAttributePolicyValidator.loadAndLockPolicyContext(product, Set.of(), Set.of(globalOptionGroupId));
         productOptionPolicyValidator.validate(product, globalOptionGroupId, command.getOptionValues());
         List<ProductOptionValue> optionValues = mapProductOptionValues(command.getOptionValues());
         double resolvedStepOrder = command.getStepOrder() == null
@@ -175,6 +179,7 @@ public class ProductApplicationService {
         );
 
         product.addOptionGroup(optionGroup);
+        productAttributePolicyValidator.validate(product, policyContext);
         recordCatalogChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productRepository.update(product);
 
@@ -205,6 +210,7 @@ public class ProductApplicationService {
             throw new ProductDomainException("Cannot add option values to a deleted product option group.");
         }
         List<AddProductOptionValueToGroupResult> results = new ArrayList<>();
+        var policyContext = productAttributePolicyValidator.loadAndLockPolicyContext(product, Set.of(), Set.of());
         productOptionPolicyValidator.validate(product, targetGroup.getOptionGroupId(), command.getOptionValues());
         for (AddProductOptionValueCommand valueCommand : command.getOptionValues()) {
             if (valueCommand == null) {
@@ -215,6 +221,7 @@ public class ProductApplicationService {
             results.add(productDataMapper.toAddProductOptionValueToGroupResult(product, productOptionGroupId, newValue));
         }
 
+        productAttributePolicyValidator.validate(product, policyContext);
         recordCatalogChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productRepository.update(product);
 
@@ -236,6 +243,7 @@ public class ProductApplicationService {
         ProductOptionGroup deleted = product.deleteProductOptionGroup(
                 new ProductOptionGroupId(productOptionGroupIdValue)
         );
+        productAttributePolicyValidator.validate(product);
         recordCatalogChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productRepository.update(product);
 
@@ -443,6 +451,7 @@ public class ProductApplicationService {
         validateOptionGroupStructureMutable(product);
 
         ProductOptionValue deleted = product.deleteProductOptionValue(new ProductOptionValueId(productOptionValueIdValue));
+        productAttributePolicyValidator.validate(product);
         recordCatalogChange(product, ProductCatalogChangeType.OPTION_CHANGED, expectedVersion);
         productRepository.update(product);
 
@@ -450,6 +459,9 @@ public class ProductApplicationService {
     }
 
     private void recordCatalogChange(Product product, ProductCatalogChangeType changeType, long expectedVersion) {
+        if (!product.isDeleted() && changeType == ProductCatalogChangeType.VARIANT_CHANGED) {
+            productAttributePolicyValidator.validate(product);
+        }
         productCatalogChangeService.recordChange(product, changeType, expectedVersion);
     }
 
@@ -515,6 +527,7 @@ public class ProductApplicationService {
         if (!Objects.equals(currentCategoryId, newCategoryId)) {
             productDomainService.validateCategoryForProduct(newCategoryId);
             product.changeCategoryId(newCategoryId);
+            productAttributePolicyValidator.validate(product);
             return true;
         }
         return false;
@@ -570,6 +583,7 @@ public class ProductApplicationService {
             }
             productDomainService.validateStatusChangeRules(product, newStatus);
             product.changeStatus(newStatus);
+            if (newStatus == ProductStatus.ACTIVE) productAttributePolicyValidator.validate(product);
             return true;
         }
         return false;

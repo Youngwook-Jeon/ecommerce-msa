@@ -2,6 +2,7 @@ package com.project.young.productservice.domain.entity;
 
 import com.project.young.common.domain.entity.AggregateRoot;
 import com.project.young.common.domain.valueobject.CategoryId;
+import com.project.young.common.domain.valueobject.AttributeDefinitionId;
 import com.project.young.common.domain.valueobject.Money;
 import com.project.young.common.domain.valueobject.ProductId;
 import com.project.young.common.domain.valueobject.ProductOptionGroupId;
@@ -28,6 +29,7 @@ public class Product extends AggregateRoot<ProductId> {
 
     private final List<ProductOptionGroup> optionGroups;
     private final List<ProductVariant> variants;
+    private final List<ProductAttribute> attributes;
 
     public static Builder builder() {
         return new Builder();
@@ -46,11 +48,12 @@ public class Product extends AggregateRoot<ProductId> {
 
         this.optionGroups = builder.optionGroups != null ? builder.optionGroups : new ArrayList<>();
         this.variants = builder.variants != null ? builder.variants : new ArrayList<>();
+        this.attributes = new ArrayList<>(builder.attributes);
     }
 
     private Product(ProductId productId, CategoryId categoryId, String name, String description,
                     Money basePrice, ProductStatus status, ConditionType conditionType, String brand,  String mainImageUrl,
-                    List<ProductOptionGroup> optionGroups, List<ProductVariant> variants) {
+                    List<ProductOptionGroup> optionGroups, List<ProductVariant> variants, List<ProductAttribute> attributes) {
         super.setId(productId);
         this.categoryId = categoryId;
         this.name = name;
@@ -63,6 +66,35 @@ public class Product extends AggregateRoot<ProductId> {
 
         this.optionGroups = optionGroups != null ? new ArrayList<>(optionGroups) : new ArrayList<>();
         this.variants = variants != null ? new ArrayList<>(variants) : new ArrayList<>();
+        this.attributes = new ArrayList<>(Objects.requireNonNull(attributes, "attributes"));
+    }
+
+    public List<ProductAttribute> getAttributes() {
+        return List.copyOf(attributes);
+    }
+
+    public void setAttribute(ProductAttribute attribute) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot change specifications of a deleted product");
+        }
+        if (attribute == null) throw new ProductDomainException("Product specification is required");
+        for (var existing : attributes) {
+            if ((existing.getAttributeId().equals(attribute.getAttributeId()) && !existing.getId().equals(attribute.getId()))
+                    || (existing.getId().equals(attribute.getId()) && !existing.getAttributeId().equals(attribute.getAttributeId()))) {
+                throw new ProductDomainException("Product specification identity cannot be reassigned");
+            }
+        }
+        attributes.removeIf(existing -> existing.getAttributeId().equals(attribute.getAttributeId()));
+        attributes.add(attribute);
+    }
+
+    public void removeAttribute(AttributeDefinitionId attributeId) {
+        if (isDeleted()) {
+            throw new ProductDomainException("Cannot change specifications of a deleted product");
+        }
+        if (attributeId == null || !attributes.removeIf(attribute -> attribute.getAttributeId().equals(attributeId))) {
+            throw new ProductDomainException("Product specification not found");
+        }
     }
 
     public Optional<CategoryId> getCategoryId() {
@@ -450,7 +482,15 @@ public class Product extends AggregateRoot<ProductId> {
     public static Product reconstitute(ProductId productId, CategoryId categoryId, String name, String description,
                                       Money basePrice, ProductStatus status, ConditionType conditionType, String brand, String mainImageUrl,
                                        List<ProductOptionGroup> optionGroups, List<ProductVariant> variants) {
-        return new Product(productId, categoryId, name, description, basePrice, status, conditionType, brand, mainImageUrl, optionGroups, variants);
+        return new Product(productId, categoryId, name, description, basePrice, status, conditionType, brand, mainImageUrl, optionGroups, variants, List.of());
+    }
+
+    public static Product reconstitute(ProductId productId, CategoryId categoryId, String name, String description,
+                                      Money basePrice, ProductStatus status, ConditionType conditionType, String brand,
+                                      String mainImageUrl, List<ProductOptionGroup> optionGroups,
+                                      List<ProductVariant> variants, List<ProductAttribute> attributes) {
+        return new Product(productId, categoryId, name, description, basePrice, status, conditionType,
+                brand, mainImageUrl, optionGroups, variants, attributes);
     }
 
     public static class Builder {
@@ -465,6 +505,7 @@ public class Product extends AggregateRoot<ProductId> {
         private String mainImageUrl;
         private List<ProductOptionGroup> optionGroups = new ArrayList<>();
         private List<ProductVariant> variants = new ArrayList<>();
+        private List<ProductAttribute> attributes = new ArrayList<>();
 
         public Builder productId(ProductId productId) {
             this.productId = productId;
@@ -521,12 +562,20 @@ public class Product extends AggregateRoot<ProductId> {
             return this;
         }
 
+        public Builder attributes(List<ProductAttribute> attributes) {
+            this.attributes = List.copyOf(attributes);
+            return this;
+        }
+
         public Product build() {
             validate();
             return new Product(this);
         }
 
         private void validate() {
+            if (attributes.stream().map(ProductAttribute::getAttributeId).distinct().count() != attributes.size()) {
+                throw new ProductDomainException("Duplicate fixed product attribute");
+            }
             validateName(this.name);
             validateDescription(this.description);
             validateBasePrice(this.basePrice);
